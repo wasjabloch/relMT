@@ -2,19 +2,19 @@
 
 # relMT - Program to compute relative earthquake moment tensors
 # Copyright (C) 2024 Wasja Bloch, Doriane Drolet, Michael Bostock
-# 
+#
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
-# 
+#
 # This program is distributed in the hope that it will be useful, but WITHOUT
 # ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 # FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -31,6 +31,7 @@ from relmt.utils import logsh, differentiate, shift
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logsh)
+
 
 def irls_sparse(A, d, tolerance=1e-5, eps=1e-6, efac=1.3):
 
@@ -127,7 +128,7 @@ def pca_align(scomp0, dt, phase="P", nit=200, etol=0):
     # Delta epsilon (objective function)
     de = 1.0
 
-    # Concentrate energy on first pricipal component.
+    # Concentrate energy on first principal component.
     eob_old = phi(s, ns)
 
     logger.info("Singular values are:")

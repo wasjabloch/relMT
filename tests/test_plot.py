@@ -1,18 +1,18 @@
 # relMT - Program to compute relative earthquake moment tensors
 # Copyright (C) 2024 Wasja Bloch, Doriane Drolet, Michael Bostock
-# 
+#
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
-# 
+#
 # This program is distributed in the hope that it will be useful, but WITHOUT
 # ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 # FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -21,7 +21,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 """
-Test the MCCC functions
+Test the plotting functions
 """
 
 import numpy as np
@@ -35,10 +35,11 @@ from pathlib import Path
 def _signal_to_plot():
     return np.vstack([utils.make_wavelet(64, 10, "sin", 30, 0, 0) for _ in range(5)])
 
+
 def test_wvmatrix(iplot=False):
     if iplot:
         plt.ion()
-    pwd = Path(__file__).parent 
+    pwd = Path(__file__).parent
     wvf = pwd / "data" / "subcatalog_A.mats.npy"
     hdf = pwd / "data" / "header_A.yaml"
     mats = np.load(wvf)
