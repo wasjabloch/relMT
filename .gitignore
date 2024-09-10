@@ -1,0 +1,6 @@
+.pyproject.toml.un~
+.coverage
+coverage.xml
+.vscode/settings.json
+coverage/lcov.info
+*__pycache__*
