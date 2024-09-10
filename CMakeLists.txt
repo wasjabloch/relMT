@@ -27,15 +27,15 @@ set_property(TARGET fortranobject PROPERTY POSITION_INDEPENDENT_CODE ON)
 
 add_custom_command(
   OUTPUT mccoremodule.c mccore-f2pywrappers.f
-  DEPENDS mccore.f90
+  DEPENDS src/relmt/mccore.f90
   VERBATIM
   COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
-          "${CMAKE_CURRENT_SOURCE_DIR}/mccore.f90" -m mccore --lower)
+          "${CMAKE_CURRENT_SOURCE_DIR}/src/relmt/mccore.f90" -m mccore --lower)
 
 python_add_library(
   mccore MODULE "${CMAKE_CURRENT_BINARY_DIR}/mccoremodule.c"
   "${CMAKE_CURRENT_BINARY_DIR}/mccore-f2pywrappers.f"
-  "${CMAKE_CURRENT_SOURCE_DIR}/mccore.f90" WITH_SOABI)
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/relmt/mccore.f90" WITH_SOABI)
 target_link_libraries(mccore PRIVATE fortranobject)
 
 install(TARGETS mccore DESTINATION .)
