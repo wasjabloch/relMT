@@ -27,6 +27,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from scipy.linalg import svd
 from scipy.signal import bessel, butter, lfilter
+from datetime import datetime
 import scipy.fft as fft
 import logging
 
@@ -46,6 +47,225 @@ logger.addHandler(logsh)
 
 def _gauss(n: int, sig: float, de: float):
     return np.exp(-1 / 2 * (np.arange(-n / 2 - de, n / 2 - de) / sig) ** 2)
+
+
+def join_phid(ie: int, sta: str, pha: str) -> str:
+    """Join event, station and phase names to phase identifier"""
+    return f"{ie}_{sta}_{pha}"
+
+
+def split_phid(phid: str) -> tuple[int, str, str]:
+    """Split phase identifier into eventID, station and phase"""
+    ie, sta, pha = phid.split("_")
+    return int(ie), sta, pha
+
+def join_obsid(sta: str, pha: str) -> str:
+    """Join station and phase names to observation identifier"""
+    return f"{sta}_{pha}"
+
+
+def split_obsid(phid: str) -> tuple[int, str, str]:
+    """Split observation identifier into station and phase"""
+    sta, pha = phid.split("_")
+    return sta, pha
+
+
+
+def xyzarray(dic: dict) -> NDArray:
+    """Return spatial coordinates from event or station dictionary"""
+    return np.array([dic[i][:3] for i in sorted(dic)])
+
+
+def cartesian_distance(
+    x1: ArrayLike,
+    y1: ArrayLike,
+    z1: ArrayLike,
+    x2: ArrayLike,
+    y2: ArrayLike,
+    z2: ArrayLike,
+) -> NDArray:
+    """Cartesian distance between points (x1, y1, z1) and (x2, y2, z2)"""
+    return np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2)
+
+
+def azimuth(x1, y1, x2, y2):
+    """Azimuth from point (x1, y1) to (x2, y2)"""
+    return np.arctan2((y2 - y1), (x2 - x1)) * 180 / np.pi
+
+
+def approx_time_lookup(
+    time1s: str | float, time2s: str | float, include_at=np.inf
+) -> dict:
+    """
+    Create lookup table for time1s approximatley matching time2s
+
+    All events in time1s must be present in time2s, i.e. len(time1s) <= len(time2s).
+
+    Parameters
+    ----------
+    times1, times2: (float or str)
+        Times either as understood by datetime.isoformat, or as float in seconds
+    include_at: (float)
+        Maximum time difference (seconds) to consider a match.:w
+
+
+    Returns
+    -------
+    lut: (dict)
+        Lookup table time1s -> time2s
+
+    Raises
+    ------
+    LookupError: when time1s is longer than time2s
+    """
+
+    logger.info("Creating approximate time lookup table")
+
+    if len(time1s) > len(time2s):
+        raise LookupError("times1 must be shorter or equal than times2.")
+
+    time1s = sorted(time1s)
+    time2s = sorted(time2s)
+
+    try:
+        t1s = list(map(datetime.fromisoformat, time1s))
+        t2s = list(map(datetime.fromisoformat, time2s))
+        istime = True
+    except (ValueError, TypeError):
+        t1s = list(map(float, time1s))
+        t2s = list(map(float, time2s))
+        istime = False
+
+    logger.info(f"Interpreting input as: {type(t1s[0])}")
+
+    lut = {}
+    n0 = 0
+    for ot1, t1 in zip(time1s, t1s):
+
+        dtmin = np.inf
+        for n, (ot2, t2) in enumerate(zip(time2s[n0:], t2s[n0:])):
+            dt = abs(t1 - t2)
+            if istime:
+                dt = abs(t1 - t2).total_seconds()
+
+            if dt < dtmin:
+                dtmin = dt
+                thisot2 = ot2
+            else:
+                break
+
+        if dtmin <= include_at:
+            lut[ot1] = thisot2
+        else:
+            msg = (
+                "Time difference between events is: {:.0f} seconds\n"
+                "Event 1: {:}\n"
+                "Event 2: {:}\n"
+                "Did not include event to lookup table!"
+            ).format(dtmin, ot1, ot2)
+            logger.warning(msg)
+        n0 = n0 + n
+
+    return lut
+
+
+def interpolate_phd(phd: dict, evd: dict, std: dict, nmin: int = 1) -> dict:
+    """
+    Interpolate phase arrivals, ray azimuth and inclination
+
+    Arrival time is interpolated via an average velocity along the ray path.
+
+    Ray inclination is interpolated linearly between neigboring points in depth
+
+    Azimuth is calculated assuming a horizontally straight ray.
+
+    Parameters
+    ----------
+    phd, evd, std: (dict)
+        Phase, event and station dictionaries
+    nmin: (int)
+        Minimum number of observations to make interpolation
+
+    Returns
+    -------
+    nphd: (dict)
+        New phase dictionary containing the interpolated phases
+    """
+
+    _, stas, phs = zip(*map(split_phid, phd.keys()))
+
+    # new phase dictionary
+    nphd = {}
+    for ph in set(phs):
+        for st in set(stas):
+            logger.debug(f"Working on phase {ph}, station {st}")
+            try:
+                sxyz = std[st][:3]
+            except KeyError:
+                logger.warning(f"Station {st} not in std. Skipping.")
+                continue
+
+            # For all events with phase readings on station, get:
+            # Travel times, distances, azimuths, inclination and depth
+            tdaiz = np.array(
+                [
+                    (
+                        phd[pid][0] - evd[ie][3],  # arrival - origin time
+                        cartesian_distance(*sxyz, *evd[ie][:3]),  # distance
+                        phd[pid][1],  # azimuth
+                        phd[pid][2],  # inclination
+                        evd[ie][2],  # event z-coordinate
+                    )
+                    for pid in phd
+                    for ie in evd
+                    if ie == split_phid(pid)[0]  # event match
+                    and st == split_phid(pid)[1]  # station match
+                    and ph == split_phid(pid)[2]  # phase match
+                ]
+            )
+
+            n = tdaiz.shape[0]
+            if n < nmin:
+                # Too few readings
+                logger.warning(
+                    f"Station {st} has only {n} {ph}-wave readings. nmin is {nmin}. Skipping"
+                )
+                continue
+
+            tt = tdaiz[:, 0]
+            d = tdaiz[:, 1]
+            logger.debug(
+                "Travel times are: "
+                + ", ".join(["{:.1e}".format(t) for t in tt])
+                + " sec"
+            )
+            logger.debug(
+                "Distances are: "
+                + ", ".join(["{:.1e}".format(dd) for dd in d])
+                + " meters"
+            )
+
+            # Average path velocity
+            v = np.average(d / tt)
+            logger.info(
+                f"{ph}-wave velocity along raypath to station {st} is "
+                + "{:.0f} +/- {:.0f} m/s".format(v, np.std(d / tt))
+            )
+
+            i, z = tdaiz[:, 3:5].T
+            isort = np.lexsort((i, z))  # sort by depth
+
+            # Now look for missing events
+            for ie in evd:
+                thisphid = join_phid(ie, st, ph)
+                if thisphid not in phd:
+                    ex, ey, ez, t0 = evd[ie][:4]
+                    td = cartesian_distance(ex, ey, ez, *sxyz)  # distance
+                    t = t0 + td / v  # arrival time
+                    ei = np.interp(ez, z[isort], i[isort])  # ray inclination
+                    ea = azimuth(ex, ey, sxyz[0], sxyz[1])  # ray azimuth
+                    nphd[thisphid] = (t, ea, ei)
+    return nphd
 
 
 def make_wavelet(
@@ -93,8 +313,8 @@ def shift(fn: ArrayLike, dt: float, t0: float) -> NDArray:
     t0 : (S,) :class:`~numpy.array`:
         Time shifts positive to the right per seismogram (seconds)
 
-    Returns:
-    --------
+    Returns
+    -------
     out : (S, N) :class:`~numpy.array`:
         Shifted seismogram section
     """
