@@ -14,7 +14,7 @@ authors = [
 ]
 maintainers = [{ name = "Wasja Bloch", email = "wasja@norsar.no" }]
 readme = "README.md"
-dependencies = ["numpy", "scipy", "pyyaml", "matplotlib", "obspy"]
+dependencies = ["numpy", "scipy", "pyyaml", "matplotlib", "obspy", "utm"]
 classifiers = [
     "Private :: Do Not Upload",
     "Development Status :: 2 - Pre-Alpha",
