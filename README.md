@@ -4,6 +4,37 @@
 
 ***WARNING: This is an alpha release. The package is not yet complete.***
 
+# Installation
+
+1. Install `fftw` using the package manager of your system. Alternativley, download and install it from the source (https://www.fftw.org/download.html) and place it "somewhere where CMake can find it".
+
+2. Create a conda environment and activate it. Choose any Python version greater 3.9
+
+```
+conda create -n relmt python=3.9
+conda activate relmt
+```
+
+3. Clone this repository:
+
+```
+git clone https://github.com/wasjabloch/relMT
+```
+
+4. Install `relMT` and its dependencies using pip
+
+```
+cd relMT
+pip install .
+```
+
+5. If you are working in ipython, install it in the environment to avoid version conflicts
+```
+conda install ipython
+```
+
+# Rationale
+
 The algorithm consists of the following steps:
 
 1. Choose clusters of seismic events for which the Green's function can be assumed equal
