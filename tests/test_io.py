@@ -28,6 +28,7 @@ from relmt import io, utils
 from pathlib import Path
 import tempfile
 import numpy as np
+import os
 from obspy import UTCDateTime, Trace, Stream
 
 import pytest
@@ -114,6 +115,7 @@ def test_read_station_inventory_error2():
     inv[0][0].alternate_code = "MA_EM"
     with pytest.raises(ValueError):
         _ = io.read_station_inventory(inv, my_geoconverter)
+
 
 def test_read_nll_hypfile_keys():
     # Test if Hypfile is translated correctly into dictionary
@@ -204,6 +206,7 @@ def test_read_phase_table():
         fid.write(tab)
         fid.close()
         phd2 = io.read_phase_table(fid.name)
+    os.remove(fid.name)
 
     for phid, phid2 in zip(phd, phd2):
         assert phid == phid2
@@ -230,6 +233,7 @@ def test_make_read_station_table():
         fid.write(tab)
         fid.close()
         evdout = io.read_station_table(fid.name)
+    os.remove(fid.name)
 
     for ind, outd in zip(evdin, evdout):
         assert ind == outd
@@ -243,6 +247,7 @@ def test_make_read_event_table():
         fid.write(tab)
         fid.close()
         evdout = io.read_event_table(fid.name)
+    os.remove(fid.name)
 
     for ind, outd in zip(evdin, evdout):
         assert ind == outd
@@ -301,16 +306,16 @@ def test_make_event_table(iprint=False):
 
 
 def test_make_waveform_array():
-    sr = 100
-    tw = 2
-    st = Stream(
+    sampling_rate = 100
+    time_window = 2
+    stream = Stream(
         [
             Trace(
-                utils.make_wavelet(5000, 50, we=100, de=-1500),
+                utils._make_wavelet(5000, 50, we=100, de=-1500),
                 header={
                     "station": "A",
                     "channel": f"HH{cha}",
-                    "delta": 1 / sr,
+                    "delta": 1 / sampling_rate,
                     "starttime": UTCDateTime(t0),
                 },
             )
@@ -319,14 +324,46 @@ def test_make_waveform_array():
         ]
     )
 
-    phd = {
+    phase_dict = {
         "0_A_P": (10.0, 0, 0),
         "0_A_S": (15.0, 0, 0),
         "1_A_P": (110.0, 0, 0),
         "1_A_S": (115.0, 0, 0),
     }
 
-    wvd = io.make_waveform_arrays(st, phd, tw, sr)
-    assert len(wvd) == 2
-    assert wvd["A_P"].shape == (2, 3, sr * tw + 1)
-    assert any(np.flatnonzero(wvd["A_S"][0, 0, :]))
+    wave_dict = io.make_waveform_arrays(stream, phase_dict, time_window, sampling_rate)
+    assert len(wave_dict) == 2
+    assert wave_dict["A_P"].shape == (2, 3, sampling_rate * time_window + 1)
+    assert not all(np.flatnonzero(wave_dict["A_S"][0, 0, :]))
+
+
+def test_read_waveform_array():
+    sr = 100
+    tw = 2
+    st = Stream(
+        [
+            Trace(
+                utils._make_wavelet(5000, 50, we=100, de=-1500),
+                header={
+                    "station": "A",
+                    "channel": f"HH{cha}",
+                    "delta": 1 / sr,
+                    "starttime": UTCDateTime(0),
+                },
+            )
+            for cha in "ZNE"
+        ]
+    )
+
+    phd = {"0_A_P": (10.0, 0, 0)}
+
+    wvdict = io.make_waveform_arrays(st, phd, tw, sr)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        fil = Path(temp_dir) / "A_P.npy" 
+        np.save(fil.name, wvdict["A_P"])
+        wave_dict = io.read_waveform_file(fil.name)
+
+    assert "A_P" in wave_dict
+    assert wave_dict["A_P"].shape == (1, 3, sr * tw + 1)
+    assert not all(np.flatnonzero(wave_dict["A_P"][0, 0, :]))

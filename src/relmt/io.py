@@ -37,16 +37,19 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(logsh)
 
 
-def read_obspy_inventory_files(fns: Iterable[str]) -> Inventory:
+def read_obspy_inventory_files(filenames: Iterable[str]) -> Inventory:
     """Read station files using obspy's read_inventory"""
     inv = Inventory()
-    for fn in fns:
+    for fn in filenames:
         inv += obspy.read_inventory(fn)
     return inv
 
 
 def read_phase_nll_hypfile(
-    fn: str, ie: str, substract_residual: bool, substract_stationterm: bool
+    filename: str,
+    event_index: str,
+    substract_residual: bool,
+    substract_stationterm: bool,
 ):
     """
     Read arrival times and take-off angles from NonLinLoc .hyp file.
@@ -60,9 +63,9 @@ def read_phase_nll_hypfile(
 
     Parameters
     ----------
-    fn : str
+    filename : str
         Name of the NonLinLoc hypocenter (.hyp) file
-    ie : str
+    event_index : str
         Event index of this set of phase observations. Must correspond to event
         index in event dictionary.
     substract_residual, substract_stationterm: (boolean)
@@ -71,10 +74,10 @@ def read_phase_nll_hypfile(
 
     Returns
     -------
-    phd: dict
+    phase_dict: dict
         Lookup table phase ID -> (Arrivaltime, azimuth, inclination)
     """
-    with open(fn, "r") as fid:
+    with open(filename, "r") as fid:
         lines = fid.readlines()
 
     i1, i2 = (None, None)
@@ -118,7 +121,7 @@ def read_phase_nll_hypfile(
         sta = str(line[0])
         pha = str(line[4])
 
-        phid = utils.join_phid(ie, sta, pha)
+        phid = utils.join_phid(event_index, sta, pha)
         outd[phid] = (t.timestamp, azi, inc)
 
     return outd
@@ -202,12 +205,12 @@ def geoconverter_latlon2utm(latitude, longitude, depth, utm_num, utm_let):
 
 
 def read_station_inventory(
-    inv: Inventory, geoconverter: Callable, strict=True
+    inventory: Inventory, geoconverter: Callable, strict=True
 ) -> dict[str : tuple[float, float, float]]:
     """
     Parameters
     ----------
-    inv : obspy.Inventory
+    inventory : obspy.Inventory
         Must contain network and station codes, and coordinates.
     geoconverter : callable
         Function that takes longitude, latitude and depth as arguments and returns local
@@ -220,7 +223,7 @@ def read_station_inventory(
 
     Returns
     -------
-    stad: dict
+    station_dict: dict
         Station dictionary Code -> Northing, Easting, Depth
 
     Raises
@@ -229,8 +232,8 @@ def read_station_inventory(
         KeyError when repeated station codes are met and `stict` is True
     """
 
-    stad = dict()
-    for net in inv:
+    station_dict = dict()
+    for net in inventory:
         for sta in net:
             north, east, _ = geoconverter(sta.latitude, sta.longitude, 0)
             depth = -sta.elevation
@@ -241,17 +244,17 @@ def read_station_inventory(
                     if "_" in scode:
                         msg = f"'_' character in station code {scode} is reserved."
                         raise ValueError(msg)
-                    if scode in stad and strict:
-                        n, e, d = stad[scode]
+                    if scode in station_dict and strict:
+                        n, e, d = station_dict[scode]
                         if n != north or e != east or d != depth:
                             msg = f"Station code {scode} already contained."
                             raise KeyError(msg)
-                    stad.update({scode: (north, east, depth)})
+                    station_dict.update({scode: (north, east, depth)})
 
-    return stad
+    return station_dict
 
 
-def make_station_table(stad: dict) -> str:
+def make_station_table(station_dict: dict) -> str:
     """
     Convert station dictionary to relMT compliant station table
 
@@ -262,7 +265,7 @@ def make_station_table(stad: dict) -> str:
 
     Parameters
     ----------
-    stad: dict
+    station_dict: dict
         Station dictionary Code -> Northing, Easting, Depth
 
     Returns
@@ -276,37 +279,39 @@ def make_station_table(stad: dict) -> str:
     out += "# (code)    (meter)    (meter)   (meter) \n"
     form = "{:>8s} {:>10.1f} {:>10.1f} {:>9.1f}\n"
 
-    for code, (north, east, depth) in stad.items():
+    for code, (north, east, depth) in station_dict.items():
         out += form.format(code, north, east, depth)
 
     return out
 
 
-def read_station_table(fn: str) -> dict:
+def read_station_table(filename: str) -> dict:
     """
     Read a relMT station table into dictionary structrue
 
     Parameters
     ----------
-    fn : str
+    filename : str
         Name of the station table file
 
     Returns
     -------
-    evd: dict
+    station_dict: dict
         Station code -> norting, easting, depth
 
     """
-    code = np.loadtxt(fn, usecols=(0), unpack=True, dtype=str)
+    code = np.loadtxt(filename, usecols=(0), unpack=True, dtype=str)
     (
         north,
         east,
         depth,
-    ) = np.loadtxt(fn, usecols=(1, 2, 3), unpack=True, dtype=float)
+    ) = np.loadtxt(filename, usecols=(1, 2, 3), unpack=True, dtype=float)
     return {c: (n, e, d) for c, n, e, d in zip(code, north, east, depth)}
 
 
-def make_event_table(evd: dict[int:str, float, float, float, float, float]) -> str:
+def make_event_table(
+    event_dict: dict[int:str, float, float, float, float, float]
+) -> str:
     """
     Convert event dictionary to relMT compliant event table.
 
@@ -315,7 +320,7 @@ def make_event_table(evd: dict[int:str, float, float, float, float, float]) -> s
 
     Parameters
     ----------
-    evd: dict
+    event_dict: dict
         Event dictionary
         EventIndex -> Northing, Easting, Depth, Originime, Magnitude, Identifier
 
@@ -333,20 +338,20 @@ def make_event_table(evd: dict[int:str, float, float, float, float, float]) -> s
 
     form = "{:>7d} {:>10.1f} {:>10.1f} {:>9.1f} {: 12.6f} {:>9.4f} {:>16s}\n"
 
-    for iev, (north, east, depth, time, mag, evid) in evd.items():
+    for iev, (north, east, depth, time, mag, evid) in event_dict.items():
         out += form.format(iev, north, east, depth, time, mag, evid)
 
     return out
 
 
 def read_ext_event_table(
-    fn: str,
-    inorth: int,
-    ieast: int,
-    idepth: int,
-    itime: int,
-    imag: int,
-    iid: int,
+    filename: str,
+    north_index: int,
+    east_index: int,
+    depth_index: int,
+    time_index: int,
+    magnitude_index: int,
+    evid_index: int,
     geoconverter: Callable | None = None,
     timeconverter: Callable | None = None,
     idconverter: Callable | None = None,
@@ -357,10 +362,10 @@ def read_ext_event_table(
 
     Parameters
     ----------
-    fn : str
+    filename : str
         Name of the event table file
-    iid, inorth, ieast, idepth, itime, imag : int
-        Column indices of the eventID, northing, easting, depth, time, magnitude
+    north_index, east_index, depth_index, time_index, magnitude_index, evid_index : int
+        Column indices of the northing, easting, depth, time, magnitude, eventID
     geoconverter : callable or None
         Function that takes north, east and depth as arguments and returns local
         northing and easting and depth coordinates in meters (e.g. interpret
@@ -378,7 +383,7 @@ def read_ext_event_table(
 
     Returns
     -------
-    evd: dict
+    event_dict: dict
         Event dictionary event index -> norting, easting, depth, time, magnitude, eventID
 
     Raises
@@ -393,11 +398,15 @@ def read_ext_event_table(
         raise KeyError(msg)
 
     evid, time = np.loadtxt(
-        fn, usecols=(iid, itime), unpack=True, dtype=str, **loadtxt_kwargs
+        filename,
+        usecols=(evid_index, time_index),
+        unpack=True,
+        dtype=str,
+        **loadtxt_kwargs,
     )
     north, east, depth, mag = np.loadtxt(
-        fn,
-        usecols=(inorth, ieast, idepth, imag),
+        filename,
+        usecols=(north_index, east_index, depth_index, magnitude_index),
         dtype=float,
         unpack=True,
         **loadtxt_kwargs,
@@ -423,34 +432,36 @@ def read_ext_event_table(
 
 
 def read_event_table(
-    fn: str,
+    filename: str,
 ) -> dict[int : tuple[float, float, float, float, str]]:
     """
     Read a relMT event table into dictionary structrue
 
     Parameters
     ----------
-    fn : str
+    filename : str
         Name of the event table file
 
     Returns
     -------
-    evd: dict
+    event_dict: dict
         Event dictionary event index -> event ID, norting, easting, depth, magnitude
 
     """
-    ie = np.loadtxt(fn, usecols=(0), unpack=True, dtype=int)
+    event_index = np.loadtxt(filename, usecols=(0), unpack=True, dtype=int)
     north, east, depth, time, mag = np.loadtxt(
-        fn, usecols=(1, 2, 3, 4, 5), unpack=True, dtype=float
+        filename, usecols=(1, 2, 3, 4, 5), unpack=True, dtype=float
     )
-    evid = np.loadtxt(fn, usecols=6, unpack=True, dtype=str)
+    evid = np.loadtxt(filename, usecols=6, unpack=True, dtype=str)
     return {
         i: (n, e, d, t, m, id)
-        for i, n, e, d, t, m, id in zip(ie, north, east, depth, time, mag, evid)
+        for i, n, e, d, t, m, id in zip(
+            event_index, north, east, depth, time, mag, evid
+        )
     }
 
 
-def make_phase_table(phd: dict[str:(float, float, float)]) -> str:
+def make_phase_table(phase_dict: dict[str:(float, float, float)]) -> str:
     """
     Convert phase dictionary to relMT compliant phase table.
 
@@ -465,7 +476,7 @@ def make_phase_table(phd: dict[str:(float, float, float)]) -> str:
 
     Parameters
     ----------
-    phd: dict
+    phase_dict: dict
         Phase dictionary
         PhaseID -> Arrivaltime, Azimuth, Inclination
 
@@ -482,31 +493,32 @@ def make_phase_table(phd: dict[str:(float, float, float)]) -> str:
 
     form = "{:>16d} {:>7s} {:>5s} {: 12.6f} {: 8.2f} {: 11.2f}\n"
 
-    for phid, (time, azi, inc) in phd.items():
-        ie, sta, pha = utils.split_phid(phid)
-        out += form.format(ie, sta, pha, time, azi, inc)
+    for phid, (time, azi, inc) in phase_dict.items():
+        event_index, sta, pha = utils.split_phid(phid)
+        out += form.format(event_index, sta, pha, time, azi, inc)
 
     return out
 
 
-def read_phase_table(fn: str) -> dict[str : tuple[float, float, float]]:
+def read_phase_table(filename: str) -> dict[str : tuple[float, float, float]]:
     """
     Read a phase table into phase dictionary
 
     Parameters
     ----------
-    fn : str
+    filename : str
         Name of phase file
 
     Returns
     -------
-    phd: dict
+    phase_dict: dict
         Lookup table phaseID -> (Arrivaltime, azimuth, inclination)
     """
     phids = map(
-        utils.join_phid, *np.loadtxt(fn, usecols=(0, 1, 2), unpack=True, dtype=str)
+        utils.join_phid,
+        *np.loadtxt(filename, usecols=(0, 1, 2), unpack=True, dtype=str),
     )
-    times, azs, incs = np.loadtxt(fn, usecols=(3, 4, 5), unpack=True, dtype=float)
+    times, azs, incs = np.loadtxt(filename, usecols=(3, 4, 5), unpack=True, dtype=float)
 
     return {
         phid: (time, az, inc) for phid, time, az, inc in zip(phids, times, azs, incs)
@@ -515,9 +527,9 @@ def read_phase_table(fn: str) -> dict[str : tuple[float, float, float]]:
 
 def make_waveform_arrays(
     traces: Stream,
-    phd: dict[str : tuple[float, float, float]],
+    phase_dict: dict[str : tuple[float, float, float]],
     twind: float,
-    sr: float,
+    sampling_rate: float,
 ) -> dict[str : tuple[NDArray, NDArray]]:
     """
     Isolate time windows around picks and wrtie to waveform array
@@ -526,11 +538,11 @@ def make_waveform_arrays(
     ----------
     traces : obspy.Stream
         Seismic event waveforms
-    phd : dict
+    phase_dict : dict
         Phase dictionary containing phase arrival times
     twind : float
         Time window length around pick (seconds)
-    sr : float
+    sampling_rate : float
         Sampling rate of the output traces (1/seconds)
 
     Returns:
@@ -538,13 +550,13 @@ def make_waveform_arrays(
         Station codes and phase identifier to wave trains
     """
 
-    ies, stas, phs = zip(*map(utils.split_phid, phd))
+    ies, stas, phs = zip(*map(utils.split_phid, phase_dict))
     uies = set(ies)
     ustas = set(stas)
     uphs = set(phs)
 
     # Initialize output arrays
-    nsamp = int(twind * sr) + 1
+    nsamp = int(twind * sampling_rate) + 1
     ncha = len(set([tr.stats.channel[-1] for tr in traces]))
     nev = len(uies)
     keys = [f"{sta}_{pha}" for pha in set(phs) for sta in ustas]
@@ -566,11 +578,15 @@ def make_waveform_arrays(
             t0tr = ttr
     nss.append(len(traces))  # explicit last index needed for slicing
 
-    for ie in uies:
-        logger.debug(f"Working on event: {ie}.")
+    for event_index in uies:
+        logger.debug(f"Working on event: {event_index}.")
 
         # Find traces that contain all picks for this event
-        tps = [phd[phid][0] for phid in phd if utils.split_phid(phid)[0] == ie]
+        tps = [
+            phase_dict[phid][0]
+            for phid in phase_dict
+            if utils.split_phid(phid)[0] == event_index
+        ]
         tpmi = min(tps)
         tpma = max(tps)
 
@@ -593,10 +609,10 @@ def make_waveform_arrays(
 
             for ph in uphs:
                 logger.debug(f"Working on phase: {ph}.")
-                phid = utils.join_phid(ie, sta, ph)
-                key = utils.join_obsid(sta, ph)
+                phid = utils.join_phid(event_index, sta, ph)
+                key = utils.join_waveid(sta, ph)
                 try:
-                    tp = UTCDateTime(phd[phid][0])
+                    tp = UTCDateTime(phase_dict[phid][0])
                 except KeyError:
                     logger.info(f"{phid} not in phase dictionary. Continuing.")
                     continue
@@ -617,7 +633,7 @@ def make_waveform_arrays(
                     )
                     tr.detrend("demean")
                     tr.detrend("simple")  # first and last sample 0 before fft
-                    tr.resample(sr)
+                    tr.resample(sampling_rate)
                     data = tr.data
 
                     if len(data) == 0:
@@ -628,20 +644,39 @@ def make_waveform_arrays(
                     nm = nsamp - len(data)  # missing samples
 
                     if nm == 0:
-                        wvd[key][ie, ic, :] = data
+                        wvd[key][event_index, ic, :] = data
 
                     elif nm > 0:
                         msg = f"{nm} of {nsamp} samples missing for {phid}. Padding with zeros at both ends."
                         logger.info(msg)
                         ps = nm // 2  # pad at start
                         pe = len(data) + nm // 2 + nm % 2  # pad at end
-                        wvd[key][ie, ic, ps:pe] = data
+                        wvd[key][event_index, ic, ps:pe] = data
 
                     if nm < 0:
                         msg = f"{-nm} samples too many for {phid}. Cropping at both sides."
                         logger.info(msg)
                         ps = -nm // 2  # crop at start
                         pe = -(-nm // 2 + nm % 2)  # crop at end
-                        wvd[key][ie, ic, :] = data[:nsamp]
+                        wvd[key][event_index, ic, :] = data[:nsamp]
 
     return wvd
+
+
+def read_waveform_file(filename: str) -> dict[str : NDArray]:
+    """
+    Read a waveform .npy array into waveform dictionary
+
+    Parameters
+    ----------
+    filename : str
+        Name of the waveform file
+
+    Returns
+    -------
+    wavedict: dict
+        Lookup table waveformID -> NDArray
+    """
+    wavearr = np.load(filename)
+    waveid = utils.join_waveid(*filename.rstrip(".npy").split("_")[:2])
+    return {waveid: wavearr}

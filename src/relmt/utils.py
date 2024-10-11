@@ -2,19 +2,19 @@
 
 # relMT - Program to compute relative earthquake moment tensors
 # Copyright (C) 2024 Wasja Bloch, Doriane Drolet, Michael Bostock
-# 
+#
 # This program is free software: you can redistribute it and/or modify it under
 # the terms of the GNU General Public License as published by the Free Software
 # Foundation, either version 3 of the License, or (at your option) any later
 # version.
-# 
+#
 # This program is distributed in the hope that it will be useful, but WITHOUT
 # ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 # FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License along with
 # this program. If not, see <http://www.gnu.org/licenses/>.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -49,31 +49,31 @@ def _gauss(n: int, sig: float, de: float):
     return np.exp(-1 / 2 * (np.arange(-n / 2 - de, n / 2 - de) / sig) ** 2)
 
 
-def join_phid(ie: int, sta: str, pha: str) -> str:
+def join_phid(event_index: int, station: str, phase: str) -> str:
     """Join event, station and phase names to phase identifier"""
-    return f"{ie}_{sta}_{pha}"
+    return f"{event_index}_{station}_{phase}"
 
 
 def split_phid(phid: str) -> tuple[int, str, str]:
     """Split phase identifier into eventID, station and phase"""
-    ie, sta, pha = phid.split("_")
-    return int(ie), sta, pha
+    event_index, station, phase = phid.split("_")
+    return int(event_index), station, phase
 
-def join_obsid(sta: str, pha: str) -> str:
+
+def join_waveid(station: str, phase: str) -> str:
     """Join station and phase names to observation identifier"""
-    return f"{sta}_{pha}"
+    return f"{station}_{phase}"
 
 
-def split_obsid(phid: str) -> tuple[int, str, str]:
+def split_waveid(phid: str) -> tuple[int, str, str]:
     """Split observation identifier into station and phase"""
-    sta, pha = phid.split("_")
-    return sta, pha
+    station, phase = phid.split("_")
+    return station, phase
 
 
-
-def xyzarray(dic: dict) -> NDArray:
+def xyzarray(dictionary: dict) -> NDArray:
     """Return spatial coordinates from event or station dictionary"""
-    return np.array([dic[i][:3] for i in sorted(dic)])
+    return np.array([dictionary[i][:3] for i in sorted(dictionary)])
 
 
 def cartesian_distance(
@@ -94,7 +94,7 @@ def azimuth(x1, y1, x2, y2):
 
 
 def approx_time_lookup(
-    time1s: str | float, time2s: str | float, include_at=np.inf
+    time1: str | float, time2: str | float, include_at=np.inf
 ) -> dict:
     """
     Create lookup table for time1s approximatley matching time2s
@@ -121,29 +121,29 @@ def approx_time_lookup(
 
     logger.info("Creating approximate time lookup table")
 
-    if len(time1s) > len(time2s):
+    if len(time1) > len(time2):
         raise LookupError("times1 must be shorter or equal than times2.")
 
-    time1s = sorted(time1s)
-    time2s = sorted(time2s)
+    time1 = sorted(time1)
+    time2 = sorted(time2)
 
     try:
-        t1s = list(map(datetime.fromisoformat, time1s))
-        t2s = list(map(datetime.fromisoformat, time2s))
+        t1s = list(map(datetime.fromisoformat, time1))
+        t2s = list(map(datetime.fromisoformat, time2))
         istime = True
     except (ValueError, TypeError):
-        t1s = list(map(float, time1s))
-        t2s = list(map(float, time2s))
+        t1s = list(map(float, time1))
+        t2s = list(map(float, time2))
         istime = False
 
     logger.info(f"Interpreting input as: {type(t1s[0])}")
 
     lut = {}
     n0 = 0
-    for ot1, t1 in zip(time1s, t1s):
+    for ot1, t1 in zip(time1, t1s):
 
         dtmin = np.inf
-        for n, (ot2, t2) in enumerate(zip(time2s[n0:], t2s[n0:])):
+        for n, (ot2, t2) in enumerate(zip(time2[n0:], t2s[n0:])):
             dt = abs(t1 - t2)
             if istime:
                 dt = abs(t1 - t2).total_seconds()
@@ -169,7 +169,9 @@ def approx_time_lookup(
     return lut
 
 
-def interpolate_phd(phd: dict, evd: dict, std: dict, nmin: int = 1) -> dict:
+def interpolate_phd(
+    phase_dict: dict, event_dict: dict, station_dict: dict, obs_min: int = 1
+) -> dict:
     """
     Interpolate phase arrivals, ray azimuth and inclination
 
@@ -181,9 +183,9 @@ def interpolate_phd(phd: dict, evd: dict, std: dict, nmin: int = 1) -> dict:
 
     Parameters
     ----------
-    phd, evd, std: (dict)
+    phase_dict, event_dict, station_dict: (dict)
         Phase, event and station dictionaries
-    nmin: (int)
+    obs_min: (int)
         Minimum number of observations to make interpolation
 
     Returns
@@ -192,7 +194,7 @@ def interpolate_phd(phd: dict, evd: dict, std: dict, nmin: int = 1) -> dict:
         New phase dictionary containing the interpolated phases
     """
 
-    _, stas, phs = zip(*map(split_phid, phd.keys()))
+    _, stas, phs = zip(*map(split_phid, phase_dict.keys()))
 
     # new phase dictionary
     nphd = {}
@@ -200,9 +202,9 @@ def interpolate_phd(phd: dict, evd: dict, std: dict, nmin: int = 1) -> dict:
         for st in set(stas):
             logger.debug(f"Working on phase {ph}, station {st}")
             try:
-                sxyz = std[st][:3]
+                sxyz = station_dict[st][:3]
             except KeyError:
-                logger.warning(f"Station {st} not in std. Skipping.")
+                logger.warning(f"Station {st} not in station_dict. Skipping.")
                 continue
 
             # For all events with phase readings on station, get:
@@ -210,25 +212,28 @@ def interpolate_phd(phd: dict, evd: dict, std: dict, nmin: int = 1) -> dict:
             tdaiz = np.array(
                 [
                     (
-                        phd[pid][0] - evd[ie][3],  # arrival - origin time
-                        cartesian_distance(*sxyz, *evd[ie][:3]),  # distance
-                        phd[pid][1],  # azimuth
-                        phd[pid][2],  # inclination
-                        evd[ie][2],  # event z-coordinate
+                        phase_dict[pid][0]
+                        - event_dict[event_index][3],  # arrival - origin time
+                        cartesian_distance(
+                            *sxyz, *event_dict[event_index][:3]
+                        ),  # distance
+                        phase_dict[pid][1],  # azimuth
+                        phase_dict[pid][2],  # inclination
+                        event_dict[event_index][2],  # event z-coordinate
                     )
-                    for pid in phd
-                    for ie in evd
-                    if ie == split_phid(pid)[0]  # event match
+                    for pid in phase_dict
+                    for event_index in event_dict
+                    if event_index == split_phid(pid)[0]  # event match
                     and st == split_phid(pid)[1]  # station match
                     and ph == split_phid(pid)[2]  # phase match
                 ]
             )
 
             n = tdaiz.shape[0]
-            if n < nmin:
+            if n < obs_min:
                 # Too few readings
                 logger.warning(
-                    f"Station {st} has only {n} {ph}-wave readings. nmin is {nmin}. Skipping"
+                    f"Station {st} has only {n} {ph}-wave readings. obs_min is {obs_min}. Skipping"
                 )
                 continue
 
@@ -256,10 +261,10 @@ def interpolate_phd(phd: dict, evd: dict, std: dict, nmin: int = 1) -> dict:
             isort = np.lexsort((i, z))  # sort by depth
 
             # Now look for missing events
-            for ie in evd:
-                thisphid = join_phid(ie, st, ph)
-                if thisphid not in phd:
-                    ex, ey, ez, t0 = evd[ie][:4]
+            for event_index in event_dict:
+                thisphid = join_phid(event_index, st, ph)
+                if thisphid not in phase_dict:
+                    ex, ey, ez, t0 = event_dict[event_index][:4]
                     td = cartesian_distance(ex, ey, ez, *sxyz)  # distance
                     t = t0 + td / v  # arrival time
                     ei = np.interp(ez, z[isort], i[isort])  # ray inclination
@@ -268,7 +273,7 @@ def interpolate_phd(phd: dict, evd: dict, std: dict, nmin: int = 1) -> dict:
     return nphd
 
 
-def make_wavelet(
+def _make_wavelet(
     n: int,
     p: float,
     typ: str = "sin",
@@ -300,13 +305,13 @@ def make_wavelet(
     return _gauss(n, we, de) * osc
 
 
-def shift(fn: ArrayLike, dt: float, t0: float) -> NDArray:
+def shift(funct: ArrayLike, dt: float, t0: float) -> NDArray:
     """
     Shift a seismogram section in Fourier space
 
     Parameters
     ----------
-    fn : (S, N) :class:`~numpy.array`:
+    funct : (S, N) :class:`~numpy.array`:
         Seismogram section, with time aligned along axis 1
     dt : float
         Sampling intervall (seconds)
@@ -319,10 +324,10 @@ def shift(fn: ArrayLike, dt: float, t0: float) -> NDArray:
         Shifted seismogram section
     """
 
-    n = fn.shape[-1]
+    n = funct.shape[-1]
     n2 = n // 2 + 1
     sfn = fft.irfft(
-        fft.rfft(fn)
+        fft.rfft(funct)
         * np.exp(np.outer(t0, (-1j * np.array(np.arange(n2) * 2 * np.pi / (n * dt))))),
         n,
     )
@@ -341,21 +346,43 @@ def xcorrc(x: ArrayLike, y: ArrayLike) -> NDArray:
     return z
 
 
-def taper(fn: ArrayLike, nt: float, dt: float, t1: float, t2: float) -> NDArray:
+def CCcoef(x, y):
     """
-    Taper time series.
+    Calculate the correlation coefficient between two equal-length vectors using the formula:
 
-    Taper time series `fn` sampled at `dt` with a cosine taper `nt` seconds long
-    from begin point `t1 - nt` and with reverse cosine taper from point `t2` to
-    point `t2 + nt`. Points inside the range `(t1, t2)` remain unchanged. Points
-    outside the range `(t1 - nt, t2 + nt)` are zeroed. If `t1` or `t2` is
-    negative then taper is not implemented at beginning or end. If `fn` is an
-    array of seismograms, then the taper is applied to the last dimension of
-    `fn`.
+    cc = sum(x * y) / sqrt(sum(x**2) * sum(y**2)).
 
     Parameters
     ----------
-    fn : (..., N) :class:`~numpy.array`:
+    x, y : (S,) :class:`~numpy.array`:
+        input vectors of same length
+
+    Returns:
+    --------
+    out : (float)
+        Correlation coefficient between x and y.
+
+    .. notes:
+        The correlation coefficient is a measure of linear association between two variables.
+    """
+    return sum(x * y) / np.sqrt(sum(x**2) * sum(y**2))
+
+
+def taper(funct: ArrayLike, nt: float, dt: float, t1: float, t2: float) -> NDArray:
+    """
+    Taper time series.
+
+    Taper time series `funct` sampled at `dt` with a cosine taper `nt` seconds long
+    from begin point `t1 - nt` and with reverse cosine taper from point `t2` to
+    point `t2 + nt`. Points inside the range `(t1, t2)` remain unchanged. Points
+    outside the range `(t1 - nt, t2 + nt)` are zeroed. If `t1` or `t2` is
+    negative then taper is not implemented at beginning or end. If `funct` is an
+    array of seismograms, then the taper is applied to the last dimension of
+    `funct`.
+
+    Parameters
+    ----------
+    funct : (..., N) :class:`~numpy.array`:
         Seismogram section, with time aligned along last axis
     nt : float:
         Length of taper (seconds)
@@ -368,7 +395,7 @@ def taper(fn: ArrayLike, nt: float, dt: float, t1: float, t2: float) -> NDArray:
         Tapered seismogram section
     """
 
-    nx = fn.shape[-1]
+    nx = funct.shape[-1]
     taper = np.ones(nx)
     it = np.arange(int(nt / dt + 1)) * dt / nt
     ct = 0.5 * (1 - np.cos(np.pi * it))
@@ -380,7 +407,7 @@ def taper(fn: ArrayLike, nt: float, dt: float, t1: float, t2: float) -> NDArray:
         taper[0 : it1 - int(nt / dt)] = np.zeros(np.size(np.arange(it1 - int(nt / dt))))
     if t2 > 0:
         if t2 > nx * dt - nt:
-            msg = "T2 is outside domain of fn: T2 > NX * DT - NT"
+            msg = "T2 is outside domain of funct: T2 > NX * DT - NT"
             raise ValueError(msg)
         taper[it2 - 1 : it2 + int(nt / dt)] = np.flip(ct)
         taper[it2 + int(nt / dt) - 1 : nx] = np.zeros(
@@ -390,16 +417,16 @@ def taper(fn: ArrayLike, nt: float, dt: float, t1: float, t2: float) -> NDArray:
     def _apply(arr):
         return arr * taper
 
-    return np.apply_along_axis(_apply, -1, fn)
+    return np.apply_along_axis(_apply, -1, funct)
 
 
-def demean(fn: ArrayLike) -> NDArray:
+def demean(funct: ArrayLike) -> NDArray:
     """
     Remove mean value along last dimension from array.
 
     Parameters
     ----------
-    fn : (..., N) :class:`~numpy.array`:
+    funct : (..., N) :class:`~numpy.array`:
 
     Returns:
     --------
@@ -410,7 +437,7 @@ def demean(fn: ArrayLike) -> NDArray:
     def _demean(arr):
         return arr - np.mean(arr)
 
-    return np.apply_along_axis(_demean, -1, fn)
+    return np.apply_along_axis(_demean, -1, funct)
 
 
 def _pow2(x: int) -> int:
@@ -421,13 +448,13 @@ def _pow2(x: int) -> int:
     return power
 
 
-def differentiate(fn: ArrayLike, dt: float) -> NDArray:
+def differentiate(funct: ArrayLike, dt: float) -> NDArray:
     """
     Differentiate a seismogram section in Fourier space
 
     Parameters
     ----------
-    fn : (..., N) :class:`~numpy.array`:
+    funct : (..., N) :class:`~numpy.array`:
         Seismogram section, with time aligned along last axis
     dt : float
         Sampling intervall (seconds)
@@ -438,10 +465,10 @@ def differentiate(fn: ArrayLike, dt: float) -> NDArray:
         Differentiated seismogram section
     """
 
-    n = np.shape(fn)[-1]
+    n = np.shape(funct)[-1]
     n2 = n // 2 + 1
     sfn = fft.irfft(
-        fft.rfft(fn) * 1j * np.arange(n2) * 2 * np.pi / (n * dt),
+        fft.rfft(funct) * 1j * np.arange(n2) * 2 * np.pi / (n * dt),
         n,
     )
     return sfn
@@ -466,7 +493,7 @@ def concat_component(wvm: ArrayLike) -> NDArray:
     return wvm.reshape(ne, ns * nc)
 
 
-def corner_frequency(M: float, sigma: float, vs: float, phase : str="P") -> float: 
+def corner_frequency(M: float, sigma: float, vs: float, phase: str = "P") -> float:
     """
     Return a rought estimate of the corner frequency based on
 
