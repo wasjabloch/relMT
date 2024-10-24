@@ -27,14 +27,15 @@ import utm
 from numpy.typing import NDArray
 import numpy as np
 import logging
-from relmt.utils import logsh
 from relmt import utils
+from relmt import core
+import yaml
 
 from collections.abc import Iterable, Callable
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-logger.addHandler(logsh)
+logger.addHandler(utils.logsh)
 
 
 def read_obspy_inventory_files(filenames: Iterable[str]) -> Inventory:
@@ -206,7 +207,7 @@ def geoconverter_latlon2utm(latitude, longitude, depth, utm_num, utm_let):
 
 def read_station_inventory(
     inventory: Inventory, geoconverter: Callable, strict=True
-) -> dict[str : tuple[float, float, float]]:
+) -> dict[str : core.Coordinate]:
     """
     Parameters
     ----------
@@ -249,7 +250,7 @@ def read_station_inventory(
                         if n != north or e != east or d != depth:
                             msg = f"Station code {scode} already contained."
                             raise KeyError(msg)
-                    station_dict.update({scode: (north, east, depth)})
+                    station_dict.update({scode: core.Coordinate(north, east, depth)})
 
     return station_dict
 
@@ -306,17 +307,15 @@ def read_station_table(filename: str) -> dict:
         east,
         depth,
     ) = np.loadtxt(filename, usecols=(1, 2, 3), unpack=True, dtype=float)
-    return {c: (n, e, d) for c, n, e, d in zip(code, north, east, depth)}
+    return {c: core.Coordinate(n, e, d) for c, n, e, d in zip(code, north, east, depth)}
 
 
-def make_event_table(
-    event_dict: dict[int:str, float, float, float, float, float]
-) -> str:
+def make_event_table(event_list: list[core.Event]) -> str:
     """
     Convert event dictionary to relMT compliant event table.
 
-    Number Identifier Northing Easting   Depth      Time Magnitude Identifier
-     (int)      (str)  (meter) (meter) (meter) (seconds)       (-)      (str)
+    Number Northing Easting   Depth      Time Magnitude       Name
+     (int)  (meter) (meter) (meter) (seconds)       (-)      (str)
 
     Parameters
     ----------
@@ -332,14 +331,14 @@ def make_event_table(
 
     # Header
     out = "#Number   Northing    Easting     Depth         Origintime Magnitude"
-    out += "       Identifier\n"
+    out += "             Name\n"
     out += "# (int)    (meter)    (meter)   (meter)          (seconds)       (-)"
     out += "            (str)\n"
 
     form = "{:>7d} {:>10.1f} {:>10.1f} {:>9.1f} {: 12.6f} {:>9.4f} {:>16s}\n"
 
-    for iev, (north, east, depth, time, mag, evid) in event_dict.items():
-        out += form.format(iev, north, east, depth, time, mag, evid)
+    for iev, (north, east, depth, time, mag, name) in enumerate(event_list):
+        out += form.format(iev, north, east, depth, time, mag, name)
 
     return out
 
@@ -354,9 +353,9 @@ def read_ext_event_table(
     evid_index: int,
     geoconverter: Callable | None = None,
     timeconverter: Callable | None = None,
-    idconverter: Callable | None = None,
-    **loadtxt_kwargs,
-) -> dict[int:float, float, float, float, str]:
+    nameconverter: Callable | None = None,
+    loadtxt_kwargs: dict = {},
+) -> dict[int : core.Event]:
     """
     Read an external event table into an event dictionary.
 
@@ -375,9 +374,9 @@ def read_ext_event_table(
         Function that takes time string as agrument and returns time in seconds
         as a float (e.g. epoch timestamp. Must be consistent with the reference
         frame of the waveforms)
-    idconverter : callable or None
+    nameconverter : callable or None
         Function that takes a string as argument and returns a user defined
-        eventID string.
+        event name string.
     loadtxt_kwargs: dict
         Additional keyword arguments are passed on to `numpy.loadtxt`
 
@@ -397,7 +396,7 @@ def read_ext_event_table(
         msg = f"loadtxt_kwargs: {', '.join(kwargs)} are reserved."
         raise KeyError(msg)
 
-    evid, time = np.loadtxt(
+    name, time = np.loadtxt(
         filename,
         usecols=(evid_index, time_index),
         unpack=True,
@@ -412,8 +411,8 @@ def read_ext_event_table(
         **loadtxt_kwargs,
     )
 
-    if idconverter is not None:
-        evid = map(idconverter, evid)
+    if nameconverter is not None:
+        name = map(nameconverter, name)
 
     if geoconverter is not None:
         north, east, depth = zip(*map(geoconverter, north, east, depth))
@@ -423,19 +422,15 @@ def read_ext_event_table(
     else:
         time = map(float, time)
 
-    return {
-        i: (n, e, d, t, m, id)
-        for i, (n, e, d, t, m, id) in enumerate(
-            zip(north, east, depth, time, mag, evid)
-        )
-    }
+    return [
+        core.Event(no, e, d, t, m, na)
+        for no, e, d, t, m, na in zip(north, east, depth, time, mag, name)
+    ]
 
 
-def read_event_table(
-    filename: str,
-) -> dict[int : tuple[float, float, float, float, str]]:
+def read_event_table(filename: str) -> list[core.Event]:
     """
-    Read a relMT event table into dictionary structrue
+    Read a relMT event table into list of events
 
     Parameters
     ----------
@@ -444,21 +439,18 @@ def read_event_table(
 
     Returns
     -------
-    event_dict: dict
-        Event dictionary event index -> event ID, norting, easting, depth, magnitude
+    event_list: list
+        norting, easting, depth, magnitude, name
 
     """
-    event_index = np.loadtxt(filename, usecols=(0), unpack=True, dtype=int)
     north, east, depth, time, mag = np.loadtxt(
         filename, usecols=(1, 2, 3, 4, 5), unpack=True, dtype=float
     )
-    evid = np.loadtxt(filename, usecols=6, unpack=True, dtype=str)
-    return {
-        i: (n, e, d, t, m, id)
-        for i, n, e, d, t, m, id in zip(
-            event_index, north, east, depth, time, mag, evid
-        )
-    }
+    name = np.loadtxt(filename, usecols=6, unpack=True, dtype=str)
+    return [
+        core.Event(no, e, d, t, m, na)
+        for no, e, d, t, m, na in zip(north, east, depth, time, mag, name)
+    ]
 
 
 def make_phase_table(phase_dict: dict[str:(float, float, float)]) -> str:
@@ -521,7 +513,8 @@ def read_phase_table(filename: str) -> dict[str : tuple[float, float, float]]:
     times, azs, incs = np.loadtxt(filename, usecols=(3, 4, 5), unpack=True, dtype=float)
 
     return {
-        phid: (time, az, inc) for phid, time, az, inc in zip(phids, times, azs, incs)
+        phid: core.Phase(time, az, inc)
+        for phid, time, az, inc in zip(phids, times, azs, incs)
     }
 
 
@@ -530,7 +523,7 @@ def make_waveform_arrays(
     phase_dict: dict[str : tuple[float, float, float]],
     twind: float,
     sampling_rate: float,
-) -> dict[str : tuple[NDArray, NDArray]]:
+) -> dict[str:NDArray]:
     """
     Isolate time windows around picks and wrtie to waveform array
 
@@ -647,14 +640,16 @@ def make_waveform_arrays(
                         wvd[key][event_index, ic, :] = data
 
                     elif nm > 0:
-                        msg = f"{nm} of {nsamp} samples missing for {phid}. Padding with zeros at both ends."
+                        msg = f"{nm} of {nsamp} samples missing for {phid}. "
+                        msg += "Padding with zeros at both ends."
                         logger.info(msg)
                         ps = nm // 2  # pad at start
                         pe = len(data) + nm // 2 + nm % 2  # pad at end
                         wvd[key][event_index, ic, ps:pe] = data
 
                     if nm < 0:
-                        msg = f"{-nm} samples too many for {phid}. Cropping at both sides."
+                        msg = f"{-nm} samples too many for {phid}. "
+                        msg += "Cropping at both sides."
                         logger.info(msg)
                         ps = -nm // 2  # crop at start
                         pe = -(-nm // 2 + nm % 2)  # crop at end
@@ -663,7 +658,7 @@ def make_waveform_arrays(
     return wvd
 
 
-def read_waveform_file(filename: str) -> dict[str : NDArray]:
+def read_waveform_file(filename: str) -> dict[str:NDArray]:
     """
     Read a waveform .npy array into waveform dictionary
 
@@ -674,9 +669,26 @@ def read_waveform_file(filename: str) -> dict[str : NDArray]:
 
     Returns
     -------
-    wavedict: dict
-        Lookup table waveformID -> NDArray
+    wave_array: NDArray
+        Event waveform gather of one phase on one station
     """
-    wavearr = np.load(filename)
-    waveid = utils.join_waveid(*filename.rstrip(".npy").split("_")[:2])
-    return {waveid: wavearr}
+    return np.load(filename)
+
+
+def read_config(filename):
+    """
+    Read a configuration from .yaml file
+
+    Parameters
+    ----------
+    filename: str
+        Name of the configuration file
+    Return
+    ------
+    config: core.Config
+        Configuration object
+    """
+    with open(filename, "r") as fid:
+        buf = yaml.safe_load(fid)
+
+    return core.Config(**buf)
