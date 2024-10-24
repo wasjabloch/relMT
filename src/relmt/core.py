@@ -32,7 +32,7 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(utils.logsh)
 
 _config_attr_comments = {
-    "sampling_rate": ("float", "Sampling rate of the seismic waveform (1/seconds)"),
+    "sampling_rate": ("float", "Sampling rate of the seismic waveform (Hertz)"),
     "data_window": (
         "float",
         "Symmetric time window around the initiallly cut out phase data (seconds)",
@@ -49,8 +49,8 @@ _config_attr_comments = {
         "float",
         "Combined length of taper that is applied at both ends beyond the phase window. (seconds)",
     ),
-    "highpass": ("float", "High-pass filter corner"),
-    "lowpass": ("float", "Low-pass filter corner"),
+    "highpass": ("float", "High-pass filter corner (Hertz)"),
+    "lowpass": ("float", "Low-pass filter corner (Hertz)"),
     "exclude_events": ("list", "List of event indices to exclude from processing"),
 }
 
