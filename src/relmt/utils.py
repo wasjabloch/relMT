@@ -30,6 +30,7 @@ from scipy.signal import bessel, butter, lfilter
 from datetime import datetime
 import scipy.fft as fft
 import logging
+from typing import Iterable
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -65,15 +66,18 @@ def join_waveid(station: str, phase: str) -> str:
     return f"{station}_{phase}"
 
 
-def split_waveid(phid: str) -> tuple[int, str, str]:
+def split_waveid(waveid: str) -> tuple[str, str]:
     """Split observation identifier into station and phase"""
-    station, phase = phid.split("_")
+    station, phase = waveid.split("_")
     return station, phase
 
 
-def xyzarray(dictionary: dict) -> NDArray:
-    """Return spatial coordinates from event or station dictionary"""
-    return np.array([dictionary[i][:3] for i in sorted(dictionary)])
+def xyzarray(iterable: dict | list) -> NDArray:
+    """Return spatial coordinates from event list or station dictionary"""
+    try:
+        return np.array([iterable[key][:3] for key in sorted(iterable)])
+    except TypeError:
+        return np.array([item[:3] for item in iterable])
 
 
 def cartesian_distance(
@@ -169,7 +173,7 @@ def approx_time_lookup(
     return lut
 
 
-def interpolate_phd(
+def interpolate_phase_dict(
     phase_dict: dict, event_dict: dict, station_dict: dict, obs_min: int = 1
 ) -> dict:
     """
@@ -273,7 +277,7 @@ def interpolate_phd(
     return nphd
 
 
-def _make_wavelet(
+def make_wavelet(
     n: int,
     p: float,
     typ: str = "sin",
@@ -305,13 +309,62 @@ def _make_wavelet(
     return _gauss(n, we, de) * osc
 
 
-def shift(funct: ArrayLike, dt: float, t0: float) -> NDArray:
+def norm_power(array: ArrayLike, axis: int = -1) -> NDArray:
+    """
+    Normalize input array by power
+
+    out = array / square_root(sum(array**2)))
+
+    Parameters
+    ----------
+    funct : :class:`~numpy.array`:
+        Seismogram section
+
+    Returns
+    -------
+    out : :class:`~numpy.array`:
+        Normalized seismogram section
+    """
+    return array / np.sqrt(np.sum(array**2, axis=axis, keepdims=True))
+
+
+def nonzero_events(array: ArrayLike) -> NDArray:
+    """Return indices of events with non-zero data"""
+    return np.asarray(sorted(set(np.transpose(array.nonzero())[:, 0])))
+
+
+def shift_3d(wvf_array: ArrayLike, dt: float, t0: float) -> NDArray:
+    """
+    Shift a waveform matrix in Fourier space
+
+    Parameters
+    ----------
+    wvf_array : (E, C, S) :class:`~numpy.array`:
+        Waveform array, with time aligned along last axis
+    dt : float
+        Sampling intervall (seconds)
+    t0 : (S,) :class:`~numpy.array`:
+        Time shifts positive to the right per seismogram (seconds)
+
+    Returns
+    -------
+    out : (E, C, S) :class:`~numpy.array`:
+        Shifted seismogram section
+    """
+
+    out = np.zeros(wvf_array.shape)
+    for ic in range(wvf_array.shape[1]):
+        out[:, ic, :] = shift(wvf_array[:, ic, :], dt, t0)
+    return out
+
+
+def shift(wvf_matrix: ArrayLike, dt: float, t0: float) -> NDArray:
     """
     Shift a seismogram section in Fourier space
 
     Parameters
     ----------
-    funct : (S, N) :class:`~numpy.array`:
+    wvf_matrix : (S, N) :class:`~numpy.array`:
         Seismogram section, with time aligned along axis 1
     dt : float
         Sampling intervall (seconds)
@@ -324,20 +377,23 @@ def shift(funct: ArrayLike, dt: float, t0: float) -> NDArray:
         Shifted seismogram section
     """
 
-    n = funct.shape[-1]
+    n = wvf_matrix.shape[-1]
     n2 = n // 2 + 1
     sfn = fft.irfft(
-        fft.rfft(funct)
+        fft.rfft(wvf_matrix)
         * np.exp(np.outer(t0, (-1j * np.array(np.arange(n2) * 2 * np.pi / (n * dt))))),
         n,
     )
     return sfn
 
 
-def xcorrc(x: ArrayLike, y: ArrayLike) -> NDArray:
+def _xcorrc(x: ArrayLike, y: ArrayLike) -> NDArray:
     """
     Function to compute crosscorrelation coefficient (rather than
     raw correlation from np.correlate.
+
+    ..note:
+    Currently unused
     """
 
     z = np.correlate(x.T, y.T, "full")
@@ -346,7 +402,7 @@ def xcorrc(x: ArrayLike, y: ArrayLike) -> NDArray:
     return z
 
 
-def CCcoef(x, y):
+def cc_coef(x, y):
     """
     Calculate the correlation coefficient between two equal-length vectors using the formula:
 
@@ -368,65 +424,71 @@ def CCcoef(x, y):
     return sum(x * y) / np.sqrt(sum(x**2) * sum(y**2))
 
 
-def taper(funct: ArrayLike, nt: float, dt: float, t1: float, t2: float) -> NDArray:
+def cosine_taper(
+    wvf_array: ArrayLike, length: float, dt: float, t1: float, t2: float
+) -> NDArray:
     """
-    Taper time series.
+    Taper time series along last axis.
 
-    Taper time series `funct` sampled at `dt` with a cosine taper `nt` seconds long
-    from begin point `t1 - nt` and with reverse cosine taper from point `t2` to
-    point `t2 + nt`. Points inside the range `(t1, t2)` remain unchanged. Points
-    outside the range `(t1 - nt, t2 + nt)` are zeroed. If `t1` or `t2` is
-    negative then taper is not implemented at beginning or end. If `funct` is an
-    array of seismograms, then the taper is applied to the last dimension of
-    `funct`.
+    Taper time series in last dimension of `wvf_array` sampled at `dt` with a
+    cosine taper `length` seconds long from begin point `t1 - length/2` and with
+    reverse cosine taper from point `t2` to point `t2 + length/2`. Points inside
+    the range `(t1, t2)` remain unchanged. Points outside the range `(t1 -
+    length/2, t2 + length/2)` are zeroed. If `t1` or `t2` is negative then taper
+    is not implemented at beginning or end.
 
     Parameters
     ----------
-    funct : (..., N) :class:`~numpy.array`:
+    wvf_array: (..., N) :class:`~numpy.array`:
         Seismogram section, with time aligned along last axis
-    nt : float:
-        Length of taper (seconds)
-    dt : float:
+    length : float
+        Combined length of taper at both ends(seconds)
+    dt : float
         Sampling intervall (seconds)
+    t1, t2 : float
+        Start, end time of untapered segment from beginning of trace (seconds)
 
-    Returns:
-    --------
+    Returns
+    -------
     out : (..., N) :class:`~numpy.array`:
         Tapered seismogram section
+
+    Raises
+    ------
+    ValueError: If t2 + length/2 is longer than the time series
     """
 
-    nx = funct.shape[-1]
+    nx = wvf_array.shape[-1]
     taper = np.ones(nx)
-    it = np.arange(int(nt / dt + 1)) * dt / nt
+    tt = length / 2  # Taper time
+    nt = int(tt / dt)  # Numper of taper indices
+    it = np.arange(nt + 1) * dt / tt
     ct = 0.5 * (1 - np.cos(np.pi * it))
     it1 = int(t1 / dt + 1)
     it2 = int(t2 / dt + 1)
 
     if t1 > 0:
-        taper[it1 - int(nt / dt) - 1 : it1] = ct
-        taper[0 : it1 - int(nt / dt)] = np.zeros(np.size(np.arange(it1 - int(nt / dt))))
+        taper[it1 - nt - 1 : it1] = ct
+        taper[0 : it1 - nt] = 0
     if t2 > 0:
-        if t2 > nx * dt - nt:
-            msg = "T2 is outside domain of funct: T2 > NX * DT - NT"
+        if t2 > nx * dt - tt:
+            msg = f"t2 ({t2}) is outside domain of funct: NX * DT - LENGTH/2 ({nx} * {dt} - {tt})"
             raise ValueError(msg)
-        taper[it2 - 1 : it2 + int(nt / dt)] = np.flip(ct)
-        taper[it2 + int(nt / dt) - 1 : nx] = np.zeros(
-            np.shape((taper[it2 + int(nt / dt) - 1 : nx]))
-        )
-
+        taper[it2 - 1 : it2 + nt] = np.flip(ct)
+        taper[it2 + nt - 1 : nx] = 0
     def _apply(arr):
         return arr * taper
 
-    return np.apply_along_axis(_apply, -1, funct)
+    return np.apply_along_axis(_apply, -1, wvf_array)
 
 
-def demean(funct: ArrayLike) -> NDArray:
+def demean(wvf_array: ArrayLike) -> NDArray:
     """
     Remove mean value along last dimension from array.
 
     Parameters
     ----------
-    funct : (..., N) :class:`~numpy.array`:
+    wvf_array : (..., N) :class:`~numpy.array`:
 
     Returns:
     --------
@@ -437,7 +499,14 @@ def demean(funct: ArrayLike) -> NDArray:
     def _demean(arr):
         return arr - np.mean(arr)
 
-    return np.apply_along_axis(_demean, -1, funct)
+    return np.apply_along_axis(_demean, -1, wvf_array)
+
+
+def zero_events(wvf_array: ArrayLike, event_indices: Iterable[int]) -> NDArray:
+    """Set seismograms of event_indices to zero"""
+    zeros = np.zeros(wvf_array.shape[-1])
+    wvf_array[event_indices, ..., :] = zeros
+    return wvf_array
 
 
 def _pow2(x: int) -> int:
@@ -474,23 +543,22 @@ def differentiate(funct: ArrayLike, dt: float) -> NDArray:
     return sfn
 
 
-def concat_component(wvm: ArrayLike) -> NDArray:
+def concat_wvf_array(wvf_array: ArrayLike) -> NDArray:
     """
-    Rearange waveform matrix so that components are concatenated
+    Rearange waveform array so that components are concatenated
 
     Parameters
     ----------
-    wvm : (N,C,S) :class:`~numpy.array`:
-        Waveform matrix
+    wvf_array : (N, C, S) :class:`~numpy.array`:
+        Waveform array
 
     Returns:
     --------
-    ax : :class:`matplotlib.axes.Axes`
-        Axis containing the plot
+    wvf_matrix : (N, C * S) :class:`~numpy.array`:
+        Waveform matrix
     """
-    ne, nc, ns = np.shape(wvm)  # events, channels, samples
-
-    return wvm.reshape(ne, ns * nc)
+    ne, nc, ns = np.shape(wvf_array)  # events, channels, samples
+    return wvf_array.reshape(ne, ns * nc)  # events, channels * samples
 
 
 def corner_frequency(M: float, sigma: float, vs: float, phase: str = "P") -> float:
@@ -525,8 +593,8 @@ def corner_frequency(M: float, sigma: float, vs: float, phase: str = "P") -> flo
     return (sigma * ks**3 * vs**3 * 16 / 7 / M0) ** (1 / 3)
 
 
-def filter_wvm(
-    wvm: ArrayLike,
+def filter_wvf(
+    wvf: ArrayLike,
     dt: float,
     hpas: float | None = None,
     lpas: float | None = None,
@@ -534,17 +602,17 @@ def filter_wvm(
     typ: str = "bessel",
 ) -> NDArray:
     """
-    Filter the waveform matrix. Highpass, lowpass, or bandpass is applied when
-    high, low, or both frequency corners are given.
+    Filter the waveform array or matrix along last dimension. Highpass, lowpass,
+    or bandpass is applied when high, low, or both frequency corners are given.
 
     Parameters
     ----------
-    wvm : ArrayLike
-        Waveform matrix
+    wvf : ArrayLike
+        Waveform array or matrix
     dt : float
         Sampling interval (s)
     hpas, lpas : float
-        Highpass and lowpass frequency (Hz)
+        Highpass and lowpass filter corners (Hz)
     corners : int
         Number of filter corners
     typ : str
@@ -554,6 +622,11 @@ def filter_wvm(
     --------
     out : ArrayLike
         Filtered waveform matrix
+
+    Raises
+    ------
+    ValueError: If neither hpas, nor lpas are given
+    ValueError: If given unknown filter type
     """
 
     nyq = 0.5 / dt
@@ -577,15 +650,40 @@ def filter_wvm(
             wn = hpas / nyq
             [b, a] = ffun(corners, wn, "highpass")
         else:
-            wn = (lpas / nyq, hpas / nyq)
+            wn = (hpas / nyq, lpas / nyq)
             [b, a] = ffun(corners, wn, "bandpass")
 
-    return lfilter(b, a, wvm)
+    return lfilter(b, a, wvf)
 
 
-def pc_index(scomp):
+def pc_index(wvf_matrix: ArrayLike, phase: str) -> Iterable[int]:
     """
     Return principal component sorting of seismogram matrix
+
+    For P-phases, sort by zero-th left hand singular vector
+    For S-phases, sort angle in the plane spanned by the zero-th and fisrt left
+    hand singular vectors
+
+    Parameters
+    ----------
+    wvf_matrix: np.array(E, S*C)
+        Waveform matrix
+    phase : str
+        P or S phase
+
+    Returns:
+    --------
+    out : ArrayLike
+        Filtered waveform matrix
+
+    Raises
+    ------
+    ValueError: If phase is not P or S
     """
-    U, _, _ = svd(scomp)
-    return np.argsort(np.arctan2(U[:, 1], U[:, 0]))
+    U, _, _ = svd(wvf_matrix)
+    if phase == "P":
+        return np.argsort(U[:, 0])
+    elif phase == "S":
+        return np.argsort(np.arctan2(U[:, 1], U[:, 0]))
+    else:
+        raise ValueError(f"Unknown phase: {phase}")
