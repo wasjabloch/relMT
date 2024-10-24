@@ -24,7 +24,7 @@
 Test the in- and output functions
 """
 
-from relmt import io, utils
+from relmt import io, core, utils
 from pathlib import Path
 import tempfile
 import numpy as np
@@ -241,15 +241,18 @@ def test_make_read_station_table():
 
 def test_make_read_event_table():
     # Test if an event table is read correctly
-    evdin = {0: (0.0, 0.0, 0.0, 0.0, 0.0, "0"), 1: (1.0, 1.0, 1.0, 1.0, 1.0, "1")}
+    evlist1 = [
+        core.Event(0.0, 0.0, 0.0, 0.0, 0.0, "0"),
+        core.Event(1.0, 1.0, 1.0, 1.0, 1.0, "1"),
+    ]
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
-        tab = io.make_event_table(evdin)
+        tab = io.make_event_table(evlist1)
         fid.write(tab)
         fid.close()
-        evdout = io.read_event_table(fid.name)
+        evlist2 = io.read_event_table(fid.name)
     os.remove(fid.name)
 
-    for ind, outd in zip(evdin, evdout):
+    for ind, outd in zip(evlist1, evlist2):
         assert ind == outd
 
 
@@ -261,6 +264,16 @@ def test_read_ext_event_table():
     assert len(evd) == 2
     assert evd[0] == (39.19792, 74.29494, 4.69, 1480103177.08, 4.17, "1480103177.08")
     assert evd[1] == (39.19689, 74.29641, 4.37, 1480112087.32, 2.53, "1480112087.32")
+
+
+def test_read_ext_event_table_key_error():
+    # Test if an key error is raised with forbidden key
+    pwd = Path(__file__).parent
+    fn = pwd / "data" / "test_ext_event_table.txt"
+    with pytest.raises(KeyError):
+        _ = io.read_ext_event_table(
+            fn, 8, 7, 9, 6, 15, 6, loadtxt_kwargs={"unpack": False}
+        )
 
 
 def test_read_ext_event_table_geoconvert():
@@ -311,7 +324,7 @@ def test_make_waveform_array():
     stream = Stream(
         [
             Trace(
-                utils._make_wavelet(5000, 50, we=100, de=-1500),
+                utils.make_wavelet(5000, 50, we=100, de=-1500),
                 header={
                     "station": "A",
                     "channel": f"HH{cha}",
@@ -343,7 +356,7 @@ def test_read_waveform_array():
     st = Stream(
         [
             Trace(
-                utils._make_wavelet(5000, 50, we=100, de=-1500),
+                utils.make_wavelet(5000, 50, we=100, de=-1500),
                 header={
                     "station": "A",
                     "channel": f"HH{cha}",
@@ -360,10 +373,19 @@ def test_read_waveform_array():
     wvdict = io.make_waveform_arrays(st, phd, tw, sr)
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        fil = Path(temp_dir) / "A_P.npy" 
-        np.save(fil.name, wvdict["A_P"])
-        wave_dict = io.read_waveform_file(fil.name)
+        fil = Path(temp_dir) / "A_P.npy"
+        np.save(str(fil), wvdict["A_P"])
+        wave_arr = io.read_waveform_file(str(fil))
 
-    assert "A_P" in wave_dict
-    assert wave_dict["A_P"].shape == (1, 3, sr * tw + 1)
-    assert not all(np.flatnonzero(wave_dict["A_P"][0, 0, :]))
+    assert wave_arr.shape == (1, 3, sr * tw + 1)
+    assert not all(np.flatnonzero(wave_arr[0, 0, :]))
+
+
+def test_read_config():
+    # Test the io.read_config() function
+    filename = "myconfig.yaml"
+    config1 = core.Config(sampling_rate=1, data_window=1, exclude_events=[1, 2, 3])
+    with tempfile.TemporaryDirectory() as tempdir:
+        config1.to_file(filename=str(tempdir + filename))
+        config2 = io.read_config(str(tempdir + filename))
+    assert config1 == config2

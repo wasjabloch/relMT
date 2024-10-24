@@ -34,8 +34,20 @@ def test_shift():
     n = 512
     shift = 10
     inp = utils.make_wavelet(n, 5, "sin", 30, 0, 0)
-    expc = utils.make_wavelet(n, 5, "sin", 30, shift, shift)
-    out = utils.shift(inp, 1, shift)[0]
+    expc = utils.make_wavelet(n, 5, "sin", 30, shift, shift)[np.newaxis, :]
+    out = utils.shift(inp, 1, shift)
+    assert expc == pytest.approx(out)
+
+
+def test_shift_3d():
+    # Test if a trace is shifted in time as in Fourier domain
+    n = 512
+    c = 3
+    ev = 10
+    shift = 10
+    inp = np.ones((ev, c, n)) * utils.make_wavelet(n, 5, "sin", 30, 0, 0)
+    expc = np.ones((ev, c, n)) * utils.make_wavelet(n, 5, "sin", 30, shift, shift)
+    out = utils.shift(inp, 1, shift)
     assert expc == pytest.approx(out)
 
 
@@ -43,7 +55,7 @@ def test_xcorrc1():
     # Test if a wavelet correlates with itself
     n = 512
     x = utils.make_wavelet(n, 5, "sin", 30, 0, 0)
-    corr = utils.xcorrc(x, x)
+    corr = utils._xcorrc(x, x)
     assert corr[n - 1] == pytest.approx(1)
 
 
@@ -52,7 +64,7 @@ def test_xcorrc2():
     n = 512
     x = utils.make_wavelet(n, 10, "sin", 30, 0, 0)
     y = utils.make_wavelet(n, 10, "sin", 30, 5, 0)
-    corr = utils.xcorrc(x, y)
+    corr = utils._xcorrc(x, y)
     assert corr[n - 1] == pytest.approx(-1)
 
 
@@ -72,15 +84,73 @@ def test_make_wavelet_cos():
     assert x == pytest.approx(y)
 
 
+def test_join_split_waveid():
+    keys = ("A", "P")
+    wvid = utils.join_waveid(*keys)
+    assert keys == utils.split_waveid(wvid)
+
+
+def test_norm_power():
+    shape = (3, 512)
+    fac = np.array([1, 2, 3])
+    arr = np.ones(shape)
+    arr *= fac[:, np.newaxis]
+    arrout = utils.norm_power(arr)
+    test = fac / np.sqrt(fac**2 * shape[1])
+    for arro, tes in zip(arrout, test):
+        assert all(arro == tes)
+
+
+def test_nonzero_events():
+    # Test if Non-zero events are detected
+    shape = (3, 512)
+    arr = np.zeros(shape)
+    arr[1, 500] = 1
+    inz = utils.nonzero_events(arr)
+    assert inz == [1]
+
+    arr[2, 0] = 1
+    inz = utils.nonzero_events(arr)
+    assert inz == pytest.approx([1, 2], abs=0)
+
+
+def test_zero_events():
+    # Test if events are zeroed
+    shape = (3, 512)
+    arr = np.ones(shape)
+    out = utils.zero_events(arr, [0, 1])
+    assert utils.nonzero_events(out) == [2]
+
+
+def concat_wvf_array():
+    n = 512
+    c = 3
+    ev = 10
+    inp = np.ones((ev, c, n))
+    out = utils.concat_wvf_array(inp)
+    assert out.shape == (ev, n * c)
+
+def test_pc_index():
+    n = 512
+    ev = 3
+    inp = np.zeros((ev, n))
+    inp[1, :] = utils.make_wavelet(n, 10, "cos", 10, 0, 0)
+    inp[2, :] = utils.make_wavelet(n, 10, "cos", 15, 0, 0)
+    out = utils.pc_index(inp, "P")
+    assert out == pytest.approx([2, 1, 0])
+    out = utils.pc_index(inp, "S")
+    assert out == pytest.approx([2, 0, 1])
+
+
 def test_taper_both():
     # Test if taper is applied correctly at both ends
     n = 500
     dt = 1 / 100  # Trace is 5 seconds long
     t1 = 2
     t2 = 3
-    nt = 1
+    length = 2
     x = np.ones(n)
-    y = utils.taper(x, nt, dt, t1, t2)
+    y = utils.cosine_taper(x, length, dt, t1, t2)
 
     # Before 1s is zeroed
     assert y[:100] == pytest.approx(0)
@@ -106,9 +176,9 @@ def test_taper_only_start():
     dt = 1 / 100  # Trace is 5 seconds long
     t1 = 2
     t2 = -1
-    nt = 1
+    length = 2
     x = np.ones(n)
-    y = utils.taper(x, nt, dt, t1, t2)
+    y = utils.cosine_taper(x, length, dt, t1, t2)
 
     # Before 1s is zeroed
     assert y[:100] == pytest.approx(0)
@@ -126,9 +196,9 @@ def test_taper_only_end():
     dt = 1 / 100  # Trace is 5 seconds long
     t1 = -1
     t2 = 3
-    nt = 1
+    length = 2
     x = np.ones(n)
-    y = utils.taper(x, nt, dt, t1, t2)
+    y = utils.cosine_taper(x, length, dt, t1, t2)
 
     # After 4s is zeroed
     assert y[400:] == pytest.approx(0)
@@ -150,7 +220,7 @@ def test_taper_error():
     nt = 1  # This taper is longer than trace
     x = np.ones(n)
     with pytest.raises(ValueError):
-        utils.taper(x, nt, dt, t1, t2)
+        utils.cosine_taper(x, nt, dt, t1, t2)
 
 
 def test_demean():
@@ -196,17 +266,22 @@ def test_filter():
     # Just test if all the filter options can be called
     sig = _10s_signal()
     for typ in ["bessel", "butter"]:
-        _ = utils.filter_wvm(sig, 1, lpas=0.2, typ=typ)
-        _ = utils.filter_wvm(sig, 1, hpas=0.2, typ=typ)
-        _ = utils.filter_wvm(sig, 1, hpas=0.4, lpas=0.2, typ=typ)
+        _ = utils.filter_wvf(sig, 1, lpas=0.2, typ=typ)
+        _ = utils.filter_wvf(sig, 1, hpas=0.2, typ=typ)
+        _ = utils.filter_wvf(sig, 1, hpas=0.2, lpas=0.4, typ=typ)
 
 
 def test_filter_error():
     sig = _10s_signal()
     with pytest.raises(ValueError):
-        _ = utils.filter_wvm(sig, 1)
+        # Neither highpass nor lowpass given :(
+        _ = utils.filter_wvf(sig, 1)
     with pytest.raises(ValueError):
-        _ = utils.filter_wvm(sig, 1, hpas=0.4, lpas=0.2, typ="foo")
+        # Unkown type
+        _ = utils.filter_wvf(sig, 1, hpas=0.2, lpas=0.4, typ="foo")
+    with pytest.raises(ValueError):
+        # hpas > lowpass :(
+        _ = utils.filter_wvf(sig, 1, hpas=0.4, lpas=0.2)
 
 
 def test_xyzarray_sta():
@@ -254,7 +329,7 @@ def test_interpolate_phd_time():
     phd = {"0_A_P": (10, 0, 0)}
     std = {"A": (1, 0, 0)}
     evd = {0: (0, 0, 0, 5, -1, "ev0"), 1: (0, 0, 0, 15, -1, "ev1")}
-    phdn = utils.interpolate_phd(phd, evd, std)
+    phdn = utils.interpolate_phase_dict(phd, evd, std)
     assert phdn == pytest.approx({"1_A_P": (20, 0, 0)})
 
 
@@ -267,7 +342,7 @@ def test_interpolate_phd_aziinc():
         1: (0, 0, 1, 5, -1, "ev1"),
         2: (0, 0, 2, 5, -1, "ev2"),
     }
-    phdn = utils.interpolate_phd(phd, evd, std)
+    phdn = utils.interpolate_phase_dict(phd, evd, std)
     # Just created this one new key
     assert phdn.keys() == pytest.approx(["2_A_P"])
     # azimuth is along east-axis
@@ -276,12 +351,12 @@ def test_interpolate_phd_aziinc():
     assert phdn["2_A_P"][2] == pytest.approx(-15)
 
 
-def test_interpolate_phd_nmin():
+def test_interpolate_phd_obs_min():
     # Test if phases are interpolated correctly
     phd = {"0_A_P": (10, 0, 0)}
     std = {"A": (1, 0, 0)}
     evd = {0: (0, 0, 0, 5, -1, "ev0"), 1: (0, 0, 0, 15, -1, "ev1")}
-    phdn = utils.interpolate_phd(phd, evd, std, nmin=2)
+    phdn = utils.interpolate_phase_dict(phd, evd, std, obs_min=2)
     assert phdn == {}
 
 
@@ -290,5 +365,5 @@ def test_interpolate_phd_missing_stations():
     phd = {"0_B_P": (10, 0, 0)}
     std = {"A": (1, 0, 0)}
     evd = {0: (0, 0, 0, 5, -1, "ev0")}
-    phdn = utils.interpolate_phd(phd, evd, std)
+    phdn = utils.interpolate_phase_dict(phd, evd, std)
     assert phdn == {}
