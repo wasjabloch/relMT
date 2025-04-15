@@ -10,7 +10,7 @@ build:
     python: "3.12"
   apt_packages:
     - gfortran
-    - fftw3
+    - libfftw3-dev
 sphinx:
   configuration: docs/conf.py
 
