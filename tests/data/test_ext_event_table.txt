@@ -1,0 +1,3 @@
+#Year Month Day Hour Minute Second Timestamp(s)   Longitude(deg) Latitude(deg) Depth(km) P-picks S-picks revised? Method   RMS(s) Magnitude error type Sequence
+ 2016 11    25  19   46     17.08  1480103177.08  74.29494       39.19792        4.69     29         5   0        hypoDD   0.390  4.17       nan  Mw   E
+ 2016 11    25  22   14     47.32  1480112087.32  74.29641       39.19689        4.37     18         7   0        hypoDD   0.400  2.53      0.46  ML   E
