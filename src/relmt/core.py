@@ -452,7 +452,7 @@ P_Amplitude_Ratio.__doc__ = """P-wave amplitude ratio observation
     ----------
     station: str
         Unique station name
-    a, b: int
+    event_a, event_b: int
         Event indices
     amp_ab: float
         Amplitude ratio
@@ -470,7 +470,7 @@ S_Amplitude_Ratios.__doc__ = """P-wave amplitude ratio observation
     ----------
     station: str
         Unique station name
-    a, b, c: int
+    event_a, event_b, event_c: int
         Event indices
     amp_abc: float
         Amplitude of event `b` in `a` assuming the third event is `c`

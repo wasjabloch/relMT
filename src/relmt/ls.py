@@ -449,6 +449,7 @@ def weight_s_amplitude(s_amplitudes: core.S_Amplitude_Ratios) -> np.ndarray:
 
     weight = max(1, (1 / max(abs(ampl.amp_abc, ampl.amp_acb))))
 
+    Parameters
     ----------
     s_amplitudes:
         One pair of S-amplitude ratios

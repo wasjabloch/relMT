@@ -4,7 +4,7 @@
 :maxdepth: 2
 :hidden:
 
-:caption: Table of contents
+:caption:Table of contents
 
 how-to/setup.md
 

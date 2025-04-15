@@ -35,7 +35,7 @@ conda install jupyter
 ```
 
 ## Documentation
-The documentation is hosted at:
+The documentation is hosted at: https://relmt.readthedocs.io/en/latest/
 
 ## Rationale
 

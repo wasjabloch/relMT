@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 import importlib.metadata
-from typing import Any
+import collections
 
 project = "relMT"
 copyright = "2025, Wasja Bloch"
@@ -41,8 +39,6 @@ exclude_patterns = [
     "CMakeLists.txt",
 ]
 
-autodoc_mock_imports = ["mccore", "scikit-build-core", "numpy", "scipy"]
-
 # html_theme = "furo"
 html_permalinks_icon = "<span>#</span>"
 html_theme = "sphinxawesome_theme"
@@ -68,9 +64,6 @@ nitpick_ignore = [
 
 
 # Remove 'Alias for field number' docstring from named tuple
-import collections
-
-
 def remove_namedtuple_attrib_docstring(app, what, name, obj, skip, options):
     if type(obj) is collections._tuplegetter:
         return True
