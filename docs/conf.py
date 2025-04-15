@@ -38,9 +38,10 @@ exclude_patterns = [
     ".DS_Store",
     ".env",
     ".venv",
+    "CMakeLists.txt",
 ]
 
-autodoc_mock_imports = ["mccore"]
+autodoc_mock_imports = ["mccore", "scikit-build-core", "numpy", "scipy"]
 
 # html_theme = "furo"
 html_permalinks_icon = "<span>#</span>"
