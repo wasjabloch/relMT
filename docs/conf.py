@@ -40,6 +40,8 @@ exclude_patterns = [
     ".venv",
 ]
 
+autodoc_mock_imports = ["mccore"]
+
 # html_theme = "furo"
 html_permalinks_icon = "<span>#</span>"
 html_theme = "sphinxawesome_theme"
