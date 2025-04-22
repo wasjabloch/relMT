@@ -4,3 +4,7 @@ coverage.xml
 .vscode/settings.json
 coverage/lcov.info
 *__pycache__*
+docs/build/*
+*.un~
+lcov.info
+dist/*
