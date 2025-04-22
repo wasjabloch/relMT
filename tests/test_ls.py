@@ -195,7 +195,7 @@ def test_s_equations():
 
     for mt_elements in [5, 6]:
 
-        # Indices where directional coefficent == 1
+        # Indices where directional coefficient == 1
         # Obs! Internal sorting of directional coefficients selects gs1 and gs3
         # Obs! because gs2 is all zeros
         i0 = 3
@@ -286,7 +286,7 @@ def test_homogenous_amplitude_equations():
             pamps, samps, stad, evl, phd, constraint
         )
 
-        # Expected euqations, left hand side
+        # Expected equations, left hand side
         assert A[0, :mt_elements] == pytest.approx(-pcoef)
         assert A[0, mt_elements : 2 * mt_elements] == pytest.approx(Aab * pcoef)
         assert A[1, :mt_elements] == pytest.approx(-scoef1)
@@ -296,7 +296,7 @@ def test_homogenous_amplitude_equations():
         assert A[2, mt_elements : 2 * mt_elements] == pytest.approx(Babc * scoef2)
         assert A[2, 2 * mt_elements : 3 * mt_elements] == pytest.approx(Bacb * scoef2)
 
-        # Expected euqations, right hand side
+        # Expected equations, right hand side
         assert pytest.approx(b) == np.zeros(len(evl))[:, np.newaxis]
 
 
@@ -383,7 +383,7 @@ def test_condition_homogenous_matrix_by_norm():
         np.array([1, 1 / np.sqrt(3), 1 / 6])[:, np.newaxis]
     ) == ls.condition_homogenous_matrix_by_norm(mat)
 
-    # Constrain homogneous part
+    # Constrain homogenous part
     assert pytest.approx(
         np.array([1, 1 / np.sqrt(3), 1])[:, np.newaxis]
     ) == ls.condition_homogenous_matrix_by_norm(mat, n_homogenous=2)
@@ -448,7 +448,7 @@ def _make_events_stations_phases(nev: int, nsta: int, epi_dist: float, elev: flo
 
 def _make_radiation(phd, mtd, dist):
     """
-    Create a radition pattern of phases in `phd` from moment tensors in `mtd`
+    Create a radiation pattern of phases in `phd` from moment tensors in `mtd`
 
     Parameters
     ----------

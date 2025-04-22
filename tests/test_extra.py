@@ -50,7 +50,7 @@ def test_obspy_inventory_files():
 
 
 def test_utmzone():
-    # Check if UTM zone is returned coorrectly
+    # Check if UTM zone is returned correctly
     num, let = extra.get_utm_zone(latitudes=[38.6, 37.5], longitudes=[69.1, 71.6])
     assert num == 42
     assert let == "S"
@@ -102,7 +102,7 @@ def test_read_station_inventory2():
 
 
 def test_read_station_inventory_error():
-    # Test if a key Error is raised when doubled stations occurr
+    # Test if a key Error is raised when doubled stations occur
     pwd = Path(__file__).parent
     fns = [pwd / "data" / "test-net.txt"]
     inv = extra.read_obspy_inventory_files(fns)
@@ -204,7 +204,7 @@ def test_apparent_corner_frequency():
 
 
 def test_apparent_corner_frequency_multi_channel():
-    # The corner frequency is the dominant frequency of the volocity spectrum
+    # The corner frequency is the dominant frequency of the velocity spectrum
     period = 10
 
     # three-component signal
@@ -216,7 +216,7 @@ def test_apparent_corner_frequency_multi_channel():
 
 
 def test_apparent_corner_frequency_bracket():
-    # The corner frequency is the dominant frequency of the volocity spectrum
+    # The corner frequency is the dominant frequency of the velocity spectrum
     period1 = 10
     period2 = 20
 
@@ -234,7 +234,7 @@ def test_apparent_corner_frequency_bracket():
 
 
 def test_optimal_bandpass():
-    # The corner frequency is the dominant frequency of the volocity spectrum
+    # The corner frequency is the dominant frequency of the velocity spectrum
     period_sig = 20
     period_hfn = 10  # high frequency noise
     period_lfn = 50  # low frequency noise
@@ -243,7 +243,7 @@ def test_optimal_bandpass():
     # Signal pulse near the end of the trace
     sig = signal.make_wavelet(512, period_sig, "sin", 10, de=100)
 
-    # Continous high amplitude noise at frequencies aboove and below signal
+    # continuous high amplitude noise at frequencies above and below signal
     sig += signal.make_wavelet(512, period_hfn, "cos") * 10
     sig += signal.make_wavelet(512, period_lfn, "cos") * 10
 

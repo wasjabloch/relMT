@@ -32,7 +32,7 @@ import mccore as mcf
 from relmt import align, signal, utils, ls
 
 
-# TODO: How to do this proberly?
+# TODO: How to do this properly?
 # Global input time shifts
 dtins = np.array([1.0, 5.0, -4.0, 12.0, -12.0])
 dtins -= np.mean(dtins)  # zero mean
@@ -70,7 +70,7 @@ def s_wavelet():
 
 def test_mccc_ppf():
 
-    ds = 1  # sampling intervall
+    ds = 1  # sampling interval
 
     wvin = p_wavelet()
 
@@ -88,7 +88,7 @@ def test_mccc_ppf():
     # TODO: understand why these test using the mccc cc fail
     # Are waveforms identical, except for time shift?
     # assert cc[np.triu_indices(5, 1)] == pytest.approx(1.0, 5e-2)
-    # Did no cycle skipping occurr?
+    # Did no cycle skipping occur?
     # assert all(cc[np.triu_indices(5, 1)] > 0)
 
 

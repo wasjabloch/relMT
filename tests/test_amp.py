@@ -86,7 +86,7 @@ def test_pca_amplitude_3s_2():
     Babc2, Bacb2, iord = amp.pca_amplitude_3s(np.array([wvA, wvB, wvC]))
     assert iord == pytest.approx(
         [0, 2, 1]
-    )  # Note: the alogorithm exchanged b and c, so ...
+    )  # Note: the algorithm exchanged b and c, so ...
     assert Babc == pytest.approx(Bacb2)  # ... we expect b and c to be exchanged
     assert Bacb == pytest.approx(Babc2)
 

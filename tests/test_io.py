@@ -146,7 +146,7 @@ def test_make_mt_table():
         mtout = io.read_mt_table(fid.name)
     os.remove(fid.name)
 
-    # Assert that something meanigful it written in the table
+    # Assert that something meaningful it written in the table
     assert "5.0" in tab
 
     # Assert that the dictionary is created correctly
@@ -170,7 +170,7 @@ def test_make_mt_table_list():
         mtout = io.read_mt_table(fid.name)
     os.remove(fid.name)
 
-    # Assert that something meanigful it written in the table
+    # Assert that something meaningful it written in the table
     assert "5.0" in tab
     assert "5.1" in tab
 
@@ -238,7 +238,7 @@ def test_make_read_phase_table():
     assert "STA1" in tab
     assert "STA2" in tab
 
-    # Assert everyting is unpacked correctyl
+    # Assert everyting is unpacked correctly
     assert pytest.approx(phids) == ["0_STA1_P", "0_STA1_S", "1_STA2_P", "1_STA2_S"]
     assert not any(times)
     assert not any(azs)

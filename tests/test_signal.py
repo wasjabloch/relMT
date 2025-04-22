@@ -97,7 +97,7 @@ def test_make_wavelet_cos():
 
 
 def test_make_wavelet_rec():
-    # Test if make_wavelet makes a rectancle
+    # Test if make_wavelet makes a rectangle
     n = 512
     x = signal.make_wavelet(n, n, "rec", np.inf, 0, 0)
     assert len(x) == n
