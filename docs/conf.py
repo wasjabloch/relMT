@@ -44,9 +44,10 @@ html_permalinks_icon = "<span>#</span>"
 html_theme = "sphinxawesome_theme"
 autodoc_member_order = "bysource"  # groupwise, alphabetical
 
-# myst_enable_extensions = [
-#    "colon_fence",  # Nicer tables
-# ]
+myst_enable_extensions = [
+    "colon_fence",  # Nicer tables
+    "dollarmath",  # Nicer tables
+]
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),

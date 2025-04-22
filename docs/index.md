@@ -1,14 +1,13 @@
 # relMT
 
 ```{toctree}
-:maxdepth: 2
 :hidden:
 
-:caption:Table of contents
+:caption: Table of contents
 
-how-to/setup.md
-
-api/relmt
+Getting started <how-to/setup.md>
+File formats <how-to/formats.md>
+API <api/relmt>
 ```
 
 Software to determine relative earthquake moment tensors

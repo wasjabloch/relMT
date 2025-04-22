@@ -58,7 +58,7 @@ basenames = {
     ),
     "station": ("Station codes and locations", "stations.txt"),
     "phase": (
-        "Seismic phase arrival times and take-off anlges",
+        "Seismic phase arrival times and take-off angles",
         "phases.txt",
     ),
     "reference_mt": (
@@ -114,7 +114,7 @@ basenames_phase_station = {
     ),
     "cc_matrix": ("Cross-correlation matrix", "cc.txt"),
     "cc_vector": ("Averaged cross-correlation vector", "c.txt"),
-    "pca_time_shift": ("Time shifs from principal component analysis", "dt_pca.txt"),
+    "pca_time_shift": ("Time shifts from principal component analysis", "dt_pca.txt"),
     "pca_objective": ("Value of principal component objective function", "phi.txt"),
 }
 
@@ -136,9 +136,9 @@ def file(
         The file to be accessed, one of:
     PLACEHOLDER FOR FILES
 
-        Alternativley, give a file basename ending in '.'`extension`.  The
+        Alternatively, give a file basename ending in '.'`extension`.  The
         basename will be pre- and suffixed, and sorted into data, align, or
-        amplitdue folder, if 'iteration' is 0, >0, or None, respectivley
+        amplitude folder, if 'iteration' is 0, >0, or None, respectively
     station:
         Station name, required for:
         STATION FILES
@@ -148,7 +148,7 @@ def file(
         PHASE FILES
 
     n_align:
-        Alignment iterration, required for:
+        Alignment iteration, required for:
         PHASE FILES
 
     directory:
@@ -170,7 +170,7 @@ def file(
             raise ValueError(f"'phase' must be 'P' or 'S', not: {phase}")
         phase = phase.upper()
 
-    # Sort in the right subfulder
+    # Sort in the right subfolder
     if file_id == "config" or file_id == "exclude":
         # Config in root folder
         pass
@@ -376,7 +376,7 @@ def iterate_event_triplet(nev: int, event_list: list[int] | range | None = None)
 
 
 def ijk_ccvec(ns: int) -> Generator[tuple[int, int, int]]:
-    """Translate lineat index n to cross correlation triplet indices ijk
+    """Translate linear index n to cross correlation triplet indices ijk
 
     Yields all three permutations (i, j, k), (k, i, j) and (j, k i)
     """
@@ -523,7 +523,10 @@ _config_args_comments = {
     "ncpu": ("int", "Number of threads to use for parallel computations"),
     "min_dynamic_range": (
         "float",
-        "Minimum ratio (dB) of low- / highpass filter band in an amplitude ratio meassurement",
+        (
+            "Minimum ratio (dB) of low- / highpass filter bandwidth in an "
+            "amplitude ratio measurement"
+        ),
     ),
 }
 
@@ -637,7 +640,7 @@ class Config:
         Raises
         ------
         FileExistsError:
-            When file existst and overwrite is `False`
+            When file exists and overwrite is `False`
         """
 
         filename = str(filename)
@@ -726,23 +729,35 @@ class Config:
 # Attributes that must be present in station header file
 _header_args_comments = {
     "station": ("str", "Station code"),
-    "phase": ("str", "Seismic phase to consider ('P' or 'S')"),
+    "phase": ("str", "Seismic phase type to consider ('P' or 'S')"),
     "components": (
         "str",
         (
-            "One-character channel names ordered as in the waveform array, "
+            "One-character component names ordered as in the waveform array, "
             "as one string (e.g. 'ZNE')"
         ),
     ),
     "sampling_rate": ("float", "Sampling rate of the seismic waveform (Hertz)"),
-    "events": ("list", "Event indices of first dimension of waveform file."),
+    "events": (
+        "list",
+        (
+            "Event indices corresponding to the first dimension of the "
+            "waveform array."
+        ),
+    ),
     "data_window": (
         "float",
-        "Symmetric time window around the initially cut out phase data (seconds)",
+        (
+            "Time window symmetric about the phase pick (i.e. pick is near the "
+            "central sample) (seconds)"
+        ),
     ),
     "phase_start": (
         "float",
-        "Start of the phase window before the arrival time pick (negative seconds before pick).",
+        (
+            "Start of the phase window before the arrival time pick "
+            "(negative seconds before pick)."
+        ),
     ),
     "phase_end": (
         "float",
@@ -752,8 +767,14 @@ _header_args_comments = {
         "float",
         "Combined length of taper that is applied at both ends beyond the phase window. (seconds)",
     ),
-    "highpass": ("float", "High-pass filter corner (Hertz)"),
-    "lowpass": ("float", "Low-pass filter corner (Hertz)"),
+    "highpass": (
+        "float",
+        "Common high-pass filter corner of the waveform (Hertz)",
+    ),
+    "lowpass": (
+        "float",
+        "Common low-pass filter corner of the waveform (Hertz)",
+    ),
     "maxshift": (
         "float",
         "Maximum shift to allow in multi-channel cross correlation (seconds)",
@@ -798,6 +819,25 @@ class Header(Config):
             if key != "self":
                 self[key] = value
 
+    def __repr__(self):
+        out = f"{__name__}.Header(\n"
+        out += "\n".join(f"    {key}={value}," for key, value in self.items())
+        out += "\n"
+        out += ")"
+        return out
+
+    def __str__(self):
+        out = "# relMT waveform header\n"
+        for key in self._valid_args:
+            # Print the comment
+            out += "\n"
+            out += "# " + self._valid_args[key][1] + "\n"
+            out += "# (" + self._valid_args[key][0] + ")\n"
+
+            # Print the key, value pair
+            out += f"{key}: {self[key] if self[key] is not None else ''}\n"
+        return out
+
 
 _all_args_comments = {**_config_args_comments, **_header_args_comments}
 
@@ -816,7 +856,7 @@ def _doc_config_args(func):
     # Copy function until end of 'Parameter' block
     wrap.__doc__ = func.__doc__[: iret - 1]
 
-    # Searc function arguments for common ones
+    # Search function arguments for common ones
     for fun_arg in fun_args:
         if fun_arg in _all_args_comments:
             # Insert common argument documentation
