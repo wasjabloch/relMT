@@ -5,7 +5,7 @@
 1. Set up a directory for one cluster of seismic events you wish to investigate
 
 2. In that directory, create the following subdirectories: ``data/``,
-``align/``, ``amplitude/``, ``results/``
+``align/``, ``amplitude/``, ``result/``
 
 3. Launch a python interpreter and run the commands:
 
@@ -46,7 +46,7 @@
 See [file formats](project:./formats.md) for details.
 
     :::{tip}
-    There are several functions that my be useful when creating the files from external resources.
+    There are several functions that may be useful when creating the files from external resources.
 
     * To create a station file from an *ObsPy* `Inventory` object
         * {py:class}`relmt.extra.read_obspy_inventory_files`

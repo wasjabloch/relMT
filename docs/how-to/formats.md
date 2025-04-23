@@ -171,7 +171,7 @@ from relmt import core
 core.Header().to_file("default-hdr.yaml")
 ```
 
-yields the file ``default-hdr.yaml``:
+which yields the file ``default-hdr.yaml``:
 
 ```yaml
 # relMT waveform header
