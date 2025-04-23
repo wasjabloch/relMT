@@ -20,9 +20,12 @@ conda activate relmt
 conda install -c conda-forge fftw
 ```
 
+Now install `relMT` locally
+
 ```sh
-# Install relMT
-pip install relmt
+git clone https://github.com/wasjabloch/relMT
+cd relMT
+pip install .
 ```
 
 If you are working in `IPython`, or `Jupyter`, install the package in the same conda environment to avoid version conflicts
