@@ -28,6 +28,12 @@ cd relMT
 pip install .
 ```
 
+If you wish to use import functions from the `extra` module that require *ObsPy*, consider installing the optional dependency:
+
+```sh
+pip install .[obspy]
+```
+
 If you are working in `IPython`, or `Jupyter`, install the package in the same conda environment to avoid version conflicts
 
 ```sh

@@ -1,4 +1,4 @@
-# How to
+# Getting started
 
 ## Set up the input files
 
@@ -43,6 +43,26 @@
     ```
 
 4. Open each of the files and fill them with the information of your project.
-See file formats for details.
+See [file formats](project:./formats.md) for details.
+
+    :::{tip}
+    There are several functions that my be useful when creating the files from external resources.
+
+    * To create a station file from an *ObsPy* `Inventory` object
+        * {py:class}`relmt.extra.read_obspy_inventory_files`
+        * {py:class}`relmt.extra.read_station_inventory`
+
+    * To create an event file from an external table
+        * {py:class}`relmt.io.read_ext_event_table`
+
+    * To create a phase file from a *NonLinLoc* `.hyp` file
+        * {py:class}`relmt.io.read_phase_nll_hypfile`
+
+    * To create a reference moment tensor file from an external moment tensor table
+        * {py:class}`relmt.io.read_ext_mt_table`
+
+    * To create a waveform arrays from an *ObsPy* `Stream`
+        * {py:class}`relmt.extra.make_waveform_array`
+    :::
 
 5. From the `default-hdr.yaml`, create the waveform array files and waveform headers.

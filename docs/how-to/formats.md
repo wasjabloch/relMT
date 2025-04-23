@@ -1,3 +1,4 @@
+(file-formats)=
 # File Formats
 
 ## Units and coordinates
@@ -82,7 +83,7 @@ min_dynamic_range:
 
 ### `exclude.yaml` exclude file
 
-The exclude file is located in the root directory
+The exclude file is located in the root directory.
 
 ### `stations.txt` station file
 
