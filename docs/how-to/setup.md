@@ -61,7 +61,7 @@ See [file formats](project:./formats.md) for details.
     * To create a reference moment tensor file from an external moment tensor table
         * {py:class}`relmt.io.read_ext_mt_table`
 
-    * To create a waveform arrays from an *ObsPy* `Stream`
+    * To create waveform arrays from an *ObsPy* `Stream`
         * {py:class}`relmt.extra.make_waveform_array`
     :::
 
