@@ -19,8 +19,8 @@ jobs:
         #os: [ linux-intel, linux-arm, windows, macOS-intel, macOS-arm]
         os: [linux-intel]
         include:
-          #- archs: auto
-          #  platform: auto
+          - archs: auto
+            platform: auto
           - os: linux-intel
             runs-on: ubuntu-latest
           #- os: linux-arm
