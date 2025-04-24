@@ -19,10 +19,10 @@ Any lines stating with `#` are ignored.
 
 Trailing columns are ignored.
 
-We assume the following directory structure
+For each cluster of seismic events we assume the following directory structure:
 
 ```none
-./
+root/
 +-- config.yaml
 +-- exclude.yaml
 +-- data/
@@ -35,10 +35,12 @@ We assume the following directory structure
     +-- STATION_PHASE-wvarr.npy
 ```
 
+The name of the `root/` directory can be arbitrary.
+
 ### `config.yaml` configuration file
 
 The configuration file holds the options that control the runtime behavior of
-`relMT`. It is located in the root directory.
+`relMT`. It is located in the `root/` directory.
 
 An empty configuration file can be created with:
 
@@ -83,7 +85,24 @@ min_dynamic_range:
 
 ### `exclude.yaml` exclude file
 
-The exclude file is located in the root directory.
+The exclude file lists the events, stations, phases and waveforms to exclude
+from processing. It is located in the `root/` directory. An empty exclude file can
+be created with:
+
+```python
+from relmt import core, io
+io.save_yaml("exclude.yaml", core.exclude)
+```
+
+which yields the file:
+
+```yaml
+event: []
+phase_align: []
+phase_interp: []
+station: []
+waveform: []
+```
 
 ### `stations.txt` station file
 
@@ -102,7 +121,7 @@ The station file holds the station names and locations. It is located in the
 The event files holds the seismic event catalog. It is located in the `data/`
 subdirectory.
 
-`events.txt` has six columns:
+`events.txt` has seven columns:
 
 1. Event index (must be consecutive starting at 0)
 2. Northing (meter)
@@ -113,33 +132,34 @@ subdirectory.
 7. Event name (arbitrary string)
 
 We use the event *index* (1.) to internally refer to events. We use origin time
-(5.) for external reference and magnitude (6.) for quality assurance. They can
-be `nan` if unknown. The event *name* (7.) is an external event reference (e.g.
-event ID within a larger catalog).
+(5.) for external reference and magnitude (6.) for quality assurance. Time and
+magnitude can be `nan` if unknown. The event *name* (7.) is an external event
+reference (e.g.  event ID within a larger catalog), which may be used for data
+import and export.
 
 ### `phases.txt` phase file
 
 The phase file holds the arrival times and take-off angles of the seismic phases
-at the stations. It is located in the `data/` subdirectory
+at the stations. It is located in the `data/` subdirectory.
 
 `phases.txt` has six columns:
 
 1. Event index (as in the `Event file`)
 2. Station name (as in the `Station file`)
-3. Phase (`P` or `S`)
+3. Phase type (`P` or `S`)
 4. Arrival time (float)
 5. Azimuth (east of north)
 6. Plunge (down from horizontal)
 
 Arrival time (4.) is required to tie time shifts of seismic traces to an
-absolute reference frame and can be useful when importing / exporting seismic
-traces.to tie arbitrary. We recommend to use absolute time in epoch seconds or
-seconds after origin time.
+absolute reference frame and can be useful when importing and exporting seismic
+traces. We recommend to use absolute time in epoch seconds or seconds after
+origin time.
 
 ### `reference_mt.txt` reference moment tensor file
 
 The reference moment tensor file holds the components of the reference moment
-tensor(s) is located in the `data/` subdirectory.
+tensor(s). It is located in the `data/` subdirectory.
 
 `reference_mt.txt` has seven columns:
 
@@ -238,3 +258,8 @@ third dimension. The resulting shape is ``(n_events, n_channels, n_samples)``,
 where ``n_events`` and ``n_channels`` are the length of the ``events`` and
 ``channels`` values in the [header file](#header-file), and ``n_samples`` is `data_window`
 multiplied by `sampling_rate`.
+
+Event indices stored in the `events:` keyword of the waveform header must
+correspond to the seismic traces stored in the first array dimension. Component
+names stored in the `components:` keyword of the waveform header must correspond
+to the seismogram components in the second dimension of the waveform array.
