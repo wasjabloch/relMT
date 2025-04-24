@@ -60,10 +60,10 @@ def test_make_read_station_table():
         assert inv == outv
 
 
-def test_read_exclude_file():
+def test_save_read_exclude_file():
     excl_in = {"phase_align": ["1_STA1_P"], "station": ["STA2"], "event": 1}
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
-        yaml.safe_dump(excl_in, fid, sort_keys=False)
+        io.save_yaml(fid.name, excl_in)
         fid.close()
         excl_out = io.read_exclude_file(fid.name)
     os.remove(fid.name)

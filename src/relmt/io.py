@@ -139,6 +139,12 @@ def read_exclude_file(filename: str | Path) -> core.Exclude:
     return core.Exclude(**this_excl)
 
 
+def save_yaml(filename: str, data: dict):
+    """Save data to .yaml file"""
+    with open(filename, "w") as fid:
+        yaml.safe_dump(data, fid, sort_keys=False)
+
+
 def make_event_table(
     event_list: list[core.Event], filename: Path | str | None = None
 ) -> str:
