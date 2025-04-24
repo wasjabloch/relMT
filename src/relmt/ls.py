@@ -559,9 +559,9 @@ def mt_elements(constraint: str) -> int:
         return _mt_elements[constraint]
     except KeyError:
         msg = (
-            "Constraint must be one of"
+            "Constraint must be one of: "
             + ", ".join(_mt_elements.keys())
-            + f", not: '{constraint}'"
+            + f". Not: '{constraint}'"
         )
         raise ValueError(msg)
 
@@ -823,7 +823,7 @@ def solve_lsmr(
 
     # Residuals
     # eps = A[:, :] * m
-    eps = A @ m - b
+    eps = A @ m - b.flatten()  # make b 1-dimensional
 
     return m * ev_scale, eps
 
