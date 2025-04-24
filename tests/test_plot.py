@@ -105,3 +105,12 @@ def test_s_reconstruction(iplot=False):
 
     plot.s_reconstruction(wvA, wvB, wvC, Babc, Bacb)
     plot.s_reconstruction(wvA, wvB, wvC, Babc, Bacb, 100.0)
+
+
+def test_bootstrap_matrix(iplot=False):
+    mts = [core.MT(0, 0, 0, 0, 0, 0), core.MT(1, 1, 1, 1, 1, 1)]
+
+    fig, ax = plot.bootstrap_matrix(mts, {"figsize": (3, 3)})
+
+    if iplot:
+        fig.show()

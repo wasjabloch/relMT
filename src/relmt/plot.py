@@ -26,9 +26,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
-from numpy.typing import ArrayLike
 import matplotlib.transforms as transforms
-from relmt import core
+from relmt import core, mt
 import logging
 
 logger = logging.getLogger(__name__)
@@ -394,3 +393,97 @@ def s_reconstruction(
         ax.grid(axis="x")
 
     return ax
+
+
+def bootstrap_matrix(
+    moment_tensors: list[core.MT], subplot_kwargs: dict = {"figsize": (8, 9)}
+):
+    """Plot bootstrapped moment tensor components
+
+    Parameters
+    ----------
+    moment_tensors:
+        List of bootstrap results
+    subplot_kwargs:
+        Keyword arguments passed on to :func:`matplotlib.pyplot.subplots`
+
+    Returns
+    -------
+    fig:
+        The :class:`class matplotlib..figure.Figure` that holds the plot
+    axs:
+        ``(6, 6)`` array of :class:`class matplotlib.axes.Axes`
+    """
+
+    # Scale the numbers
+    m0 = mt.mean_moment(moment_tensors)
+    exp = int(np.floor(np.log10(m0)))
+    fac = 10**exp
+    arr = np.array(moment_tensors) / fac
+
+    # Common ticks and labels
+    mi = 1.05 * np.min(arr)
+    ma = 1.05 * np.max(arr)
+    ticks = [np.min(arr), 0, np.max(arr)]
+    ticklabels = ["{:.1f}".format(t) if t != 0 else "" for t in ticks]
+    comp = core.MT._fields
+
+    # Set up the plot
+    fig, axs = plt.subplots(6, 6, layout="constrained", **subplot_kwargs)
+    fig.suptitle(f"Bootstraped moment tensor elements ($10^{{{exp}}}$ Nm)")
+
+    # Iterate the lower off-dagonal triangle
+    ij = ((i, j) for i in range(6) for j in range(i + 1, 6))
+
+    # Scatter plots of pairwise different components
+    for i, j in ij:
+        ax = axs[j, i]
+
+        x = arr[:, i]
+        y = arr[:, j]
+
+        ax.scatter(x, y, fc="none", ec="black")
+
+        # Set ticks and labels only at the bottom and right most axes
+        if i == 0:
+            ax.set_ylabel(comp[j])
+            ax.set_yticks(ticks, ticklabels)
+        else:
+            ax.set_yticks([])
+
+        if j == 5:
+            ax.set_xlabel(comp[i])
+            ax.set_xticks(ticks, ticklabels, rotation="vertical")
+        else:
+            ax.set_xticks([])
+
+        ax.set_xlim((mi, ma))
+        ax.set_ylim((mi, ma))
+        ax.axhline(0, color="silver", zorder=-5)
+        ax.axvline(0, color="silver", zorder=-5)
+
+        # Make the other symmetric axis invisible
+        axs[i, j].set_visible(False)
+
+    # Histograms along the diagonal
+    for i in range(6):
+        ax = axs[i, i]
+        x = arr[:, i]
+        ax.hist(x, density=True, stacked=True, fc="black")
+
+        ax.set_xlim((mi, ma))
+        ax.set_ylim((0, 1))
+        ax.spines[["left", "top", "right"]].set_visible(False)
+
+        ax.set_xticks(ticks, [])
+        ax.set_yticks([])
+
+        if i == 5:
+            ax.set_xlabel(core.MT._fields[i])
+            ax.set_xticks(ticks, ticklabels, rotation="vertical")
+
+        # Report mean an standard deviation
+        tit = "{:.2f} $\pm$ {:.2f}".format(np.mean(x), np.std(x))
+        ax.set_title(tit, size="small")
+
+    return fig, axs
