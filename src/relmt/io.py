@@ -677,7 +677,7 @@ def make_gmt_meca_table(
         north, east, depth = (0.0, 0.0, 0.0)
         if event_list is not None:
             ev = event_list[imt]
-            north, east, depth = ev.east, ev.north, ev.depth
+            north, east, depth = ev.north, ev.east, ev.depth
 
         if geoconverter is not None:
             north, east, depth = geoconverter(north, east, depth)
@@ -688,7 +688,7 @@ def make_gmt_meca_table(
 
         exp -= 7  # Nm -> dyne cm
 
-        out.append([north, east, depth, mrr, mtt, mff, mrt, mrf, mtf, exp])
+        out.append([east, north, depth, mrr, mtt, mff, mrt, mrf, mtf, exp])
 
     outarr = np.array(out)
 
