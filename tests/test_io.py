@@ -526,8 +526,8 @@ def test_make_gmt_meca_input():
     assert tab1 == pytest.approx(tab2)
 
     # All input has been converted correctly
-    assert tab1[0, :] == pytest.approx([20e-3, 10e-4, 30e-5, *mtcomps0, -7])
-    assert tab1[1, :] == pytest.approx([2e-1, 1e-2, 3e-3, *mtcomps1, -4])
+    assert tab1[0, :] == pytest.approx([20e-4, 10e-3, 30e-5, *mtcomps0, -7])
+    assert tab1[1, :] == pytest.approx([2e-2, 1e-1, 3e-3, *mtcomps1, -4])
 
 
 def test_read_ext_mt_table():

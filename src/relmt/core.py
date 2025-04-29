@@ -69,6 +69,14 @@ basenames = {
         "Relative moment tensor elements",
         "relative_mt.txt",
     ),
+    "bootstrap_mt": (
+        "Relative moment tensors from bootstrap subsampling",
+        "bootstrap_mts.txt",
+    ),
+    "bootstrap_statistics": (
+        "Diagnostic values extracted from bootstrap statistics",
+        "bootstrap_stats.txt",
+    ),
     "amplitude_matrix": (
         "Left hand side of the linear system",
         "amplitude_matrix.npy",
@@ -185,7 +193,7 @@ def file(
     ):
         folder /= "amplitude"
 
-    elif file_id == "relative_mt":
+    elif file_id in ["relative_mt", "bootstrap_mt", "bootstrap_statistics"]:
         folder /= "result"
 
     elif file_id.startswith("waveform_"):
@@ -837,6 +845,24 @@ class Header(Config):
             # Print the key, value pair
             out += f"{key}: {self[key] if self[key] is not None else ''}\n"
         return out
+
+
+def _module_hint(module_name: str) -> str:
+    """Reuturn hint on how to get module working"""
+
+    dep = {
+        "matplotlib": "plot",
+        "multitaper": "spec",
+        "obspy": "obspy",
+        "pyrocko": "pyrocko",
+        "utm": "geo",
+    }
+
+    msg = f"Could not import {module_name}.\n"
+    msg += f"Please install relMT with optional {dep} dependencies:\n"
+    msg += f"pip install .[dep]"
+
+    return msg
 
 
 _all_args_comments = {**_config_args_comments, **_header_args_comments}
