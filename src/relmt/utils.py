@@ -483,6 +483,60 @@ def concat_components(arr: np.ndarray) -> np.ndarray:
     return arr.reshape(ne, ns * nc)  # events, components * samples
 
 
+def collect_takeoff(
+    phase_dict: dict[str : core.Phase],
+    event_index: int,
+    stations: set[str] | list[str] | None = None,
+):
+    """Take-off azimuth and plunge angles for an event
+
+    Parameters
+    ----------
+    phase_dict:
+        Lookup table for phase arrivals
+    event_index:
+        Index of the event to consider
+    stations:
+        Limit output to certain stations (e.g. those with actual amplitude
+        observations)
+
+    Returns
+    -------
+    azimuths: np.ndarray
+        Take-off azimuths (degree)
+    plunges: np.ndarray
+        Take-off plunges (degree)
+    stas: np.ndarray
+        Corrsponding station names
+    phases: np.ndarray
+        Corresponding phase types
+    """
+
+    apsp = np.array(
+        [
+            (
+                phase_dict[phid].azimuth,
+                phase_dict[phid].plunge,
+                core.split_phaseid(phid)[1],  # Station
+                core.split_phaseid(phid)[2],  # Phase
+            )
+            for phid in phase_dict
+            if core.split_phaseid(phid)[0] == event_index
+            and ((stations is None) or (core.split_phaseid(phid)[1] in stations))
+            and np.isfinite(phase_dict[phid].plunge)
+        ],
+        ndmin=2,
+        dtype=object,
+    )
+
+    azis = apsp[:, 0].astype(float)
+    plus = apsp[:, 1].astype(float)
+    stas = apsp[:, 2].astype(str)
+    phas = apsp[:, 3].astype(str)
+
+    return azis, plus, stas, phas
+
+
 def source_duration(magnitude: float) -> float:
     """
     Approximate duration of an earthquake with given magnitude

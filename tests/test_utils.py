@@ -160,6 +160,36 @@ def test_concat_wvarray():
     assert utils.concat_components(arr).shape == (n, c * s)
 
 
+def test_collect_takeoff():
+    phd = {
+        "0_STA1_P": core.Phase(0, 11.0, 21.0),
+        "1_STA1_P": core.Phase(0, 12.0, 22.0),
+        "1_STA2_P": core.Phase(0, 13.0, 23.0),
+        "1_STA1_S": core.Phase(0, 14.0, 24.0),
+    }
+
+    az, pl, st, ph = utils.collect_takeoff(phd, 0)
+
+    assert pytest.approx(az) == [11.0]
+    assert pytest.approx(pl) == [21.0]
+    assert pytest.approx(st) == ["STA1"]
+    assert pytest.approx(ph) == ["P"]
+
+    az, pl, st, ph = utils.collect_takeoff(phd, 1)
+
+    assert pytest.approx(az) == [12.0, 13.0, 14.0]
+    assert pytest.approx(pl) == [22.0, 23.0, 24.0]
+    assert pytest.approx(st) == ["STA1", "STA2", "STA1"]
+    assert pytest.approx(ph) == ["P", "P", "S"]
+
+    az, pl, st, ph = utils.collect_takeoff(phd, 1, stations=["STA1"])
+
+    assert pytest.approx(az) == [12.0, 14.0]
+    assert pytest.approx(pl) == [22.0, 24.0]
+    assert pytest.approx(st) == ["STA1"] * 2
+    assert pytest.approx(ph) == ["P", "S"]
+
+
 def test_reshape_ccvec():
     ns = 5
     ccin = 0.8
