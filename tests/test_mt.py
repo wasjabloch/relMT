@@ -60,6 +60,21 @@ def test_moment_of_magnitude():
     assert pytest.approx(moment) == 1122018454.301956
 
 
+def test_moment_of_vector_tensor():
+
+    momt1 = core.MT(1e3, 1e3, 1e3, 1e3, 1e3, 1e3)
+    momt2 = core.MT(5e3, 5e3, 5e3, 5e3, 5e3, 5e3)
+
+    M01 = mt.moment_of_tensor(mt.mt_array(momt1))
+    M02 = mt.moment_of_tensor(mt.mt_array(momt2))
+
+    moment = mt.moment_of_vector(momt1)
+    assert pytest.approx(moment) == M01
+
+    moments = mt.moment_of_vector(np.array([momt1, momt2]))
+    assert pytest.approx(moments) == [M01, M02]
+
+
 def test_mean_moment():
     mts = [core.MT(1, 2, 3, 4, 5, 6), core.MT(2, 3, 4, 5, 6, 7)]
     result = mt.mean_moment(mts)

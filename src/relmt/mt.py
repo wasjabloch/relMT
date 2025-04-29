@@ -89,6 +89,32 @@ def moment_of_tensor(mt_arr: np.ndarray) -> float:
     return np.linalg.norm(mt_arr) / np.sqrt(2)
 
 
+def moment_of_vector(m: np.ndarray | core.MT) -> float | np.ndarray:
+    """Seismic moment of tensor in 6-element vector notation
+
+    For arrays, sum moment along last dimension and return array of moments
+    """
+
+    try:
+        return np.sqrt(
+            m[..., 0] ** 2
+            + m[..., 1] ** 2
+            + m[..., 2] ** 2
+            + 2 * m[..., 3] ** 2
+            + 2 * m[..., 4] ** 2
+            + 2 * m[..., 5] ** 2
+        ) / np.sqrt(2)
+    except TypeError:
+        return np.sqrt(
+            m[0] ** 2
+            + m[1] ** 2
+            + m[2] ** 2
+            + 2 * m[3] ** 2
+            + 2 * m[4] ** 2
+            + 2 * m[5] ** 2
+        ) / np.sqrt(2)
+
+
 def moment_of_magnitude(magnitude: float) -> float:
     """Seismic moment of a magnitude"""
     return 10 ** (1.5 * (magnitude + 10.7)) * 1e-7  # in Nm
