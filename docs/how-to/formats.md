@@ -35,7 +35,7 @@ root/
     +-- STATION_PHASE-wvarr.npy
 ```
 
-The name of the `root/` directory can be arbitrary.
+The name of the `root/` directory is arbitrary.
 
 ### `config.yaml` configuration file
 
