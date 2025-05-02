@@ -396,7 +396,12 @@ def s_reconstruction(
 
 
 def bootstrap_matrix(
-    moment_tensors: list[core.MT], subplot_kwargs: dict = {"figsize": (8, 9)}
+    moment_tensors: list[core.MT],
+    plot_beachball: bool = False,
+    best_mt: core.MT | None = None,
+    takeoff: np.ndarray | None = None,
+    subplot_kwargs: dict = {"figsize": (8, 9)},
+    # axes: np.ndarray | None = None,
 ):
     """Plot bootstrapped moment tensor components
 
@@ -404,6 +409,13 @@ def bootstrap_matrix(
     ----------
     moment_tensors:
         List of bootstrap results
+    plot_beachball:
+        Plot bootstrap results as beacball plot. Requires :module:`pyrocko`
+    best_mt:
+        Also show the best moment tensor, when `plot_beachball=True` Requires
+        :module:`pyrocko`.
+    takeoff:
+        `(2, N)` array of takeoff azimuth and plunge angles (degree).
     subplot_kwargs:
         Keyword arguments passed on to :func:`matplotlib.pyplot.subplots`
 
@@ -415,11 +427,19 @@ def bootstrap_matrix(
         ``(6, 6)`` array of :class:`class matplotlib.axes.Axes`
     """
 
+    # axes:
+    #    ``(6, 6)`` array of :class:`class matplotlib.axes.Axes` to place the plots
+
     # Scale the numbers
     m0 = mt.mean_moment(moment_tensors)
     exp = int(np.floor(np.log10(m0)))
     fac = 10**exp
     arr = np.array(moment_tensors) / fac
+
+    # Make a best moment tensor, if there is one
+    best = np.array([np.nan] * 6)
+    if best_mt is not None:
+        best = np.array(best_mt) / fac
 
     # Common ticks and labels
     mi = 1.05 * np.min(arr)
@@ -432,6 +452,15 @@ def bootstrap_matrix(
     fig, axs = plt.subplots(6, 6, layout="constrained", **subplot_kwargs)
     fig.suptitle(f"Bootstraped moment tensor elements ($10^{{{exp}}}$ Nm)")
 
+    # TODO:
+    # Passing external axes causes problems down the road when placing beachball
+    # if axes is None:
+    #    fig, axs = plt.subplots(6, 6, layout="constrained", **subplot_kwargs)
+    #    fig.suptitle(f"Bootstraped moment tensor elements ($10^{{{exp}}}$ Nm)")
+    # else:
+    #    axs = axes
+    #    fig = axes[0, 0].get_figure()
+
     # Iterate the lower off-dagonal triangle
     ij = ((i, j) for i in range(6) for j in range(i + 1, 6))
 
@@ -443,6 +472,7 @@ def bootstrap_matrix(
         y = arr[:, j]
 
         ax.scatter(x, y, fc="none", ec="black")
+        ax.scatter(best[i], best[j], fc="none", ec="red")
 
         # Set ticks and labels only at the bottom and right most axes
         if i == 0:
@@ -470,6 +500,7 @@ def bootstrap_matrix(
         ax = axs[i, i]
         x = arr[:, i]
         ax.hist(x, density=True, stacked=True, fc="black")
+        ax.axvline(best[i], color="red")
 
         ax.set_xlim((mi, ma))
         ax.set_ylim((0, 1))
@@ -485,5 +516,70 @@ def bootstrap_matrix(
         # Report mean an standard deviation
         tit = "{:.2f} $\pm$ {:.2f}".format(np.mean(x), np.std(x))
         ax.set_title(tit, size="small")
+
+    if plot_beachball:
+
+        try:
+            from pyrocko import moment_tensor as pmt
+            from pyrocko.plot import beachball
+        except ModuleNotFoundError:
+            raise ModuleNotFoundError(core._module_hint("pyrocko"))
+
+        # Make an axis for the mt in the top right corner
+        gs = axs[0, 5].get_gridspec()
+        for iremove in [(0, 4), (0, 5), (1, 4), (1, 5)]:
+            axs[iremove].remove()
+        axmt = fig.add_subplot(gs[:2, 4:])
+        axpo = fig.add_subplot(gs[:2, 4:], projection="polar")
+        axmt.set_axis_off()
+        axpo.set_axis_off()
+        axpo.set_theta_direction(-1)  # Clockwise...
+        axpo.set_theta_zero_location("N")  # from North
+        axpo.set_rlim((np.pi / 2, 0))
+
+        # rotate N -> y and E -> x
+        rot = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]])
+        rot = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, 1]])
+
+        # Convert MTs to pyrocko format
+        pmts = [
+            pmt.MomentTensor(mt.mt_array(momt)).rotated(rot) for momt in moment_tensors
+        ]
+
+        # Make a best MT (or not)
+        pbest = None
+        if best_mt is not None:
+            pbest = pmt.MomentTensor(mt.mt_array(best_mt)).rotated(rot)
+
+        if plot_beachball:
+            # Plot it fuzzy.
+            beachball.plot_fuzzy_beachball_mpl_pixmap(
+                pmts,
+                axmt,
+                beachball_type="full",
+                best_mt=pbest,
+                # size=200,
+                position=(0, 0),
+                color_t="black",
+                linewidth=1.0,
+                size=2,
+                size_units="data",
+            )
+
+        if takeoff is not None:
+            takeoff *= np.pi / 180
+
+            az = takeoff[0, :]
+            pl = takeoff[1, :]
+
+            # Project upgoing rays to the opposite side of the lower hemisphere
+            iup = pl < 0
+            az[iup] = (az[iup] + np.pi) % (2 * np.pi)
+            pl[iup] = -pl[iup]
+
+            # TODO: Actually project to Lambert
+
+            axpo.scatter(az[iup], pl[iup], marker="o", fc="none", ec="lightblue")
+            axpo.scatter(az[~iup], pl[~iup], marker="x", color="lightblue")
 
     return fig, axs

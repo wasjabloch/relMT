@@ -109,8 +109,16 @@ def test_s_reconstruction(iplot=False):
 
 def test_bootstrap_matrix(iplot=False):
     mts = [core.MT(0, 0, 0, 0, 0, 0), core.MT(1, 1, 1, 1, 1, 1)]
+    best_mt = core.MT(2, 2, 2, 2, 2, 2)
+    takeoff = np.array([[0.0, 45.0], [90.0, 0.0]])
 
-    fig, ax = plot.bootstrap_matrix(mts, {"figsize": (3, 3)})
+    fig, ax = plot.bootstrap_matrix(
+        mts,
+        plot_beachball=True,
+        takeoff=takeoff,
+        best_mt=best_mt,
+        subplot_kwargs={"figsize": (3, 3)},
+    )
 
     if iplot:
         fig.show()
