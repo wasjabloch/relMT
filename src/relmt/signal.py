@@ -206,7 +206,7 @@ def shift_3d(wvf_array: np.ndarray, dt: np.ndarray, sampling_rate: float) -> np.
         Shifted seismogram section
     """
 
-    logger.error("Use relmt.signal.shift instead of shift_3d")
+    # TODO: how generalize  relmt.signal.shift
 
     out = np.zeros(wvf_array.shape)
     for ic in range(wvf_array.shape[1]):
