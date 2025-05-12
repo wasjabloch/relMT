@@ -35,21 +35,29 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(core.logsh)
 
 
-def xyzarray(table: dict[str, core.Station] | list[core.Event]) -> np.ndarray:
+def xyzarray(
+    table: dict[str, core.Station] | list[core.Event] | core.Event | core.Station,
+) -> np.ndarray:
     """Spatial coordinates as an array
 
     Parameters
     ----------
     table:
-        Event list or station dictionary
+        Event, event list, station, or station dictionary
 
     Returns
     -------
-    ``(rows, 3)`` north-east-down coordinates"""
+    ``(rows, 3)`` or ``(3,) north-east-down coordinates"""
     try:
+        # Is it a dictionary?
         return np.array([table[key][:3] for key in sorted(table)])
     except TypeError:
-        return np.array([item[:3] for item in table])
+        try:
+            # ... or a list?
+            return np.array([item[:3] for item in table])
+        except (IndexError, TypeError):
+            # ... or just an item?
+            return np.array(table[:3])
 
 
 def cartesian_distance(

@@ -72,6 +72,10 @@ def test_xyzarray_sta():
     )
     assert xyz == pytest.approx(np.array([[1, 2, 3], [3, 4, 5]]))
 
+    # Single station
+    xyz = utils.xyzarray(core.Station(1, 2, 3, "A"))
+    assert xyz == pytest.approx(np.array([1, 2, 3]))
+
 
 def test_xyzarray_ev():
     # Test if xyzarray works with event dictionary format
@@ -79,6 +83,10 @@ def test_xyzarray_ev():
         [core.Event(1, 2, 3, 0, 5, "a"), core.Event(3, 4, 5, 0, 6, "b")]
     )
     assert xyz == pytest.approx(np.array([[1, 2, 3], [3, 4, 5]]))
+
+    # Single Event
+    xyz = utils.xyzarray(core.Event(1, 2, 3, 0, 5, "a"))
+    assert xyz == pytest.approx(np.array([1, 2, 3]))
 
 
 def test_approx_time_lookup_float():
