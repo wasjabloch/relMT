@@ -573,3 +573,32 @@ def optimal_bandpass(
     lpas = freqs[if0 + jf1][0]
 
     return hpas, lpas
+
+
+def focal_mechanism_to_moment_tensor(
+    strike: float | list[float],
+    dip: float | list[float],
+    rake: float | list[float],
+    magnitude: float | list[float] | None = None,
+) -> core.MT | list[core.MT]:
+    """Convert focal mechanism to moment tensor"""
+    try:
+        from pyrocko.moment_tensor import MomentTensor
+    except ModuleNotFoundError:
+        raise ModuleNotFoundError(core._module_hint("pyrocko"))
+
+    try:
+        momt = core.MT(
+            *MomentTensor(strike=strike, dip=dip, rake=rake, magnitude=magnitude).m6()
+        )
+    except TypeError:
+        # Make we iterate over all elements
+        if magnitude is None:
+            magnitude = [None] * len(strike)
+        assert len(strike) == len(rake) == len(dip) == len(magnitude)
+        momt = [
+            core.MT(*MomentTensor(strike=s, dip=d, rake=r, magnitude=m).m6())
+            for s, d, r, m in zip(strike, dip, rake, magnitude)
+        ]
+
+    return momt
