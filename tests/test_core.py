@@ -102,7 +102,9 @@ def test_config_to_from_file():
 def test_config_update_from_file():
     # Test if parameters are updated from file on default
     filename = "myconfig.yaml"
-    config1 = core.Config(reference_mts=[1], bootstrap_samples=1)
+    config1 = core.Config(
+        reference_mts=[1], bootstrap_samples=1, stressdrop_range=[1e3, 2e5]
+    )
     with tempfile.TemporaryDirectory() as tempdir:
         config1.to_file(filename=str(tempdir + filename))
         config2 = core.Config(bootstrap_samples=2, reference_weight=2).update_from_file(
@@ -111,12 +113,15 @@ def test_config_update_from_file():
     assert config2["reference_mts"] == [1]
     assert config2["bootstrap_samples"] == 1
     assert config2["reference_weight"] == 2.0
+    assert config2["stressdrop_range"] == pytest.approx([1e3, 2e5])
 
 
 def test_config_update_not_from_file():
     # Test if parameters kept in object with option
     filename = "myconfig.yaml"
-    config1 = core.Config(reference_mts=[1], bootstrap_samples=1)
+    config1 = core.Config(
+        reference_mts=[1], bootstrap_samples=1, stressdrop_range=[1e3, 2e5]
+    )
     with tempfile.TemporaryDirectory() as tempdir:
         config1.to_file(filename=str(tempdir + filename))
         config2 = core.Config(bootstrap_samples=2, reference_weight=2).update_from_file(
@@ -130,6 +135,7 @@ def test_config_update_not_from_file():
     assert config2["reference_mts"] == [1]
     assert config2["bootstrap_samples"] == 2
     assert config2["reference_weight"] == 2.0
+    assert config2["stressdrop_range"] == pytest.approx([1e3, 2e5])
 
 
 def test_config_unpack():

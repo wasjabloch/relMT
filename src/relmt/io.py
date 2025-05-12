@@ -28,6 +28,7 @@ import logging
 from relmt import core, mt
 from typing import Callable
 import yaml
+from scipy.io import loadmat
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -447,6 +448,7 @@ def read_waveform_array_header(
     phase: str,
     n_align: int = 0,
     directory: str = "",
+    matlab: bool = False,
 ) -> tuple[np.ndarray, core.Header]:
     """
     Read a waveform array and corresponding header file.
@@ -463,6 +465,9 @@ def read_waveform_array_header(
         Alignment iterration, `0` for input data
     directory:
         Root directory to look for the files
+    matlab:
+        Assume MATALB waveform files. Provide the name of the variable holding
+        the waveform array in as header keyword `variable_name`.
 
     Returns
     -------
@@ -476,16 +481,27 @@ def read_waveform_array_header(
     hdrf = core.file("waveform_header", station, phase, n_align, directory)
     default_hdrf = core.file("waveform_header", directory=directory)
 
+    loader = np.load
+    if matlab:
+        wvf = wvf.with_suffix(".mat")
+        loader = loadmat
+
     # Load the waveform array...
-    wvarr = np.load(wvf)
+    try:
+        wvarr = loader(wvf)
+    except FileNotFoundError as e:
+        logger.warning(f"File not found: {wvf}")
+        raise e
 
     # Read in default values from default config, if present
-
     try:
         hdr = read_header(hdrf, default_name=default_hdrf)
     except FileNotFoundError:
         logger.debug(f"Missing default config: {default_hdrf}")
         hdr = read_header(hdrf)
+
+    if (vname := hdr["variable_name"]) is not None:
+        wvarr = wvarr[vname]
 
     return wvarr, hdr
 

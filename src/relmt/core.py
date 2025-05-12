@@ -26,6 +26,7 @@
 import logging
 import yaml
 import inspect
+import os
 from functools import wraps
 from collections.abc import Iterator, Generator, Callable
 from typing import TypedDict
@@ -260,6 +261,19 @@ def file(
 
     logger.debug(f"File is: {path}")
     return path
+
+
+def init(directory: str | Path | None = None):
+    """Initialize a working directory"""
+
+    if directory is not None:
+        directory = Path(directory)
+        os.mkdir(directory)
+    else:
+        directory = Path()
+
+    for subdir in ["data", "align1", "amplitude", "result"]:
+        os.mkdir(directory / subdir)
 
 
 # Now fill actual file names and description into the doc
@@ -524,6 +538,13 @@ _config_args_comments = {
         "float",
         ("Maximum misfit allowed for amplitude reconstruction"),
     ),
+    "stressdrop_range": (
+        "[float, float]",
+        (
+            "When estimating the corner frequency of an event, assume a "
+            "stressdrop within this range (Pa)."
+        ),
+    ),
     "bootstrap_samples": (
         "int",
         ("Number of samples to draw for calculating uncertainties"),
@@ -559,10 +580,11 @@ class Config:
 
     def __init__(
         self,
-        reference_mts: list | None = None,
+        reference_mts: list[int] | None = None,
         mt_constraint: str | None = None,
         reference_weight: float | None = None,
         max_amplitude_misfit: float | None = None,
+        stressdrop_range: tuple[float, float] | None = None,
         bootstrap_samples: int | None = None,
         ncpu: int | None = None,
         min_dynamic_range: float | None = None,
@@ -586,8 +608,10 @@ class Config:
 
         # If not None, get type from _config_attr_comments
         for attr in self._valid_args:
-            typ = __builtins__[self._valid_args[attr][0].strip("| None")]
-            if key == attr:
+            if key == "stressdrop_range":
+                value = [float(value[0]), float(value[1])]
+            elif key == attr:
+                typ = __builtins__[self._valid_args[attr][0]]
                 # Cast input to type
                 try:
                     value = typ(value)
@@ -738,6 +762,7 @@ class Config:
 _header_args_comments = {
     "station": ("str", "Station code"),
     "phase": ("str", "Seismic phase type to consider ('P' or 'S')"),
+    "variable_name": ("str", "Optional variable name that holds the waveform array"),
     "components": (
         "str",
         (
@@ -812,6 +837,7 @@ class Header(Config):
         self,
         station: str | None = None,
         phase: str | None = None,
+        variable_name: str | None = None,
         events: list[int] | None = None,
         components: str | None = None,
         sampling_rate: float | None = None,
@@ -860,7 +886,7 @@ def _module_hint(module_name: str) -> str:
 
     msg = f"Could not import {module_name}.\n"
     msg += f"Please install relMT with optional {dep} dependencies:\n"
-    msg += f"pip install .[dep]"
+    msg += f"pip install .[{dep}]"
 
     return msg
 
