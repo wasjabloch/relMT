@@ -27,7 +27,7 @@ import numpy as np
 from scipy.linalg import svd
 from scipy.sparse import coo_matrix
 import logging
-from relmt import utils, signal, core, ls
+from relmt import utils, signal, core, ls, io
 import mccore
 
 logger = logging.getLogger(__name__)
@@ -107,8 +107,8 @@ def mccc_align(
     # Make cc cubic (S) or symmetric square (P) matrix
     if phase == "S":
         cc = utils.reshape_ccvec(cc, mtx.shape[0])
-    elif phase == "P":
-        cc = cc + cc.T
+    # elif phase == "P":
+    # cc = cc + cc.T
 
     A = coo_matrix((valu, (rowi, coli)), dtype=np.float64).tocsc()
 
@@ -280,3 +280,76 @@ def pca_align(
     logger.info("Finished after {:} iterations with eobj {:1.3e}".format(iter, phi_old))
 
     return tshift_tot, phi_old
+
+
+def run(
+    wvarr: np.ndarray,
+    header: core.Header,
+    destination: tuple[str, str, int, str],
+):
+    """Align waveforms and save results to disk
+
+    Parameters
+    ----------
+    wvarr:
+        ``(events, channels, samples)`` waveform array
+    header:
+        Dictionary holding the processing parameters
+    destination:
+        Tuple holding station name, phase type, alignment iteration number and
+        destination root directory
+    """
+
+    pwv = utils.concat_components(
+        signal.demean_filter_window(wvarr, **header.kwargs(signal.demean_filter_window))
+    )
+
+    # Align using MCCC
+    try:
+        dt_cc, cc, *_ = mccc_align(
+            pwv,
+            verbose=True,
+            **header.kwargs(mccc_align),
+        )
+    except IndexError:
+        return
+
+    if header["phase"] == "S":
+        try:
+            cc = utils.fisher_average(cc)
+        except ValueError:
+            return
+
+    io.save_results(core.file("mccc_time_shift", *destination), dt_cc)
+    io.save_results(core.file("cc_matrix", *destination), cc)
+
+    arr_cc = signal.shift_3d(wvarr, -dt_cc, **header.kwargs(signal.shift_3d))
+    wvmat_cc = utils.concat_components(
+        signal.demean_filter_window(
+            arr_cc, **header.kwargs(signal.demean_filter_window)
+        )
+    )
+
+    # Align using PCA
+    dt_pca, phi = pca_align(wvmat_cc, dphi=1e-6, **header.kwargs(pca_align))
+
+    io.save_results(core.file("pca_time_shift", *destination), dt_pca)
+    io.save_results(core.file("pca_objective", *destination), phi)
+
+    # Apply shift to input array and save
+    arrout = signal.shift_3d(
+        wvarr,
+        -dt_pca - dt_cc,
+        **header.kwargs(signal.shift_3d),
+    )
+
+    # We are saving a numpy array, not matlab
+    header["variable_name"] = None
+
+    # Write out header and array files
+    arrf = core.file("waveform_array", *destination)
+    hdrf = core.file("waveform_header", *destination)
+
+    # Save everything
+    np.save(arrf, arrout)
+    header.to_file(hdrf, True)

@@ -703,6 +703,7 @@ integer :: ix,jx,ll,mm,nl,kk
 
 ! Store correlation coefficients.
             cc(ix,jx)=sij(kk)
+            cc(jx,ix)=sij(kk)
 
 ! Fill rows,columns and values for COO spars format.
             rowi(mm)=ll
