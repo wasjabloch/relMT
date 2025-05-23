@@ -46,7 +46,7 @@ def test_pc_index():
     inp[2, :] = signal.make_wavelet(n, 10, "cos", 15, 0, 0)
 
     out = utils.pc_index(inp, "P")
-    assert out == pytest.approx([2, 1, 0])
+    assert out == pytest.approx([1, 2, 0])
 
     out = utils.pc_index(inp, "S")
     assert out == pytest.approx([2, 0, 1])

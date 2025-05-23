@@ -28,7 +28,7 @@ from scipy.linalg import svd
 from datetime import datetime
 import logging
 from typing import Iterable
-from relmt import core, mt
+from relmt import core, mt, signal, qc
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -171,17 +171,29 @@ def reshape_ccvec(ccvec: np.ndarray, ns: int) -> np.ndarray:
 
     cc = np.full((ns, ns, ns), 0.0)
     for n, (i, j, k) in enumerate(core.ijk_ccvec(ns)):
-        cc[i, j, k] = max(min(ccvec[n], 1.0), -1.0)
+        val = max(min(ccvec[n], 1.0), -1.0)
+        cc[i, j, k] = val
+        cc[i, k, j] = val
+        cc[k, i, j] = val
+        cc[k, j, i] = val
+        cc[j, k, i] = val
+        cc[j, i, k] = val
+
     return cc
 
 
 def fisher_average(ccarr: np.ndarray, axis: int = -1) -> np.ndarray:
     """Average cross correlation coefficients applying Fisher z-transform
 
+    .. note:
+        We assume one `0` value as a place-holder for the auto-correlation. The
+        `0` does not contribute to the sum. We divide by `n-1` so the
+        auto-correaltion neither has a weight.
+
     Parameters
     ----------
     ccarr:
-        1, 2, or 3 dimensional array holding values bound in intervall `[-1, 1]`
+        1, 2, or 3 dimensional array holding values bound in interval `[-1, 1]`
     axis:
         Array axis along which to operate
 
@@ -206,10 +218,6 @@ def fisher_average(ccarr: np.ndarray, axis: int = -1) -> np.ndarray:
 
         # Average
         ccarr = np.sum(ccarr, axis=axis)
-
-        if dims == 3:
-            # Make ccmat symmetric
-            ccarr += ccarr.T
 
         ccarr /= nel
 
@@ -369,7 +377,7 @@ def interpolate_phase_dict(
                     # Try to get meassured values
                     mt, ma, mi = phase_dict[thisphid]
                     if any(~np.isfinite([mt, ma, mi])):
-                        # Substitude any NaNs
+                        # Substitute any NaNs
                         et = np.where(np.isfinite(mt), mt, et)
                         ea = np.where(np.isfinite(ma), ma, ea)
                         ep = np.where(np.isfinite(mi), mi, ep)
@@ -624,11 +632,17 @@ def pc_index(mtx: np.ndarray, phase: str) -> np.ndarray:
         If phase is not `P` or `S`
     """
 
-    U, _, _ = svd(mtx)
+    # Avoid NaN or all-zero values
+    inz = qc.index_nonzero_events(mtx)
+    normed = np.zeros_like(mtx)
+    normed[inz, :] = signal.norm_power(mtx[inz, :])
+
+    # Do the SVD on the verified data
+    U, s, _ = svd(normed, False)
     if phase == "P":
-        return np.argsort(U[:, 0])
+        return np.argsort(s[0] * U[:, 0])
     elif phase == "S":
-        return np.argsort(np.arctan2(U[:, 1], U[:, 0]))
+        return np.argsort(np.arctan2(s[1] * U[:, 1], s[0] * U[:, 0]))
     else:
         raise ValueError(f"Unknown phase: {phase}")
 
