@@ -77,7 +77,7 @@ def test_mccc_ppf():
     # rowi, coli, valu are indices and values of non-zero elements in time difference matrix A
     # cc are maximal cross correlation coefficient pairs.
     # dd is matrix of optimal lag time pairs.
-    rowi, coli, valu, dd, _ = mcf.mccc_ppf(wvin.T, ds, 20, 1, False)
+    rowi, coli, valu, dd, cc = mcf.mccc_ppf(wvin.T, ds, 20, 1, False)
 
     A = coo_matrix((valu, (rowi, coli)), dtype=np.float64).tocsc()
     dtouts, _ = ls.solve_irls_sparse(A, dd, 1e-4)
@@ -163,21 +163,46 @@ def test_pca_align_s():
 def test_mccc_align_p():
     wvf_matrix = p_wavelet()
     nwv = len(wvf_matrix)
-    dt, cc, dd, dd_res = align.mccc_align(wvf_matrix, "P", 100, 0.5)
+    dt, cc, dd, dd_res, evpairs = align.mccc_align(wvf_matrix, "P", 100, 0.5)
     assert len(dt) == nwv
     assert cc.shape == (nwv, nwv)
     assert dd.shape[0] == 2 * nwv + 1
     assert dd_res.shape[0] == 2 * nwv + 1
+    assert np.all(evpairs == [(i, j) for i in range(nwv) for j in range(i + 1, nwv)])
 
 
 def test_mccc_align_s():
     wvf_matrix = s_wavelet()
     nwv = len(wvf_matrix)
-    dt, cc, dd, dd_res = align.mccc_align(wvf_matrix, "S", 100, 0.5)
+    dt, cc, dd, dd_res, evpairs = align.mccc_align(wvf_matrix, "S", 100, 0.5)
     assert len(dt) == nwv
     assert cc.shape == (nwv, nwv, nwv)
     assert dd.shape == (nwv * (nwv - 1) + 1,)
     assert dd_res.shape == (nwv * (nwv - 1) + 1,)
+    assert dd_res == pytest.approx(0.0)  # Perfect data should be aligned perfectly
+    assert evpairs.shape == (int((5 - 2) * (5 - 1) * 5 / 3), 2)
+
+
+def test_paired_s_lag_times():
+
+    wvf_matrix = s_wavelet()
+    nwv = len(wvf_matrix)
+    _, cc, dd, _, evpairs = align.mccc_align(wvf_matrix, "S", 100, 0.5)
+
+    evpairs2, dd2, cc2 = align.paired_s_lag_times(evpairs, dd, cc)
+
+    assert evpairs2.shape[0] == nwv * (nwv - 1) / 2
+    assert len(dd2) == nwv * (nwv - 1) / 2
+    assert cc2 == pytest.approx(1.0)
+
+    # Let's strip the last 0 used to constrain the linear system
+    dd = dd[:-1]
+
+    for evpair, ddtime in zip(evpairs2, dd2):
+        iin = np.all(evpairs == evpair, axis=-1)
+
+        # All dd times should be equal, since we have perfect data.
+        assert dd[iin] == pytest.approx(ddtime)
 
 
 def test_pca_align():

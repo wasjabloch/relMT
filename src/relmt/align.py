@@ -83,7 +83,12 @@ def mccc_align(
     dd: :class:`numpy.ndarray`
         Pairwise differential arrival times
     dd_res: :class:`numpy.ndarray`
-        Resiudal of pairwise differential arrival times
+        Resiudal when computing time lags from pairwise differential arrival
+        times
+    ev_pair: :class:`numpy.ndarray`
+        Event indices pointing into `mtx` of shape ``(pairs, 2)``, where `pairs`
+        is `events * (events-1) / 2` for P waves and
+        `events * (events-1) * (events-2)/ 3` for S waves
 
     Raises
     ------
@@ -113,7 +118,13 @@ def mccc_align(
     A = coo_matrix((valu, (rowi, coli)), dtype=np.float64).tocsc()
 
     dt, dd_res = ls.solve_irls_sparse(A, dd)
-    return dt, cc, dd, dd_res
+
+    # Event pairs in dd[:-1]
+    evpair = np.zeros((len(dd) - 1, 2), dtype=int)
+    evpair[:, 0] = coli[0 : 2 * (len(dd) - 1) : 2]
+    evpair[:, 1] = coli[1 : 2 * (len(dd) - 1) : 2]
+
+    return dt, cc, dd, dd_res, evpair
 
 
 def pca_align(
@@ -267,19 +278,82 @@ def pca_align(
 
         phi_old = phi_new
 
-        logger.info(
+        logger.debug(
             "Iteration #{:d} phi: {:1.3e} (dphi: {:1.3e})".format(
                 iter, phi_new, this_dphi
             )
-        )
-        logger.debug(
-            f"Time shifts (max={max(abs(tshift))}): "
-            + " ".join(["{:1.3e}".format(v) for v in tshift_tot])
         )
 
     logger.info("Finished after {:} iterations with eobj {:1.3e}".format(iter, phi_old))
 
     return tshift_tot, phi_old
+
+
+def paired_s_lag_times(
+    evpairs: np.ndarray,
+    dd: np.ndarray,
+    cc: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Pairwise from triplet-wise lag times
+
+    Compute median lag times between event pairs from the tripplet-wise lag
+    times ``dd`` returned by :func:`mccc_align`.
+
+    Parameters
+    ----------
+    ev_pair:
+        ``(events * (events-1) * (events-2) / 3, 2)`` event indices
+    dd:
+        Corresponding pairwise differential arrival times
+    cc:
+        ``(events, events, events)`` Cross correlation matrix
+
+    Returns
+    -------
+    ev_pair: :class:`numpy.ndarray`
+        ``(events * (events-1) / 2, 2)`` event indices
+    dd: :class:`numpy.ndarray`
+        Corresponding median differential arrival times
+    cc: :class:`numpy.ndarray`
+        Corresponding average cross correlation coefficient
+    """
+
+    # All event indices
+    nev = evpairs[-1, -1] + 1  # We except the highest event index at the end
+
+    # Strip last zero that constrained the linear system to solve for time shifts
+    dd1 = dd[:-1]
+
+    if (
+        (nev * (nev - 1) * (nev - 2) / 3 != evpairs.shape[0])
+        or (evpairs.shape[0] != dd1.shape[0])
+        or (nev - 1) != np.max(evpairs)
+    ):
+        msg = f"Arrays must be of same and correct length. Found {nev} events."
+        raise IndexError(msg)
+
+    # Event pair order for P
+    ev_pair = np.array(
+        [(a, b) for a in range(nev - 1) for b in range(a + 1, nev)], dtype=int
+    )
+    ddm = np.zeros(ev_pair.shape[0], dtype=float)
+    ccm = np.zeros_like(ddm)
+
+    # Third implicit differential time of the triplets
+    implicit_dd = dd1[1::2] - dd1[0::2]
+    implicit_evpairs = np.array([evpairs[0::2, 1], evpairs[1::2, 1]]).T
+
+    for n, ab in enumerate(ev_pair):
+        iin = np.all(evpairs == ab, axis=-1)
+        iin2 = np.all(implicit_evpairs == ab, axis=-1)
+        all_dds = np.concatenate((dd1[iin], implicit_dd[iin2]))
+
+        # Choose a best time and weight from the set
+        # TODO: is there a better meassure? Choose a best CC from the set?
+        ddm[n] = np.median(all_dds)
+        ccm[n] = utils.fisher_average(cc[ab[0], ab[1], :])
+
+    return ev_pair, ddm, ccm
 
 
 def run(
@@ -305,21 +379,33 @@ def run(
     )
 
     # Align using MCCC
-    try:
-        dt_cc, cc, *_ = mccc_align(
-            pwv,
-            verbose=True,
-            **header.kwargs(mccc_align),
-        )
-    except IndexError:
-        return
+    dt_cc, cc, dd, _, evpairs = mccc_align(
+        pwv,
+        verbose=True,
+        **header.kwargs(mccc_align),
+    )
 
     if header["phase"] == "S":
-        try:
-            cc = utils.fisher_average(cc)
-        except ValueError:
-            return
+        evpairs, dd, ccp = paired_s_lag_times(evpairs, dd, cc)
+        cc = utils.fisher_average(cc)
+    else:
+        dd = dd[:-1]
+        ccp = np.array(
+            [
+                cc[i, j]
+                for i in range(pwv.shape[0] - 1)
+                for j in range(i + 1, pwv.shape[0])
+            ]
+        )
 
+    # Look up actual event indices and format before saving
+    evpairs = np.vectorize(header["events"].__getitem__)(evpairs)
+    evdd = np.char.mod(
+        ["% 9.0f", "% 9.0f", "%6.3f", "%13.6e"],
+        np.hstack((evpairs, ccp[:, np.newaxis], dd[:, np.newaxis])),
+    )
+
+    np.savetxt(core.file("mccc_lag_times", *destination), evdd, fmt="%s")
     io.save_results(core.file("mccc_time_shift", *destination), dt_cc)
     io.save_results(core.file("cc_matrix", *destination), cc)
 
