@@ -61,7 +61,12 @@ def test_make_read_station_table():
 
 
 def test_save_read_exclude_file():
-    excl_in = {"phase_align": ["1_STA1_P"], "station": ["STA2"], "event": 1}
+    excl_in = {
+        "phase_manual": ["1_STA1_P"],
+        "station": ["STA2"],
+        "event": 1,
+        "waveform": ["STA1_P"],
+    }
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
         io.save_yaml(fid.name, excl_in)
         fid.close()
