@@ -256,7 +256,7 @@ def section_2d(
             vmin=np.min(immat),
             vmax=np.max(immat),
             extent=(time[0], time[-1], ny - 0.5, -0.5),
-            interpolation="none",
+            interpolation="nearest",
             zorder=-6,
         )
         image_defaults.update(image_kwargs)
