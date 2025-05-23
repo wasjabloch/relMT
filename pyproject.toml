@@ -83,5 +83,10 @@ ignore_missing_imports = true
 ninja.version = ">=1.10"
 cmake.version = ">=3.17.2"
 
-#[project.scripts]
-#relmt =
+[project.scripts]
+relmt-exclude = "relmt.main:main_exclude"
+relmt-align = "relmt.main:main_align"
+relmt-bandpass = "relmt.main:main_bandpass"
+relmt-amplitude = "relmt.main:main_amplitude"
+relmt-ls = "relmt.main:main_linear_system"
+relmt-solve = "relmt.main:main_solve"
