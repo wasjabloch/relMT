@@ -80,7 +80,7 @@ basenames = {
     ),
     "amplitude_matrix": (
         "Left hand side of the linear system",
-        "amplitude_matrix.npy",
+        "amplitude_matrix.npz",
     ),
     "amplitude_data_vector": (
         "Right hand side of the linear system",
@@ -120,6 +120,10 @@ basenames_phase_station = {
     "mccc_time_shift": (
         "Time shifts from Multi-channel cross correlation",
         "dt_cc.txt",
+    ),
+    "mccc_lag_times": (
+        "Pair wise lag times from Multi-channel cross correlation",
+        "lag_times.txt",
     ),
     "cc_matrix": ("Cross-correlation matrix", "cc.txt"),
     "cc_vector": ("Averaged cross-correlation vector", "c.txt"),
@@ -181,7 +185,7 @@ def file(
 
     # Sort in the right subfolder
     if file_id == "config" or file_id == "exclude":
-        # Config in root folder
+        # Config and exclude in root folder
         pass
 
     elif file_id in ["event", "station", "phase", "reference_mt"]:
@@ -404,7 +408,7 @@ def ijk_ccvec(ns: int) -> Generator[tuple[int, int, int]]:
     """
 
     for i in range(ns - 2):
-        for j in range(i + 1, ns):
+        for j in range(i + 1, ns - 1):
             for k in range(j + 1, ns):
                 yield (i, j, k)
                 yield (k, i, j)
@@ -517,18 +521,33 @@ class Exclude(TypedDict, total=True):
     waveform: list[str]
     """Phases ('P' or 'S') on a station, given as Waveform ID (e.g ``STA_P``)"""
 
-    phase_align: list[str]
+    phase_manual: list[str]
     """Phase observation given as Phase ID (e.g. ``0_STA_P``) of one event on
     one station to exclude from waveform alignment"""
 
-    phase_interp: list[str]
-    """Phase observation given as Phase ID (e.g. ``0_STA_P``) of one event on
-    one station to exclude from interpolation of unknown phases"""
+    auto_nodata: list[str]
+    """Phase observation to exclude due to absent or corrupt data. Overwritten
+    when invoking ``relmt-exclude``"""
+
+    auto_snr: list[str]
+    """Phase observation to exclude due to low signal-to-noise ratio.
+    Overwritten when invoking ``relmt-exclude``"""
+
+    auto_ecn: list[str]
+    """Phase observation to exclude due to low expansion coefficient norm.
+    Overwritten when invoking ``relmt-exclude``"""
 
 
 # The one exclude dictionary we are going to use.
-exclude = Exclude(station=[], event=[], waveform=[], phase_align=[], phase_interp=[])
-
+exclude = Exclude(
+    station=[],
+    event=[],
+    waveform=[],
+    phase_manual=[],
+    phase_auto_nodata=[],
+    phase_auto_snr=[],
+    phase_auto_ecn=[],
+)
 # Attributes set in the global configuration file
 _config_args_comments = {
     "reference_mts": ("list", ("Event indices of the reference moment tensors to use")),
@@ -537,6 +556,17 @@ _config_args_comments = {
     "max_amplitude_misfit": (
         "float",
         ("Maximum misfit allowed for amplitude reconstruction"),
+    ),
+    "min_signal_noise_ratio": (
+        "float",
+        "Minimum signal-to-noise ratio (dB) of signals",
+    ),
+    "min_expansion_coefficient_norm": (
+        "float",
+        (
+            "Minimum norm of the principal component expansion coefficients "
+            "contributing to the waveform reconstruction"
+        ),
     ),
     "stressdrop_range": (
         "[float, float]",
@@ -584,6 +614,8 @@ class Config:
         mt_constraint: str | None = None,
         reference_weight: float | None = None,
         max_amplitude_misfit: float | None = None,
+        min_signal_noise_ratio: float | None = None,
+        min_expansion_coefficient_norm: float | None = None,
         stressdrop_range: tuple[float, float] | None = None,
         bootstrap_samples: int | None = None,
         ncpu: int | None = None,
