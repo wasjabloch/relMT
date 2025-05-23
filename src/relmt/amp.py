@@ -188,6 +188,59 @@ def order_by_ccsum(mtx_abc: np.ndarray) -> np.ndarray:
     return iord
 
 
+def process_p(arr, hdr, passband, min_dynamic_range, a, b, ia, ib):
+    """
+    Take event pair a, b, on station (and phase) defined by wvid and return
+    relative P amplitdue
+    """
+
+    # Find passband
+    hpass = [passband[i][0] for i in [a, b]]
+    lpass = [passband[i][1] for i in [a, b]]
+
+    hpas, lpas = signal.choose_passband(hpass, lpass, min_dynamic_range)
+
+    if hpas is None:
+        return
+
+    mat = signal.subset_filter_align(
+        arr, [ia, ib], lpas, hpas, **hdr.kwargs(signal.subset_filter_align)
+    )
+
+    A = pca_amplitude_2p(mat)
+    mis = p_misfit(mat, A)
+
+    return (hdr["station"], a, b, A, mis)
+
+
+def process_s(arr, hdr, passband, min_dynamic_range, a, b, c, ia, ib, ic):
+    """
+    Take event triplet a, b, c on station (and phase) defined by wvid and return
+    relative S amplitdues
+    """
+
+    # Find passband
+    hpass = [passband[i][0] for i in [a, b, c]]
+    lpass = [passband[i][1] for i in [a, b, c]]
+
+    hpas, lpas = signal.choose_passband(hpass, lpass, min_dynamic_range)
+
+    if hpas is None:
+        return
+
+    mat = signal.subset_filter_align(
+        arr, [ia, ib, ic], lpas, hpas, **hdr.kwargs(signal.subset_filter_align)
+    )
+
+    Babc, Bacb, iord = pca_amplitude_3s(mat)
+
+    # Indices sorted according to greatest differences in waveforms
+    # iabc = tuple(np.array((ia, ib, ic))[iord])
+    mis = s_misfit(mat[iord, :], Babc, Bacb)
+
+    return (hdr["station"], *np.array((a, b, c))[iord], Babc, Bacb, mis)
+
+
 def info(
     amplitudes: list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios],
     width: int = 80,
