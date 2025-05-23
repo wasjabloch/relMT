@@ -27,8 +27,9 @@
 
 import numpy as np
 import logging
-from relmt import core, signal, mt
+from relmt import core, signal, mt, utils, qc
 from scipy.stats import skew, kurtosis
+from scipy.linalg import svd
 from typing import Iterable
 
 logger = logging.getLogger(__name__)
@@ -37,9 +38,10 @@ logger.addHandler(core.logsh)
 
 
 def _switch_return_bool_not(
-    iin: Iterable[int], return_not: bool, return_bool: bool
+    iin: Iterable[bool], return_not: bool, return_bool: bool
 ) -> np.ndarray:
-    """Shorthand to convert boolean index array to numeric index array and/or apply not"""
+    """Shorthand to convert boolean index array to numeric index array and/or
+    apply not"""
     iin = np.asarray(iin)
     if return_not:
         iin = ~iin
@@ -215,7 +217,15 @@ def clean_by_valid_takeoff_angle(
     return [
         amp
         for amp in amplitudes
+        # First test if all phases are present
         if np.all(
+            [
+                core.join_phaseid(ev, amp.station, pha) in phase_dictionary
+                for ev in amp[iev]
+            ]
+        )
+        # Then if they are valid
+        and np.all(
             [
                 np.isfinite(
                     [
@@ -344,6 +354,133 @@ def clean_by_kurtosis(
     return amplitudes
 
 
+def expansion_coefficient_norm(arr: np.ndarray, phase: str) -> np.ndarray:
+    """Normalized expansion coefficient sum for each seismogram in matrix
+
+    Decompose seismogram matrix into principal seismograms. Return squared
+    contribution of first (and second) principal seismogram to each original
+    seismogram for P- (S-) waves.
+
+    1 (best) indicates principal seismogram(s) fully reconstruct the respective
+    waveform
+
+    0 (worst) indicates the respective waveform cannot be represented by the
+    principal seismogram(s)
+
+    Parameters
+    ----------
+    arr:
+        Waveform ``(events, channels, samples)`` array or ``(events, channels *
+        samples)`` matrix
+    phase:
+        `P` or `S` wave type
+
+    Returns:
+    --------
+    ``(events,)`` score per event
+
+    Raises:
+    -------
+    IndexError:
+        If 'arr' has not 2 or 3 dimensions.
+    """
+
+    if (ndim := len(arr.shape)) == 3:
+        mat = utils.concat_components(arr)
+    elif ndim == 2:
+        mat = arr
+    else:
+        msg = f"'arr' must have 2 or 3 dimension, not: {ndim}"
+        raise IndexError(msg)
+
+    mat = signal.norm_power(mat)
+
+    # Zero invalid events
+    ibad = qc.index_nonzero_events(mat, return_not=True)
+    mat[ibad, :] = 0.0
+
+    U, s, _ = svd(mat, False)
+
+    # We sum the squared values
+    ec = (s[0] * U[:, 0]) ** 2
+    if phase == "S":
+        try:
+            ec += (s[1] * U[:, 1]) ** 2
+        except IndexError:
+            ec += np.nan
+
+    # And return the root
+    return np.sqrt(ec)
+
+
+def included_events(
+    exclude: core.Exclude,
+    station: str,
+    phase: str,
+    events: list[int],
+    return_not: bool = False,
+    return_bool: bool = False,
+) -> tuple[list[int | bool], list[int]]:
+    """
+    Return events that are not excluded according to `exclude` dictionary
+
+    Parameters
+    ----------
+    exclude:
+        Dictionary holding exclusion criteria
+    station:
+        Station code to consider
+    phase:
+        Phase type to consider (`P` or `S`)
+    events:
+        Event IDs on that station
+    return_not:
+        Instead, return events that are excluded
+    return_bool:
+        Return boolean array (not an index array)
+
+    Returns
+    -------
+    ievs:
+        Indices into `events` of included (or excluded if `return_not=True`)
+        events
+    evns:
+        Global event IDs of included (or excluded if `return_not=True`)
+        events
+    """
+
+    # Get phases already excluded
+    exphids = []
+    for key in core.exclude:
+        if key.startswith("phase_"):
+            exphids += exclude.get(key, [])
+
+    # Excluded event IDs
+    evns = [
+        core.split_phaseid(phid)[0]
+        for phid in exphids
+        if core.split_phaseid(phid)[1:] == (station, phase)
+    ]
+
+    # Boolean index of not-excluded (=included) events
+    ievs = np.array([False if evn in evns else True for evn in events])
+
+    # Included event names
+    inevns = np.array(events)[ievs].astype(int)
+
+    # excluded event names
+    exevns = np.array(events)[~ievs].astype(int)
+
+    if return_not:
+        if return_bool:
+            return ~ievs, exevns
+        return ~ievs.nonzero()[0].tolist(), exevns.tolist()
+
+    if return_bool:
+        return ievs, inevns
+    return ievs.nonzero()[0].tolist(), inevns.tolist()
+
+
 def index_nonzero_events(
     array: np.ndarray, return_not: bool = False, return_bool: bool = False
 ) -> np.ndarray:
@@ -363,10 +500,17 @@ def index_nonzero_events(
     Indices where array is non-zero (or all-zero if `return_not=True`)
     """
 
-    iin = np.any(array, axis=-1)
+    # Any sample needs to be non-zero
+    inz = np.any(array, axis=-1)
+
+    # All samples needs to be finite
+    ifi = np.all(np.isfinite(array), axis=-1)
+    iin = inz & ifi
 
     while len(iin.shape) > 1:
-        iin = np.any(iin, axis=-1)
+        inz = np.any(inz, axis=-1)
+        ifi = np.all(ifi, axis=-1)
+        iin = inz & ifi
 
     return _switch_return_bool_not(iin, return_not, return_bool)
 

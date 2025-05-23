@@ -29,19 +29,6 @@ import numpy as np
 from relmt import qc, core
 
 
-def test_nonzero_events():
-    # Test if Non-zero events are detected
-    shape = (3, 512)
-    arr = np.zeros(shape)
-    arr[1, 500] = 1
-    inz = qc.index_nonzero_events(arr)
-    assert inz == [1]
-
-    arr[2, 0] = 1
-    inz = qc.index_nonzero_events(arr)
-    assert inz == pytest.approx([1, 2], abs=0)
-
-
 def test_return_bool_not():
     # Test if boolean arrays are correctly converted
     iin = [True, False, False, True, False]
@@ -73,6 +60,38 @@ def test_nonzero_events():
     arr[2, 0] = 1
     inz = qc.index_nonzero_events(arr)
     assert inz == pytest.approx([1, 2], abs=0)
+
+
+def test_nonzero_events_non_finite():
+    # Test if Non-zero events are detected
+    shape = (3, 512)
+    arr = np.ones(shape)
+    arr[0, 500] = np.nan
+    arr[2, 500] = np.nan
+    assert [1] == qc.index_nonzero_events(arr)
+    assert all([False, True, False] == qc.index_nonzero_events(arr, return_bool=True))
+    assert pytest.approx([0, 2]) == qc.index_nonzero_events(arr, return_not=True)
+
+
+def test_nonzero_events_3d():
+    # Test if Non-zero events are detected
+    shape = (3, 3, 512)
+    arr = np.zeros(shape)
+    arr[1, 0, 500] = 1
+    assert [1] == qc.index_nonzero_events(arr)
+    assert all([False, True, False] == qc.index_nonzero_events(arr, return_bool=True))
+    assert pytest.approx([0, 2]) == qc.index_nonzero_events(arr, return_not=True)
+
+
+def test_nonzero_events_non_finite_3d():
+    # Test if Non-zero events are detected
+    shape = (3, 3, 512)
+    arr = np.ones(shape)
+    arr[0, 1, 500] = np.nan
+    arr[2, 1, 500] = np.nan
+    assert [1] == qc.index_nonzero_events(arr)
+    assert all([False, True, False] == qc.index_nonzero_events(arr, return_bool=True))
+    assert pytest.approx([0, 2]) == qc.index_nonzero_events(arr, return_not=True)
 
 
 # Created by VS-code Co-pilot
