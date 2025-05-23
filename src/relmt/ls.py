@@ -1022,12 +1022,12 @@ def solve_irls_sparse(
         # solution to NXN subsystem is approached and should fall below sample
         # interval dt.
         tol = np.mean(np.abs(m - m0))
-        logger.info("Iteration {:d} misfit is {:3.1e}".format(it, tol))
+        logger.debug("Iteration {:d} misfit is {:3.1e}".format(it, tol))
 
         # Increase eps if solution starts to stagnate.
         if tol > tol1:
             eps = eps * efac
-            logger.info("eps increased to: {:3.1e}".format(eps))
+            logger.debug("eps increased to: {:3.1e}".format(eps))
 
     r = G @ m - d
 
