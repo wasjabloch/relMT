@@ -25,10 +25,12 @@
 
 import numpy as np
 from scipy.linalg import svd
+from scipy.interpolate import interpn
 from datetime import datetime
 import logging
 from typing import Iterable
-from relmt import core, mt, signal, qc
+from relmt import core, mt, signal, qc, angle
+import itertools
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -79,9 +81,7 @@ def azimuth(
     y2: float | np.ndarray,
 ) -> float | np.ndarray:
     """Azimuth (degree x -> y) from point (x1, y1) to (x2, y2)"""
-    azi = np.arctan2((y2 - y1), (x2 - x1)) * 180 / np.pi
-    while azi < 0:
-        azi += 360
+    azi = (np.arctan2((y2 - y1), (x2 - x1)) * 180 / np.pi) % 360.0
     return azi
 
 
@@ -225,6 +225,147 @@ def fisher_average(ccarr: np.ndarray, axis: int = -1) -> np.ndarray:
         ccarr = np.tanh(ccarr)
 
     return ccarr
+
+
+def phase_dict_azimuth(
+    phase_dict: dict[str, core.Phase],
+    event_list: list[core.Event],
+    station_dict: dict[str, core.Station],
+    overwrite: bool = False,
+) -> dict[str, core.Phase]:
+    """
+    Fill phase dictionary with azimuth from trigonometry
+
+    Parameters
+    ----------
+    phase_dict:
+        All seismic phases
+    event_list:
+        The seismic event catalog
+    station_dict:
+        Station table
+    overwrite:
+        Overwrite existing azimuth values (`False`: only replace `NaN` values)
+
+    Returns
+    -------
+    New phase dictionary containing computed plunges
+    """
+
+    azis = np.array(
+        [
+            (
+                azimuth(
+                    *xyzarray(event_list[core.split_phaseid(phid)[0]])[:2],
+                    *xyzarray(station_dict[core.split_phaseid(phid)[1]])[:2],
+                ),
+            )
+            for phid in phase_dict
+        ]
+    )
+
+    new_phase_dict = {
+        phid: (
+            # Assign original plunge when not nan and we are not overwriting
+            core.Phase(ph.time, ph.azimuth, ph.plunge)
+            if np.isfinite(ph.azimuth) and not overwrite
+            else core.Phase(ph.time, azis[nph], ph.plunge)
+        )
+        for nph, (phid, ph) in enumerate(phase_dict.items())
+    }
+
+    return new_phase_dict
+
+
+def phase_dict_hash_plunge(
+    phase_dict: dict[str, core.Phase],
+    event_list: list[core.Event],
+    station_dict: dict[str, core.Station],
+    vmodel: np.ndarray,
+    overwrite: bool = False,
+    nquerry: int = 100,
+    nray=1000,
+) -> dict[str, core.Phase]:
+    """
+    Fill phase dictionary with plunge values from HASH.
+
+    Uses the python implementation of the HASH ray-tracer (Skoumal, Hardebeck &
+    Shearer, 2024; Hardebeck & Shearer, 2002) by courtesey of USGS.
+
+    Parameters
+    ----------
+    phase_dict:
+        All seismic phases
+    event_list:
+        The seismic event catalog
+    station_dict:
+        Station table
+    vmodel:
+        ``(layers, 3)`` array of depth (m), P- and S-wave velocities (m/s)
+    overwrite:
+        Overwrite existing plunge values (`False`: only replace `NaN` values)
+    nquerry:
+        Number of distance and depth querry points for plunge lookup table
+    nray:
+        Number of trail rays (should be larger than `nquerry`)
+
+    Returns
+    -------
+    New phase dictionary containing computed plunges
+    """
+
+    dist_dep = np.array(
+        [
+            (
+                cartesian_distance(
+                    *xyzarray(station_dict[core.split_phaseid(phid)[1]])[:2],
+                    0,
+                    *xyzarray(event_list[core.split_phaseid(phid)[0]])[:2],
+                    0,
+                ),
+                event_list[core.split_phaseid(phid)[0]].depth,
+            )
+            for phid in phase_dict
+        ]
+    )
+
+    # Distance and depth coordinate vectors
+    # (TODO: if interpolation errors occurr, add a small margin here)
+    # Distance is expected to begin at 0, else strange IndexErrors occurr
+    maxdist = max(dist_dep[:, 0])
+    maxdep = max(dist_dep[:, 1])
+    logger.debug(f"Found maximum event-station distance: {maxdist} m")
+    logger.debug(f"Found maximum event depth: {maxdep} m")
+
+    distv = np.linspace(0.0, maxdist, nquerry)
+    depv = np.linspace(0.0, maxdep, nquerry)
+
+    # P wave ...
+    pluta_p = angle.hash_plunge_table(vmodel[:, :2], depv, distv, nray)
+
+    # S wave plunge lookup table
+    pluta_s = angle.hash_plunge_table(vmodel[:, [0, 2]], depv, distv, nray)
+
+    # Interpolate P and S plunges, regardless of phase
+    plup = interpn((distv, depv), pluta_p, dist_dep)
+    plus = interpn((distv, depv), pluta_s, dist_dep)
+
+    new_phase_dict = {
+        phid: (
+            # Assign original plunge when not nan and we are not overwriting
+            core.Phase(ph.time, ph.azimuth, ph.plunge)
+            if np.isfinite(ph.plunge) and not overwrite
+            # Else, Assign P or S plunge, depending on phase id
+            else (
+                core.Phase(ph.time, ph.azimuth, plup[nph])
+                if core.split_phaseid(phid)[2] == "P"
+                else core.Phase(ph.time, ph.azimuth, plus[nph])
+            )
+        )
+        for nph, (phid, ph) in enumerate(phase_dict.items())
+    }
+
+    return new_phase_dict
 
 
 def interpolate_phase_dict(
@@ -371,7 +512,7 @@ def interpolate_phase_dict(
                 ea = azimuth(
                     ex, ey, sxyz[0], sxyz[1]
                 )  # event to station azimuth should be correct
-                # ea = azimuth(sxyz[0], sxyz[1], ex, ey)  # but station to event gives better results
+
                 ep = interpolate_plunge(ez, deps, pluns)  # ray incidence
                 try:
                     # Try to get meassured values

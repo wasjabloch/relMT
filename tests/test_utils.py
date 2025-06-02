@@ -26,7 +26,8 @@ Test the utility functions
 
 import pytest
 import numpy as np
-from relmt import signal, utils, core
+from pathlib import Path
+from relmt import signal, utils, core, io, extra
 
 
 def test_concat_wvf_array():
@@ -115,6 +116,115 @@ def test_approx_time_lookup_error():
     t2s = [0]
     with pytest.raises(LookupError):
         _ = utils.approx_time_lookup(t1s, t2s, include_at=0.1)
+
+
+def test_phase_dict_azimuth():
+    # Test if phases arrival times are estimated correctly
+    # Ground truth comes from SKHASH example 'maacama'
+
+    pwd = Path(__file__).parent
+    datf = pwd / "data" / "skhash_maacama_example.txt"
+    stas = np.loadtxt(datf, usecols=0, dtype=str, skiprows=1)
+    slat, slon, sdep, elat, elon, edep = np.loadtxt(
+        datf, usecols=(1, 2, 3, 4, 5, 6), unpack=True, skiprows=1
+    )
+
+    # Convert to Cartesian
+    num, let = extra.get_utm_zone(slat, slon)
+    sn, se, sd = extra.geoconverter_latlon2utm(slat, slon, sdep, num, let)
+    en, ee, ed = extra.geoconverter_latlon2utm(elat, elon, edep, num, let)
+
+    # Make a station dictionary
+    std = {name: core.Station(n, e, d, name) for name, n, e, d in zip(stas, sn, se, sd)}
+
+    # Only one event in list
+    evl = [core.Event(en[0], ee[0], ed[0], -1, -1, "0")]
+
+    # Make a phase dictionary
+    phd = {
+        core.join_phaseid(0, sta, pha): core.Phase(-1, np.nan, -1)
+        for sta in std
+        for pha in "PS"
+    }
+
+    # Actual values
+    azimuths = np.loadtxt(datf, usecols=9, unpack=True, skiprows=1)
+
+    newphd = utils.phase_dict_azimuth(phd, evl, std)
+
+    for sta, azimuth in zip(stas, azimuths):
+        azp = newphd[core.join_phaseid(0, sta, "P")].azimuth
+        azs = newphd[core.join_phaseid(0, sta, "S")].azimuth
+
+        # P and S plunge are the same, because we have a constant Vp/Vs
+        assert pytest.approx(azp) == azs
+
+        assert pytest.approx(azimuth, 1e-2) == azp
+
+    # A trial set value
+    phd["0_BARR_S"] = core.Phase(-1, 101.0, -1)
+
+    # Let's try not to overwrite the set value
+    newphd = utils.phase_dict_azimuth(phd, evl, std, overwrite=False)
+    assert newphd["0_BARR_S"].azimuth == 101.0
+
+
+def test_phase_dict_hash_plunge():
+    # Test if phases arrival times are estimated correctly
+    # Ground truth comes from SKHASH example 'maacama'
+
+    pwd = Path(__file__).parent
+    datf = pwd / "data" / "skhash_maacama_example.txt"
+    vmodf = pwd / "data" / "mvel.txt"
+    stas = np.loadtxt(datf, usecols=0, dtype=str, skiprows=1)
+    slat, slon, sdep, elat, elon, edep = np.loadtxt(
+        datf, usecols=(1, 2, 3, 4, 5, 6), unpack=True, skiprows=1
+    )
+
+    # Convert to Cartesian
+    num, let = extra.get_utm_zone(slat, slon)
+    sn, se, sd = extra.geoconverter_latlon2utm(slat, slon, sdep, num, let)
+    en, ee, ed = extra.geoconverter_latlon2utm(elat, elon, edep, num, let)
+
+    # Make a station dictionary
+    std = {name: core.Station(n, e, d, name) for name, n, e, d in zip(stas, sn, se, sd)}
+
+    # Only one event in list
+    evl = [core.Event(en[0], ee[0], ed[0], -1, -1, "0")]
+
+    # Make a phase dictionary
+    phd = {
+        core.join_phaseid(0, sta, pha): core.Phase(-1, -1, np.nan)
+        for sta in std
+        for pha in "PS"
+    }
+
+    # Actual values
+    takeoff = np.loadtxt(datf, usecols=8, unpack=True, skiprows=1)
+
+    # Convert to relMT convention
+    plunges = takeoff - 90.0
+
+    # Table has Depth, Vp, Vs
+    vmodel = io.read_velocity_model(vmodf, has_kilometer=True)
+
+    newphd = utils.phase_dict_hash_plunge(phd, evl, std, vmodel)
+
+    for sta, plunge in zip(stas, plunges):
+        pp = newphd[core.join_phaseid(0, sta, "P")].plunge
+        ps = newphd[core.join_phaseid(0, sta, "S")].plunge
+
+        # P and S plunge are the same, because we have a constant Vp/Vs
+        assert pytest.approx(pp) == ps
+
+        assert pytest.approx(plunge, abs=2) == pp
+
+    # A trial set value
+    phd["0_BARR_S"] = core.Phase(-1, -1, 101.0)
+
+    # Let's try not to overwrite the set value
+    newphd = utils.phase_dict_hash_plunge(phd, evl, std, vmodel, overwrite=False)
+    assert newphd["0_BARR_S"].plunge == 101.0
 
 
 def test_interpolate_phd_time():
