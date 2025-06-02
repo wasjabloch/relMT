@@ -474,7 +474,7 @@ def included_events(
     if return_not:
         if return_bool:
             return ~ievs, exevns
-        return ~ievs.nonzero()[0].tolist(), exevns.tolist()
+        return (~ievs.nonzero()[0]).tolist(), exevns.tolist()
 
     if return_bool:
         return ievs, inevns
