@@ -299,6 +299,7 @@ def s_equations(
     events: list[core.Event],
     phase_dictionary: dict[str, core.Phase],
     nmt: int,
+    choose_coefficients: tuple[int, int] | None = None,
 ) -> np.ndarray:
     """
     Two equations with S-wave constraints on the linear system
@@ -318,6 +319,9 @@ def s_equations(
         All phase observations
     nmt:
         Number of moment tensor elements
+    choose_coefficients:
+        Select two indices (0, 1, 2) of directional coefficients to use. If
+        `None`, chose those with the largest norm
 
     Returns
     -------
@@ -368,17 +372,22 @@ def s_equations(
 
     # Now find set of directional coefficients that records most of the amplitude:
     # Choose the coefficients with the two highest norms
-    i1, i2 = np.argsort(
-        np.linalg.norm(
-            (
-                np.concatenate((gas[0], gbs[0], gcs[0])),
-                np.concatenate((gas[1], gbs[1], gcs[1])),
-                np.concatenate((gas[2], gbs[2], gcs[2])),
+    if choose_coefficients is None:
+        i1, i2 = np.argsort(
+            np.linalg.norm(
+                (
+                    np.concatenate((gas[0], gbs[0], gcs[0])),
+                    np.concatenate((gas[1], gbs[1], gcs[1])),
+                    np.concatenate((gas[2], gbs[2], gcs[2])),
+                ),
+                axis=1,
             ),
-            axis=1,
-        ),
-        kind="stable",  # Keep order of equal elements, so tests succeed.
-    )[[1, 2]]
+            kind="stable",  # Keep order of equal elements, so tests succeed.
+        )[[1, 2]]
+    else:
+        i1 = choose_coefficients[0]
+        i2 = choose_coefficients[1]
+
     logger.debug(f"Selected directional coefficients: {i1}, {i2}")
     for i in [i1, i2]:
         for gs, abc in zip([gas, gbs, gcs], "abc"):
@@ -525,7 +534,7 @@ def homogenous_amplitude_equations(
         station = station_dictionary[samp.station]
 
         # Create two S observations
-        lines = s_equations(samp, station, event_list, phase_dictionary, nmt)
+        lines = s_equations(samp, station, event_list, phase_dictionary, nmt, (0, 1))
 
         row = peq + 2 * n
         Ah[[row, row + 1], :] = lines
