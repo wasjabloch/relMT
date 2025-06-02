@@ -108,6 +108,10 @@ def make_waveform_array(
             if tb >= tr.stats.starttime.timestamp and te <= tr.stats.endtime.timestamp:
                 tr_lut[evid].append(ntr)
 
+    logger.debug(
+        f"Created trace lookup table with {sum(len(v) for v in tr_lut.values())} entries."
+    )
+
     # Only consider events with complete channel information
     evgood = sorted(
         [
@@ -116,6 +120,8 @@ def make_waveform_array(
             if chaset.issubset(set(sta_tr[itr].stats.component for itr in itrs))
         ]
     )
+
+    logger.debug(f"Found {len(evgood)} matching events.")
 
     # Initialize output arrays
     nsamp = int(data_window * sampling_rate)
