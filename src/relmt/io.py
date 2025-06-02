@@ -25,7 +25,7 @@
 
 import numpy as np
 import logging
-from relmt import core, mt
+from relmt import core, mt, qc
 from typing import Callable
 import yaml
 from scipy.io import loadmat
@@ -479,7 +479,7 @@ def read_waveform_array_header(
 
     wvf = core.file("waveform_array", station, phase, n_align, directory)
     hdrf = core.file("waveform_header", station, phase, n_align, directory)
-    default_hdrf = core.file("waveform_header", directory=directory)
+    default_hdrf = core.file("waveform_header", n_align=n_align, directory=directory)
 
     loader = np.load
     if matlab:
@@ -712,6 +712,42 @@ def make_gmt_meca_table(
         np.savetxt(filename, outarr, **savetxt_kwargs)
 
     return outarr
+
+
+def read_velocity_model(filename: str | Path, has_kilometer=False) -> np.ndarray:
+    """Read a velocity  model from file
+
+    The space-seperated file holds three columns: Depth (m), Vp (m/s), Vs (m/s).
+    If the last column is absent, we assume a constant Vp/Vs ratio of 1.73.
+
+    Parameters
+    ----------
+    filename:
+        Name of the event table file
+    has_kilometer:
+        Input file has depth in km and velocities in km/s.
+
+    Returns
+    -------
+    ``(layers, 3)`` table of Depth (m), Vp (m/s), Vs (m/s)
+    """
+
+    try:
+        buf = np.loadtxt(filename)
+    except ValueError:
+        buf = np.loadtxt(filename, delimiter=",")
+
+    if buf.shape[1] == 2:
+        # Compute Vp from Vs
+        buf = np.hstack((buf, buf[:, 1][:, np.newaxis] / 1.73))
+    elif (ncol := buf.shape[1]) != 3:
+        msg = f"File has {ncol} columns. Expected 2 or 3."
+        raise IndexError(msg)
+
+    if has_kilometer:
+        buf *= 1e3
+
+    return buf
 
 
 def read_ext_event_table(
