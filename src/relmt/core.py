@@ -272,12 +272,21 @@ def init(directory: str | Path | None = None):
 
     if directory is not None:
         directory = Path(directory)
-        os.mkdir(directory)
+        try:
+            os.mkdir(directory)
+            logger.debug(f"Made directory: {directory}")
+        except FileExistsError:
+            logger.debug(f"{directory} exists. Continuing.")
+
     else:
         directory = Path()
 
     for subdir in ["data", "align1", "amplitude", "result"]:
-        os.mkdir(directory / subdir)
+        try:
+            os.mkdir(directory / subdir)
+            logger.debug(f"Made directory: {directory / subdir}")
+        except FileExistsError:
+            logger.debug(f"{directory / subdir} exists. Continuing.")
 
 
 # Now fill actual file names and description into the doc
