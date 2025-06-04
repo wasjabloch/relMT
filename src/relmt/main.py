@@ -375,7 +375,10 @@ def main_bandpass():
             )
 
             # Don't look below minimum frequency
-            fc = extra.apparent_corner_frequency(sig, sr, fmin=fcmin, fmax=fcmax)
+            try:
+                fc = extra.apparent_corner_frequency(sig, sr, fmin=fcmin, fmax=fcmax)
+            except ValueError:
+                fc = fcmax
 
             # Filter below corner frequency or optimal lowpass, whichever is
             # lower
@@ -483,34 +486,80 @@ def main_linear_system():
     conf = _get_config(conff, directory)
 
     max_misfit = conf["max_amplitude_misfit"]
-    ref_mts = conf["reference_mts"]
+    all_ref_mts = conf["reference_mts"]
     constraint = conf["mt_constraint"]
     refmt_weight = conf["reference_weight"]
 
     mt_elements = ls.mt_elements(constraint)
 
-    ref_id = "-".join([f"{iref}" for iref in ref_mts])
+    ref_id = "-".join([f"{iref}" for iref in all_ref_mts])
 
-    evl = io.read_event_table(core.file("event", directory=directory))
-    phd = io.read_phase_table(core.file("phase", directory=directory))
+    all_evl = io.read_event_table(core.file("event", directory=directory))
+    all_phd = io.read_phase_table(core.file("phase", directory=directory))
     stad = io.read_station_table(core.file("station", directory=directory))
-    mtd = io.read_mt_table(core.file("reference_mt", directory=directory))
+    all_mtd = io.read_mt_table(core.file("reference_mt", directory=directory))
 
     outsuffix = suffix + "_iref_" + ref_id + f"_{constraint}"
 
     # Read amplitudes from file
-    p_amplitudes = io.read_amplitudes(
+    all_p_amplitudes = io.read_amplitudes(
         core.file(
             "amplitude_observation", phase="P", suffix=suffix, directory=directory
         ),
         "P",
     )
-    s_amplitudes = io.read_amplitudes(
+    all_s_amplitudes = io.read_amplitudes(
         core.file(
             "amplitude_observation", phase="S", suffix=suffix, directory=directory
         ),
         "S",
     )
+
+    # Include only events in event list that are acutally good.
+    ab = np.array([(amp.event_a, amp.event_b) for amp in all_p_amplitudes])
+    abc = np.array(
+        [(amp.event_a, amp.event_b, amp.event_c) for amp in all_s_amplitudes]
+    )
+    inev = sorted(set(ab.flat).union(set(abc.flat)))
+
+    np.savetxt(core.file("inev.txt", directory=directory), inev, fmt="%.0f")
+
+    # Change all the indexing
+    evl = [all_evl[n] for n in inev]
+    ref_mts = [inev.index(n) for n in all_ref_mts]
+
+    phd = {
+        core.join_phaseid(
+            inev.index(core.split_phaseid(phid)[0]), *core.split_phaseid(phid)[1:]
+        ): pha
+        for phid, pha in all_phd.items()
+        if core.split_phaseid(phid)[0] in inev
+    }
+    p_amplitudes = [
+        core.P_Amplitude_Ratio(
+            am.station,
+            inev.index(am.event_a),
+            inev.index(am.event_b),
+            am.amp_ab,
+            am.misfit,
+        )
+        for am in all_p_amplitudes
+        if am.event_a in inev and am.event_b in inev
+    ]
+    s_amplitudes = [
+        core.S_Amplitude_Ratios(
+            am.station,
+            inev.index(am.event_a),
+            inev.index(am.event_b),
+            inev.index(am.event_c),
+            am.amp_abc,
+            am.amp_acb,
+            am.misfit,
+        )
+        for am in all_s_amplitudes
+        if am.event_a in inev and am.event_b in inev and am.event_c in inev
+    ]
+    mtd = {inev.index(iev): mt for iev, mt in all_mtd.items() if iev in inev}
 
     # Build homogenos part of linear system
     Ah, bh = ls.homogenous_amplitude_equations(
@@ -622,12 +671,17 @@ def main_solve():
         s_residuals,
     )
 
+    try:
+        inev = np.loadtxt(core.file("inev.txt", directory=directory)).astype(int)
+    except FileNotFoundError:
+        inev = list(range(int(A.shape[1] // mt_elements)))
+
     relmts = {
-        i: momt for i, momt in enumerate(mt.mt_tuples(m, constraint)) if any(momt)
+        inev[i]: momt for i, momt in enumerate(mt.mt_tuples(m, constraint)) if any(momt)
     }
-    tab = io.make_mt_table(relmts)
-    with open(core.file("relative_mt", directory=directory, suffix=outsuf), "w") as fid:
-        fid.write(tab)
+    io.make_mt_table(
+        relmts, core.file("relative_mt", directory=directory, suffix=outsuf)
+    )
 
     # Bootstrap
     if nboot:
