@@ -137,7 +137,6 @@ def file(
     station: str = "",
     phase: str = "",
     n_align: int | None = None,
-    directory: str = "",
     suffix: str = "",
 ):
     """Path to a runtime file, following naming conventions
@@ -164,8 +163,6 @@ def file(
         Alignment iteration, required for:
         PHASE FILES
 
-    directory:
-        Name of the root directory
     suffix:
         String to append to the basename, before the file ending. A single
         leading '-' will prepended (but given leading '-' stripped).
@@ -176,7 +173,7 @@ def file(
         Path to the file
     """
 
-    folder = Path(directory)
+    folder = Path()
 
     if phase is not None:
         if phase not in "PSps":
