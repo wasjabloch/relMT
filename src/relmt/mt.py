@@ -131,7 +131,13 @@ def mean_moment(mts: list[core.MT]) -> float:
 
 
 def p_radiation(
-    M: np.ndarray, azi: float, plu: float, dist: float, rho: float, alpha: float
+    M: np.ndarray,
+    azi: float,
+    plu: float,
+    dist: float,
+    rho: float,
+    alpha: float,
+    only_first: bool = False,
 ) -> np.ndarray:
     """P radiation pattern of a moment tensor M
 
@@ -149,16 +155,23 @@ def p_radiation(
         Density of the medium (kg m^-3)
     alpha:
         P-wave velocity of the medim (m/s)
+    only_first:
+        If True, only return the first component of the displacement vector
 
     Returns
     -------
-    ``(3,)`` displacement vector at receiver
+    ``(3,)`` (or ``(1,)`` when `only_first=True`) displacement vector at receiver
     """
 
     ndim = 3
+
+    udim = 3
+    if only_first:
+        udim = 1
+
     g = ls.gamma(azi, plu)
-    u = np.zeros(ndim)
-    for i in range(ndim):
+    u = np.zeros(udim)
+    for i in range(udim):
         for j in range(ndim):
             for k in range(ndim):
                 u[i] += (
