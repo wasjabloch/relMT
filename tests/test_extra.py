@@ -296,8 +296,8 @@ def test_read_waveform_array():
     with tempfile.TemporaryDirectory() as temp_dir:
         # iteration = 0 implies data is saved in "data" subdir
         os.makedirs(Path(temp_dir) / "data")
-        wvf = core.file("waveform_array", sta, pha, it, temp_dir)
-        hdf = core.file("waveform_header", sta, pha, it, temp_dir)
+        wvf = temp_dir / core.file("waveform_array", sta, pha, it)
+        hdf = temp_dir / core.file("waveform_header", sta, pha, it)
         # Save waveform and header to designated files
         np.save(str(wvf), arr)
         hdr2.to_file(hdf)
