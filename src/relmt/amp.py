@@ -26,7 +26,7 @@
 import numpy as np
 from numpy.linalg import LinAlgError
 from scipy.linalg import svd, norm, solve
-from relmt import core, signal, qc
+from relmt import core, signal, qc, mt, utils
 import logging
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,9 @@ def p_misfit(mtx_ab: np.ndarray, Aab: float) -> float:
     return norm(mtx_ab[0, :] - Aab * mtx_ab[1, :]) / norm(mtx_ab[0, :])
 
 
-def pca_amplitude_3s(mtx_abc: np.ndarray) -> tuple[float, float, np.ndarray]:
+def pca_amplitude_3s(
+    mtx_abc: np.ndarray, order: bool = True
+) -> tuple[float, float, np.ndarray]:
     """
     Relative amplitudes between triplet of S-waves.
 
@@ -104,6 +106,10 @@ def pca_amplitude_3s(mtx_abc: np.ndarray) -> tuple[float, float, np.ndarray]:
     mtx_abc:
         Waveform matrix of shape ``(3, samples)`` holding events `a`, `b` and
         `c`
+    order:
+        If True, order the waveforms by pairwise summed cross-correlation
+        coefficients before computing the relative amplitudes. If False, use
+        the order of the input matrix.
 
     Returns
     -------
@@ -114,10 +120,14 @@ def pca_amplitude_3s(mtx_abc: np.ndarray) -> tuple[float, float, np.ndarray]:
     iord:  ndarray
         Resulting ``(3,)`` row indices into `mtx_abc` of events `a`, `b` and `c`
     """
-    iord = order_by_ccsum(mtx_abc)
+
+    iord = np.array([0, 1, 2])
+    if order:
+        iord = order_by_ccsum(mtx_abc)
 
     _, ss, Vh = svd(mtx_abc[iord].T / np.max(abs(mtx_abc)), full_matrices=False)
 
+    # Bostock et al. (2021) Eq. 10
     PCs = np.diag(ss) @ Vh
     A = PCs[0:2, 1:3]
     bb = PCs[0:2, 0]
@@ -128,9 +138,9 @@ def pca_amplitude_3s(mtx_abc: np.ndarray) -> tuple[float, float, np.ndarray]:
         try:
             Aabc = solve(A, bb)
         except LinAlgError as e:
-            msg = f"Met error in SVD: {e.__repr__()}. Assuming: Babc = Bacb = 0.5"
+            msg = f"Met error in SVD: {e.__repr__()}. Returning NaN values."
             logger.warning(msg)
-            return 0.5, 0.5, iord
+            return np.nan, np.nan, iord
         return Aabc[0], Aabc[1], iord
 
 
@@ -186,6 +196,166 @@ def order_by_ccsum(mtx_abc: np.ndarray) -> np.ndarray:
     # Re-order events based on waveform similarity such that evs B and C are most different
     iord = np.argsort([ab + ac, ab + bc, ac + bc])[::-1]
     return iord
+
+
+def synthetic(
+    moment_tensors: dict[int, core.MT],
+    event_list: list[core.Event],
+    station_dictionary: dict[str, core.Station],
+    phase_dictionary: dict[str, core.Phase],
+    p_pairs: list[tuple[str, int, int]],
+    s_triplets: list[tuple[str, int, int, int]],
+    order: bool = True,
+) -> tuple[list[core.P_Amplitude_Ratio], list[core.S_Amplitude_Ratios], np.ndarray]:
+    """
+    Generate synthetic relative amplitude meassurements.
+
+    Either compute all possible event combinations from the supplied phase
+    dictionary and mment tensors, or supply explicit `p_pairs` and `s_tripltes`
+    (e.g. from existing :class:`core.P_Amplitude_Ratio` and
+    :class:`core.S_Amplitude_Ratios` objects).
+
+    Parameters
+    ----------
+    moment_tensors:
+        Dictionary of moment tensors indexed by event ID.
+    event_list:
+        List of events with locations
+    station_dictionary:
+        Dictionary of stations with locations indexed by station name.
+    phase_dictionary:
+        Dictionary of phases with take-off angles indexed by phase name.
+    p_pairs:
+        List of tuples of the form `(station, event_a, event_b)` for P-wave
+        relative amplitude pairs.
+    s_triplets:
+        List of tuples of the form `(station, event_a, event_b, event_c)` for
+        S-wave relative amplitude triplets.
+    order:
+        If True, order the waveforms by pairwise summed cross-correlation
+        coefficients before computing the relative S amplitudes. If False, use
+        the order of the input matrix. In any case, the applied order will be
+        returned in the `orders` variable.
+
+    Returns
+    -------
+    p_ratios:
+        ``(len(p_pairs),)`` arrays of synthetic P- ...
+    s_ratios:
+        ``(len(s_triplets, 2)`` ... and S-relative amplitude measurements.
+    orders:
+        ``(len(s_triplets, 3)`` array of indices that order the S waveforms
+        according to greatest differences in waveforms.
+    """
+
+    rho = 3600
+    alpha = 6000
+    beta = 4500  # Dummy density and velocity cancel out upon devision
+
+    # Create empty array to hold synthetic amplitudes
+    p_ratios = np.full(len(p_pairs), np.nan)
+    s_ratios = np.full((len(s_triplets), 2), np.nan)
+    orders = np.full((len(s_triplets), 3), [0, 1, 2], dtype=int)
+
+    # First compute the P amplitude ratios
+    for i, (s, a, b) in enumerate(p_pairs):
+        phid_a = core.join_phaseid(a, s, "P")
+        phid_b = core.join_phaseid(b, s, "P")
+
+        # Get the moment tensors for events a and b
+        try:
+            mt_a = mt.mt_array(moment_tensors[a])
+            mt_b = mt.mt_array(moment_tensors[b])
+
+            azi_a, plu_a = (
+                phase_dictionary[phid_a].azimuth,
+                phase_dictionary[phid_a].plunge,
+            )
+            azi_b, plu_b = (
+                phase_dictionary[phid_b].azimuth,
+                phase_dictionary[phid_b].plunge,
+            )
+        except KeyError:
+            logger.warning(
+                "Missing moment tensor or phase information for pair "
+                f"{s}, {a}, {b}. Skipping."
+            )
+            continue
+
+        dist_a = utils.cartesian_distance(
+            *station_dictionary[s][:3], *event_list[a][:3]
+        )
+        dist_b = utils.cartesian_distance(
+            *station_dictionary[s][:3], *event_list[b][:3]
+        )
+
+        # Calculate the relative P amplitude
+        p_ratios[i] = pca_amplitude_2p(
+            np.array(
+                [
+                    mt.p_radiation(mt_a, azi_a, plu_a, dist_a, rho, alpha),
+                    mt.p_radiation(mt_b, azi_b, plu_b, dist_b, rho, alpha),
+                ]
+            )
+        )
+
+    # ... then the S amplitude ratios
+    for i, (s, a, b, c) in enumerate(s_triplets):
+        phid_a = core.join_phaseid(a, s, "S")
+        phid_b = core.join_phaseid(b, s, "S")
+        phid_c = core.join_phaseid(c, s, "S")
+
+        # Get the moment tensors for events a, b, and c
+        try:
+            mt_a = mt.mt_array(moment_tensors[a])
+            mt_b = mt.mt_array(moment_tensors[b])
+            mt_c = mt.mt_array(moment_tensors[c])
+
+            azi_a, plu_a = (
+                phase_dictionary[phid_a].azimuth,
+                phase_dictionary[phid_a].plunge,
+            )
+            azi_b, plu_b = (
+                phase_dictionary[phid_b].azimuth,
+                phase_dictionary[phid_b].plunge,
+            )
+            azi_c, plu_c = (
+                phase_dictionary[phid_c].azimuth,
+                phase_dictionary[phid_c].plunge,
+            )
+        except KeyError:
+            logger.warning(
+                "Missing moment tensor or phase information for triplet "
+                f"{s}, {a}, {b}, {c}. Skipping."
+            )
+            continue
+
+        dist_a = utils.cartesian_distance(
+            *station_dictionary[s][:3], *event_list[a][:3]
+        )
+        dist_b = utils.cartesian_distance(
+            *station_dictionary[s][:3], *event_list[b][:3]
+        )
+        dist_c = utils.cartesian_distance(
+            *station_dictionary[s][:3], *event_list[c][:3]
+        )
+
+        us_a = mt.s_radiation(mt_a, azi_a, plu_a, dist_a, rho, beta)
+        us_b = mt.s_radiation(mt_b, azi_b, plu_b, dist_b, rho, beta)
+        us_c = mt.s_radiation(mt_c, azi_c, plu_c, dist_c, rho, beta)
+
+        Babc, Bacb, iord = pca_amplitude_3s(np.array([us_a, us_b, us_c]), order=order)
+        print(f"Triplet {s}, {a}, {b}, {c}: Babc = {Babc}, Bacb = {Bacb}")
+        print(f"ua: ", us_a)
+        print(f"ub: ", us_b)
+        print(f"uc: ", us_c)
+
+        # Calculate the relative P amplitude
+        s_ratios[i, 0] = Babc
+        s_ratios[i, 1] = Bacb
+        orders[i, :] = iord
+
+    return p_ratios, s_ratios, orders
 
 
 def process_p(arr, hdr, passband, min_dynamic_range, a, b, ia, ib):

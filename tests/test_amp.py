@@ -24,11 +24,18 @@
 Test the amplitude functions
 """
 
-from relmt import signal, amp, core
+from relmt import mt, signal, amp, core
 import numpy as np
 
 import pytest
 from numpy.random import Generator, PCG64
+
+try:
+    # This is what IPython likes
+    from . import conftest
+except ImportError:
+    # This is what Pytest likes
+    import conftest
 
 RNG = Generator(PCG64())
 
@@ -105,6 +112,76 @@ def test_pca_amplitude_3s_3():
     )  # Note: the alogorithm exchanged a and b, so ...
     assert Babc2 == pytest.approx(1 / Babc)  # ... we expect a and b to be exchanged
     assert Bacb2 == pytest.approx(0.0)
+
+
+def test_synthetic():
+    # Test if synthetic amplitudes are computed correctly
+
+    nev = 4
+    nsta = 6
+    epi_dist = 100e3  # 100 km epicentral distance
+    elev = -10e3  # 10 km elevation
+    dist = np.sqrt(epi_dist**2 + elev**2)
+
+    evl, stad, phd = conftest.make_events_stations_phases(nev, nsta, epi_dist, elev)
+
+    M0 = [mt.moment_of_magnitude(ev.mag) for ev in evl]
+
+    # Moment tensors in tuple notation
+    mtd = {
+        0: core.MT(0, 0, 0, M0[0], 0, 0),  # DC: P -> NE
+        1: core.MT(0, 0, 0, 0, M0[1], 0),  # DC: P -> NZ
+        2: core.MT(0, 0, 0, 0, 0, M0[2]),  # DC: P -> EZ
+        3: core.MT(
+            M0[3] / 3, M0[3] / 3, -2 / 3 * M0[3], M0[3] / 3, M0[3] / 3, M0[3] / 3
+        ),  # A DC with something on each component
+    }
+
+    # Displacement observations
+    up, us = conftest.make_radiation(phd, mtd, dist)
+
+    # Create station event pairs and triplets, only for those for which we have
+    # a moment tensor and phase information
+    p_pairs = [
+        (s, i, j) for s in stad for i in range(len(evl)) for j in range(i + 1, len(evl))
+    ]
+
+    s_triplets = [
+        (s, i, j, k)
+        for s in stad
+        for i in range(len(evl))
+        for j in range(i + 1, len(evl))
+        for k in range(j + 1, len(evl))
+    ]
+
+    Aab, Babc, orders = amp.synthetic(mtd, evl, stad, phd, p_pairs, s_triplets)
+
+    # Check if the P amplitudes are computed correctly
+    for n, (s, a, b) in enumerate(p_pairs):
+        assert pytest.approx(Aab[n] * up[b, int(s), :]) == up[a, int(s), :]
+
+    # Now check the S amplitudes
+    for n, (s, a, b, c) in enumerate(s_triplets):
+
+        # Order the syntetic waveform as in Babc, Bacb comparison
+        aa, bb, cc = np.array([a, b, c])[orders[n, :]]
+        ua = us[aa, int(s), :]
+        ub = us[bb, int(s), :]
+        uc = us[cc, int(s), :]
+
+        assert pytest.approx(Babc[n, 0] * ub + Babc[n, 1] * uc) == ua
+
+    # Let's try not to reorder the S wavefroms for PCA
+    _, Babc, _ = amp.synthetic(mtd, evl, stad, phd, p_pairs, s_triplets, order=False)
+
+    # Now check the S amplitudes
+    for n, (s, a, b, c) in enumerate(s_triplets):
+
+        ua = us[a, int(s), :]
+        ub = us[b, int(s), :]
+        uc = us[c, int(s), :]
+
+        assert pytest.approx(Babc[n, 0] * ub + Babc[n, 1] * uc) == ua
 
 
 def test_s_misfit():
