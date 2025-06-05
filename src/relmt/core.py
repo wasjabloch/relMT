@@ -559,6 +559,21 @@ exclude = Exclude(
 )
 # Attributes set in the global configuration file
 _config_args_comments = {
+    "event_file": (
+        "str",
+        ("Path to the seismic event caltalog, e.g. 'data/events.txt'"),
+    ),
+    "station_file": (
+        "str",
+        ("Path to the station location file, e.g. 'data/stations.txt'"),
+    ),
+    "phase_file": ("str", ("Path to the phase file, e.g. 'data/phases.txt'")),
+    "reference_mt_file": (
+        "str",
+        ("Path to the reference moment tensor file, e.g. 'data/reference_mt.txt'"),
+    ),
+    "amplitude_suffix": ("str", "Suffix (read/write) of amplitude files of this run"),
+    "result_suffix": ("str", "Suffix (read/write) of result files of this run"),
     "reference_mts": ("list", ("Event indices of the reference moment tensors to use")),
     "reference_weight": ("float", ("Weight of the reference moment tensor")),
     "mt_constraint": ("str", ("Constrain the moment tensor. 'none' or 'deviatoric'")),
@@ -566,22 +581,19 @@ _config_args_comments = {
         "float",
         ("Maximum misfit allowed for amplitude reconstruction"),
     ),
-    "min_signal_noise_ratio": (
-        "float",
-        "Minimum signal-to-noise ratio (dB) of signals",
-    ),
-    "min_expansion_coefficient_norm": (
-        "float",
+    "lowpass_method": (
+        "str",
         (
-            "Minimum norm of the principal component expansion coefficients "
-            "contributing to the waveform reconstruction"
+            "Method to estimate lowpass filter that eliminates"
+            "the source time function. 'duration': Filter by 1/source duration of event"
+            "magnitude. 'stress_drop': estimate from stress drop of event magnitude."
         ),
     ),
-    "stressdrop_range": (
+    "lowpass_stressdrop_range": (
         "[float, float]",
         (
-            "When estimating the corner frequency of an event, assume a "
-            "stressdrop within this range (Pa)."
+            "When estimating the lowpass frequency of an event as the corner "
+            "frequency, assume a stressdrop within this range (Pa)."
         ),
     ),
     "bootstrap_samples": (
@@ -619,13 +631,17 @@ class Config:
 
     def __init__(
         self,
+        event_file: str | None = None,
+        station_file: str | None = None,
+        phase_file: str | None = None,
+        amplitude_suffix: str | None = None,
+        result_suffix: str | None = None,
         reference_mts: list[int] | None = None,
         mt_constraint: str | None = None,
         reference_weight: float | None = None,
         max_amplitude_misfit: float | None = None,
-        min_signal_noise_ratio: float | None = None,
-        min_expansion_coefficient_norm: float | None = None,
-        stressdrop_range: tuple[float, float] | None = None,
+        lowpass_method: str | None = None,
+        lowpass_stressdrop_range: tuple[float, float] | None = None,
         bootstrap_samples: int | None = None,
         ncpu: int | None = None,
         min_dynamic_range: float | None = None,
@@ -853,6 +869,17 @@ _header_args_comments = {
         "float",
         "Maximum shift to allow in multi-channel cross correlation (seconds)",
     ),
+    "min_signal_noise_ratio": (
+        "float",
+        "Minimum signal-to-noise ratio (dB) of signals",
+    ),
+    "min_expansion_coefficient_norm": (
+        "float",
+        (
+            "Minimum norm of the principal component expansion coefficients "
+            "contributing to the waveform reconstruction"
+        ),
+    ),
 }
 
 
@@ -889,6 +916,8 @@ class Header(Config):
         highpass: float | None = None,
         lowpass: float | None = None,
         maxshift: float | None = None,
+        min_signal_noise_ratio: float | None = None,
+        min_expansion_coefficient_norm: float | None = None,
     ):
         for key, value in locals().items():
             if key != "self":
@@ -914,6 +943,7 @@ class Header(Config):
         return out
 
 
+# TODO: Only make an 'extra' optional dependency
 def _module_hint(module_name: str) -> str:
     """Reuturn hint on how to get module working"""
 
