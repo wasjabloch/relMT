@@ -544,50 +544,47 @@ class Exclude(TypedDict, total=True):
     Overwritten when invoking ``relmt-exclude``"""
 
 
-# The one exclude dictionary we are going to use.
-exclude = Exclude(
-    station=[],
-    event=[],
-    waveform=[],
-    phase_manual=[],
-    phase_auto_nodata=[],
-    phase_auto_snr=[],
-    phase_auto_ecn=[],
-)
 # Attributes set in the global configuration file
-_config_args_comments = {
-    "event_file": (
-        "str",
-        ("Path to the seismic event caltalog, e.g. 'data/events.txt'"),
-    ),
+_config_arg_comments = {
+    "event_file": ("str", "Path to the seismic event caltalog"),
     "station_file": (
         "str",
-        ("Path to the station location file, e.g. 'data/stations.txt'"),
+        "Path to the station location file, e.g. 'data/stations.txt'",
     ),
-    "phase_file": ("str", ("Path to the phase file, e.g. 'data/phases.txt'")),
+    "phase_file": ("str", "Path to the phase file, e.g. 'data/phases.txt'"),
     "reference_mt_file": (
         "str",
-        ("Path to the reference moment tensor file, e.g. 'data/reference_mt.txt'"),
+        "Path to the reference moment tensor file, e.g. 'data/reference_mt.txt'",
     ),
-    "amplitude_suffix": ("str", "Suffix (read/write) of amplitude files of this run"),
+    "amplitude_suffix": (
+        "str",
+        "Suffix (read/write) of amplitude files of this run",
+    ),
     "result_suffix": ("str", "Suffix (read/write) of result files of this run"),
-    "reference_mts": ("list", ("Event indices of the reference moment tensors to use")),
-    "reference_weight": ("float", ("Weight of the reference moment tensor")),
-    "mt_constraint": ("str", ("Constrain the moment tensor. 'none' or 'deviatoric'")),
+    "reference_mts": (
+        "list",
+        "Event indices of the reference moment tensors to use",
+    ),
+    "reference_weight": ("float", "Weight of the reference moment tensor"),
+    "mt_constraint": (
+        "str",
+        "Constrain the moment tensor. 'none' or 'deviatoric'",
+    ),
     "max_amplitude_misfit": (
         "float",
-        ("Maximum misfit allowed for amplitude reconstruction"),
+        "Maximum misfit allowed for amplitude reconstruction",
     ),
     "lowpass_method": (
         "str",
         (
             "Method to estimate lowpass filter that eliminates"
-            "the source time function. 'duration': Filter by 1/source duration of event"
-            "magnitude. 'stress_drop': estimate from stress drop of event magnitude."
+            "the source time function. 'duration': Filter by 1/source duration "
+            "of event magnitude. 'stress_drop': estimate from stress drop of "
+            "event magnitude"
         ),
     ),
     "lowpass_stressdrop_range": (
-        "[float, float]",
+        "list",
         (
             "When estimating the lowpass frequency of an event as the corner "
             "frequency, assume a stressdrop within this range (Pa)."
@@ -595,7 +592,7 @@ _config_args_comments = {
     ),
     "bootstrap_samples": (
         "int",
-        ("Number of samples to draw for calculating uncertainties"),
+        "Number of samples to draw for calculating uncertainties",
     ),
     "ncpu": ("int", "Number of threads to use for parallel computations"),
     "min_dynamic_range": (
@@ -614,7 +611,7 @@ class Config:
     __doc__ += "----------\n"
     __doc__ += "\n"
     __doc__ += "".join(
-        f"{key}:\n    {doc}\n" for key, (_, doc) in _config_args_comments.items()
+        f"{key}:\n    {doc}\n" for key, (_, doc) in _config_arg_comments.items()
     )
     __doc__ += "\n"
     __doc__ += "Raises\n"
@@ -624,13 +621,14 @@ class Config:
     __doc__ += "\n"
 
     # Valid arguments for this class (different for header)
-    _valid_args = _config_args_comments
+    _valid_args = _config_arg_comments
 
     def __init__(
         self,
         event_file: str | None = None,
         station_file: str | None = None,
         phase_file: str | None = None,
+        reference_mt_file: str | None = None,
         amplitude_suffix: str | None = None,
         result_suffix: str | None = None,
         reference_mts: list[int] | None = None,
@@ -862,10 +860,6 @@ _header_args_comments = {
         "float",
         "Common low-pass filter corner of the waveform (Hertz)",
     ),
-    "maxshift": (
-        "float",
-        "Maximum shift to allow in multi-channel cross correlation (seconds)",
-    ),
     "min_signal_noise_ratio": (
         "float",
         "Minimum signal-to-noise ratio (dB) of signals",
@@ -902,17 +896,16 @@ class Header(Config):
         self,
         station: str | None = None,
         phase: str | None = None,
-        variable_name: str | None = None,
-        events: list[int] | None = None,
         components: str | None = None,
+        variable_name: str | None = None,
         sampling_rate: float | None = None,
+        events: list[int] | None = None,
         data_window: float | None = None,
         phase_start: float | None = None,
         phase_end: float | None = None,
         taper_length: float | None = None,
         highpass: float | None = None,
         lowpass: float | None = None,
-        maxshift: float | None = None,
         min_signal_noise_ratio: float | None = None,
         min_expansion_coefficient_norm: float | None = None,
     ):
@@ -959,7 +952,7 @@ def _module_hint(module_name: str) -> str:
     return msg
 
 
-_all_args_comments = {**_config_args_comments, **_header_args_comments}
+_all_args_comments = {**_config_arg_comments, **_header_args_comments}
 
 
 def _doc_config_args(func):

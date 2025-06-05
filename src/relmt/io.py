@@ -25,7 +25,7 @@
 
 import numpy as np
 import logging
-from relmt import core, mt, qc
+from relmt import core, mt, default
 from typing import Callable
 import yaml
 from scipy.io import loadmat
@@ -130,11 +130,13 @@ def read_exclude_file(filename: str | Path) -> core.Exclude:
     Dictionary with station, event and phase exclusions
     """
 
+    template = default.exclude
+
     with open(str(filename), "r") as fid:
         excl = yaml.safe_load(fid)
 
     this_excl = {}
-    for key in core.exclude:
+    for key in template:
         this_excl[key] = excl.get(key, [])
 
     return core.Exclude(**this_excl)
@@ -477,9 +479,11 @@ def read_waveform_array_header(
         Corresponding header dictionary
     """
 
-    wvf = core.file("waveform_array", station, phase, n_align, directory)
-    hdrf = core.file("waveform_header", station, phase, n_align, directory)
-    default_hdrf = core.file("waveform_header", n_align=n_align, directory=directory)
+    dir = Path(directory)
+
+    wvf = dir / core.file("waveform_array", station, phase, n_align)
+    hdrf = dir / core.file("waveform_header", station, phase, n_align)
+    default_hdrf = dir / core.file("waveform_header", n_align=n_align)
 
     loader = np.load
     if matlab:
@@ -712,6 +716,32 @@ def make_gmt_meca_table(
         np.savetxt(filename, outarr, **savetxt_kwargs)
 
     return outarr
+
+
+def make_hypodd_cc_table(
+    evpair_dd: dict[str, np.ndarray],
+    cc: dict[str, np.ndarray],
+    filename: str | Path | None = None,
+    exclude: core.Exclude | None = None,
+) -> str:
+    """Make HypoDD compliant delay time file"""
+    pass
+
+
+#    for wvid in evpair_dd:
+#        sta, pha = core.split_waveid(wvid)
+#        iev_dt = evpair_dd[wvid]
+#        ccij = cc[wvid]
+#        evpairs = iev_dt[:, :2].astype(int)
+#        dts = iev_dt[:, 2]
+#
+#
+#        ccs = [ccij[evlist.index(evp[0]), evlist.index(evp[1])] for evp in evpairs]
+#
+#        return {
+#            evpair: (station, dt, cc, phase)
+#            for evpair, dt, cc in zip(evpairs, dts, ccs)
+#        }
 
 
 def read_velocity_model(filename: str | Path, has_kilometer=False) -> np.ndarray:

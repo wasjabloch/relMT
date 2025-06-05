@@ -41,7 +41,7 @@ def test_config_init_floats():
     # Test if floats are handled correctly
     float_dict = {
         key: 1.0
-        for key, value in core._config_args_comments.items()
+        for key, value in core._config_arg_comments.items()
         if value[0] == "float"
     }
     config = core.Config(**float_dict)
@@ -52,7 +52,7 @@ def test_config_init_lists():
     # Test if lists are handled correctly
     list_dict = {
         key: []
-        for key, value in core._config_args_comments.items()
+        for key, value in core._config_arg_comments.items()
         if value[0] == "list"
     }
     config = core.Config(**list_dict)
@@ -63,7 +63,7 @@ def test_config_init_type_error():
     # Test if an arror is raised if given wrong type
     float_dict = {
         key: "a"
-        for key, value in core._config_args_comments.items()
+        for key, value in core._config_arg_comments.items()
         if value[0] == "float"
     }
     with pytest.raises(TypeError):
@@ -82,13 +82,13 @@ def test_config_to_from_file():
     filename2 = "myconfig.yaml"
     confdict = {
         key: 1.0
-        for key, value in core._config_args_comments.items()
+        for key, value in core._config_arg_comments.items()
         if value[0] == "float"
     }
     confdict.update(
         {
             key: []
-            for key, value in core._config_args_comments.items()
+            for key, value in core._config_arg_comments.items()
             if value[0] == "list"
         }
     )
@@ -102,9 +102,7 @@ def test_config_to_from_file():
 def test_config_update_from_file():
     # Test if parameters are updated from file on default
     filename = "myconfig.yaml"
-    config1 = core.Config(
-        reference_mts=[1], bootstrap_samples=1, stressdrop_range=[1e3, 2e5]
-    )
+    config1 = core.Config(reference_mts=[1], bootstrap_samples=1)
     with tempfile.TemporaryDirectory() as tempdir:
         config1.to_file(filename=str(tempdir + filename))
         config2 = core.Config(bootstrap_samples=2, reference_weight=2).update_from_file(
@@ -113,15 +111,12 @@ def test_config_update_from_file():
     assert config2["reference_mts"] == [1]
     assert config2["bootstrap_samples"] == 1
     assert config2["reference_weight"] == 2.0
-    assert config2["stressdrop_range"] == pytest.approx([1e3, 2e5])
 
 
 def test_config_update_not_from_file():
     # Test if parameters kept in object with option
     filename = "myconfig.yaml"
-    config1 = core.Config(
-        reference_mts=[1], bootstrap_samples=1, stressdrop_range=[1e3, 2e5]
-    )
+    config1 = core.Config(reference_mts=[1], bootstrap_samples=1)
     with tempfile.TemporaryDirectory() as tempdir:
         config1.to_file(filename=str(tempdir + filename))
         config2 = core.Config(bootstrap_samples=2, reference_weight=2).update_from_file(
@@ -135,7 +130,6 @@ def test_config_update_not_from_file():
     assert config2["reference_mts"] == [1]
     assert config2["bootstrap_samples"] == 2
     assert config2["reference_weight"] == 2.0
-    assert config2["stressdrop_range"] == pytest.approx([1e3, 2e5])
 
 
 def test_config_unpack():
@@ -156,7 +150,7 @@ def test_config_iter():
     # Test if config iterates correctly
     given = dict(max_amplitude_misfit=99.0, bootstrap_samples=99.0)
     notgiven = [
-        key for key in core._config_args_comments.keys() if key not in given.keys()
+        key for key in core._config_arg_comments.keys() if key not in given.keys()
     ]
     conf = core.Config(**given)
     for key in conf:
@@ -167,7 +161,7 @@ def test_config_iter():
 def test_config_repr():
     given = dict(max_amplitude_misfit=99.0, bootstrap_samples=99.0)
     notgiven = [
-        key for key in core._config_args_comments.keys() if key not in given.keys()
+        key for key in core._config_arg_comments.keys() if key not in given.keys()
     ]
     conf = core.Config(**given)
     for key in given:
@@ -355,7 +349,6 @@ def test_header():
         phase_end=1.0,
         highpass=0.5,
         lowpass=2,
-        maxshift=1.0,
     )
     hdr = core.Header(**hdrkws)
     for kw in hdrkws:

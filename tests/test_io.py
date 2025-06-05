@@ -101,7 +101,7 @@ def test_make_read_event_table():
 def test_read_config():
     # Test the io.read_config() function
     filename = "myconfig.yaml"
-    config1 = core.Config(ncpu=1, max_amplitude_misfit=1.0)
+    config1 = core.Config(ncpu=1, lowpass_method="duration")
     with tempfile.TemporaryDirectory() as tempdir:
         config1.to_file(filename=str(tempdir + filename))
         config2 = io.read_config(str(tempdir + filename))
@@ -271,27 +271,21 @@ def test_read_waveform_array_header():
         os.mkdir(Path(tempdir) / "data")
 
         # Save the wavform array
-        np.save(
-            core.file("waveform_array", station, phase, directory=str(tempdir)), wvarr
-        )
+        np.save(tempdir / core.file("waveform_array", station, phase), wvarr)
 
         # Save the header
         hdr.to_file(
-            core.file(
-                "waveform_header", station=station, phase=phase, directory=str(tempdir)
-            )
+            tempdir / core.file("waveform_header", station=station, phase=phase)
         )
 
         # Load once without a default header
-        _ = io.read_waveform_array_header(station, phase, directory=str(tempdir))
+        _ = io.read_waveform_array_header(station, phase, directory=tempdir)
 
         # Save the default header
-        def_hdr.to_file(core.file("waveform_header", directory=str(tempdir)))
+        def_hdr.to_file(tempdir / core.file("waveform_header"))
 
         # Load everything
-        wvarr2, hdr2 = io.read_waveform_array_header(
-            station, phase, directory=str(tempdir)
-        )
+        wvarr2, hdr2 = io.read_waveform_array_header(station, phase, directory=tempdir)
 
     assert pytest.approx(wvarr2) == wvarr
 
