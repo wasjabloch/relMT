@@ -299,7 +299,7 @@ def s_equations(
     events: list[core.Event],
     phase_dictionary: dict[str, core.Phase],
     nmt: int,
-    choose_coefficients: tuple[int, int] | None = None,
+    coefficient_indices: tuple[int, int] | None = None,
 ) -> np.ndarray:
     """
     Two equations with S-wave constraints on the linear system
@@ -319,8 +319,8 @@ def s_equations(
         All phase observations
     nmt:
         Number of moment tensor elements
-    choose_coefficients:
-        Select two indices (0, 1, 2) of directional coefficients to use. If
+    coefficient_indices:
+        Select two indices (0, 1, or 2) of directional coefficients to use. If
         `None`, chose those with the largest norm
 
     Returns
@@ -372,7 +372,7 @@ def s_equations(
 
     # Now find set of directional coefficients that records most of the amplitude:
     # Choose the coefficients with the two highest norms
-    if choose_coefficients is None:
+    if coefficient_indices is None:
         i1, i2 = np.argsort(
             np.linalg.norm(
                 (
@@ -385,8 +385,8 @@ def s_equations(
             kind="stable",  # Keep order of equal elements, so tests succeed.
         )[[1, 2]]
     else:
-        i1 = choose_coefficients[0]
-        i2 = choose_coefficients[1]
+        i1 = coefficient_indices[0]
+        i2 = coefficient_indices[1]
 
     logger.debug(f"Selected directional coefficients: {i1}, {i2}")
     for i in [i1, i2]:
@@ -481,6 +481,7 @@ def homogenous_amplitude_equations(
     event_list: list[core.Event],
     phase_dictionary: dict[str, core.Phase],
     constraint: str,
+    s_coefficients: tuple[int, int] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Homogenous part of the linear system Am = b
 
@@ -500,6 +501,9 @@ def homogenous_amplitude_equations(
         Lookup table for ray take-off angles
     constraint:
         Constraint on the moment tensor solution
+    s_coefficients:
+        Indices (0, 1, or 2) of S-wave directional coefficients to use. If
+        `None`, chose those with the largest norm
 
     Returns
     -------
@@ -534,7 +538,9 @@ def homogenous_amplitude_equations(
         station = station_dictionary[samp.station]
 
         # Create two S observations
-        lines = s_equations(samp, station, event_list, phase_dictionary, nmt, (0, 1))
+        lines = s_equations(
+            samp, station, event_list, phase_dictionary, nmt, s_coefficients
+        )
 
         row = peq + 2 * n
         Ah[[row, row + 1], :] = lines

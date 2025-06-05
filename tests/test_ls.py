@@ -30,6 +30,13 @@ import numpy as np
 
 import pytest
 
+try:
+    # This is what IPython likes
+    from . import conftest
+except ImportError:
+    # This is what Pytest likes
+    import conftest
+
 r2 = np.sqrt(2)
 
 
@@ -274,11 +281,13 @@ def test_homogenous_amplitude_equations():
         # Directional coefficients (see directional coefficient tests above)
         if mt_elements == 6:
             pcoef = np.array((0, 1, 0, 0, 0, 0))
-            scoef1 = np.array((0, 0, 0, 1, 0, 0))
+            scoef0 = np.array((0, 0, 0, 1, 0, 0))
+            scoef1 = np.array((0, 0, 0, 0, 0, 0))
             scoef2 = np.array((0, 0, 0, 0, 0, 1))
         if mt_elements == 5:
             pcoef = np.array((0, 1, 0, 0, 0))
-            scoef1 = np.array((0, 0, 1, 0, 0))
+            scoef0 = np.array((0, 0, 1, 0, 0))
+            scoef1 = np.array((0, 0, 0, 0, 0))
             scoef2 = np.array((0, 0, 0, 0, 1))
 
         # Call the function
@@ -289,15 +298,32 @@ def test_homogenous_amplitude_equations():
         # Expected equations, left hand side
         assert A[0, :mt_elements] == pytest.approx(-pcoef)
         assert A[0, mt_elements : 2 * mt_elements] == pytest.approx(Aab * pcoef)
-        assert A[1, :mt_elements] == pytest.approx(-scoef1)
-        assert A[1, mt_elements : 2 * mt_elements] == pytest.approx(Babc * scoef1)
-        assert A[1, 2 * mt_elements : 3 * mt_elements] == pytest.approx(Bacb * scoef1)
+        assert A[1, :mt_elements] == pytest.approx(-scoef0)
+        assert A[1, mt_elements : 2 * mt_elements] == pytest.approx(Babc * scoef0)
+        assert A[1, 2 * mt_elements : 3 * mt_elements] == pytest.approx(Bacb * scoef0)
         assert A[2, :mt_elements] == pytest.approx(-scoef2)
         assert A[2, mt_elements : 2 * mt_elements] == pytest.approx(Babc * scoef2)
         assert A[2, 2 * mt_elements : 3 * mt_elements] == pytest.approx(Bacb * scoef2)
 
         # Expected equations, right hand side
         assert pytest.approx(b) == np.zeros(len(evl))[:, np.newaxis]
+
+        # Try setting the coefficients
+        A, b = ls.homogenous_amplitude_equations(
+            pamps,
+            samps,
+            stad,
+            evl,
+            phd,
+            constraint,
+            s_coefficients=(1, 2),
+        )
+
+        assert A[1, mt_elements : 2 * mt_elements] == pytest.approx(Babc * scoef1)
+        assert A[1, 2 * mt_elements : 3 * mt_elements] == pytest.approx(Bacb * scoef1)
+        assert A[2, :mt_elements] == pytest.approx(-scoef2)
+        assert A[2, mt_elements : 2 * mt_elements] == pytest.approx(Babc * scoef2)
+        assert A[2, 2 * mt_elements : 3 * mt_elements] == pytest.approx(Bacb * scoef2)
 
 
 def test_reference_mt_equations():
@@ -389,113 +415,6 @@ def test_condition_homogenous_matrix_by_norm():
     ) == ls.condition_homogenous_matrix_by_norm(mat, n_homogenous=2)
 
 
-def _make_events_stations_phases(nev: int, nsta: int, epi_dist: float, elev: float):
-    """
-    Make event, station and phase tables. Events are at origin, stations in a
-    circle above the events
-
-    Paramaters
-    ----------
-    nev: int
-        Number of events
-    nsta: int
-        Number of stations
-    epi_dist:
-        Epicentral distance from event to station (meter)
-    elev:
-        Elevation of stations above events (meter)
-
-
-    Returns
-    -------
-    ev_list: list of core.Event
-        `nev` events located at the origin (0, 0, 0)
-    stad:
-        Station dictionary, located in a circle around origin
-    phd:
-        Phase dictionary. Arrival time not st
-
-    """
-
-    # Station coordinates
-
-    stazi = np.arange(1, 361, 360 / nsta)  # 24 stations in a circle
-    stinc = np.tan(epi_dist / elev) * 180 / np.pi
-
-    # Station dictionary
-    stad = {
-        ista: core.Station(
-            np.cos(azi * np.pi / 180) * epi_dist,
-            np.sin(azi * np.pi / 180) * epi_dist,
-            elev,
-            ista,
-        )
-        for ista, azi in enumerate(stazi)
-    }
-
-    # All events co-located at the origin
-    evl = [core.Event(0, 0, 0, 0, 1, iev) for iev in range(nev)]  # Event coordinates
-
-    phd = {
-        core.join_phaseid(iev, st, ph): core.Phase(0, stazi[st], stinc)
-        for iev in range(nev)
-        for st in range(nsta)
-        for ph in "PS"
-    }
-
-    return evl, stad, phd
-
-
-def _make_radiation(phd, mtd, dist):
-    """
-    Create a radiation pattern of phases in `phd` from moment tensors in `mtd`
-
-    Parameters
-    ----------
-    phd:
-        Phase dictionary
-    mtd:
-        Moment tensor dictionary
-    dist: float
-        Constant distance from source to receiver (meter)
-
-    returns
-    -------
-    up, us
-        P- and S-displacement at receiver
-    """
-    # Medium paramters (should cancel out)
-    rho = 3.6e3  # 3600 kg/m3
-    alpha = 6000  # m/s
-    beta = 4500  # m/s
-
-    # P amplitudes (MTs x stations x component)
-    up = np.array(
-        [
-            [
-                mt.p_radiation(mt.mt_array(m), ph.azimuth, ph.plunge, dist, rho, alpha)
-                for phk, ph in phd.items()
-                if core.split_phaseid(phk)[2] == "P"
-            ]
-            for m in mtd.values()
-        ]
-    )
-
-    # S amplitudes
-    us = np.array(
-        [
-            [
-                mt.s_radiation(mt.mt_array(m), ph.azimuth, ph.plunge, dist, rho, beta)
-                for phk, ph in phd.items()
-                if core.split_phaseid(phk)[2] == "S"
-            ]
-            for m in mtd.values()
-        ]
-    )
-
-    return up, us
-
-
 def test_solve_lsmr():
     # Test if a set of moment tensors is recovered correctly
 
@@ -516,7 +435,7 @@ def test_solve_lsmr():
         elev = -10e3  # 10 km elevation
         dist = np.sqrt(epi_dist**2 + elev**2)
 
-        evl, stad, phd = _make_events_stations_phases(nev, nsta, epi_dist, elev)
+        evl, stad, phd = conftest.make_events_stations_phases(nev, nsta, epi_dist, elev)
 
         M0 = [mt.moment_of_magnitude(ev.mag) for ev in evl]
 
@@ -531,7 +450,8 @@ def test_solve_lsmr():
         }
 
         # Displacement observations
-        up, us = _make_radiation(phd, mtd, dist)
+        # TODO: Find out what's the difference to conftest.make_radiation
+        up, us = conftest.old_make_radiation(phd, mtd, dist)
 
         # Combination indices
         ab = [(a, b) for a in range(nev - 1) for b in range(a + 1, nev)]
@@ -552,14 +472,14 @@ def test_solve_lsmr():
             # P amplitude ratios
             for a, b in ab:
                 Aab = amp.pca_amplitude_2p(up[[a, b], ist, :])
-                p_amplitudes.append(core.P_Amplitude_Ratio(ist, a, b, Aab, misfit))
+                p_amplitudes.append(core.P_Amplitude_Ratio(str(ist), a, b, Aab, misfit))
 
             # S amplitude ratios
             for a, b, c in abc:
                 Babc, Bacb, iord = amp.pca_amplitude_3s(us[[a, b, c], ist, :])
                 s_amplitudes.append(
                     core.S_Amplitude_Ratios(
-                        ist, *np.array([a, b, c])[iord], Babc, Bacb, misfit
+                        str(ist), *np.array([a, b, c])[iord], Babc, Bacb, misfit
                     )
                 )
 
