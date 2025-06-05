@@ -50,18 +50,12 @@ def get_arguments():
     )
 
     parser.add_argument(
-        "-d", "--directory", type=str, help="Root directory", default="./"
-    )
-
-    parser.add_argument(
         "-c", "--config", type=str, help="Use this configuration file", default=""
     )
 
     parser.add_argument(
         "-n", "--n_align", type=int, help="Alignment iteration", default=0
     )
-
-    parser.add_argument("-s", "--suffix", type=str, help="Use file suffix", default="")
 
     parser.add_argument(
         "-o",
@@ -97,18 +91,6 @@ def get_arguments():
     return parser.parse_args()
 
 
-def _get_config(conff, directory):
-    """Get configuration based on 'config' and 'directory' arguments"""
-
-    if not conff:
-        conff = core.file("config", directory=directory)
-
-    conf = io.read_config(conff)
-
-    logger.debug(f"Configuration file is: {conff}")
-    return conf
-
-
 def main_align():
     """
     Align waveform files and write results into next alignment directory
@@ -116,16 +98,16 @@ def main_align():
 
     args = get_arguments()
 
-    directory = args.directory
     iteration = args.n_align
     overwrite = args.overwrite
-    conff = args.config
+    conf = args.config
 
-    conf = _get_config(conff, directory)
+    evf = conf["event_file"]
+    stf = conf["station_file"]
 
-    evl = io.read_event_table(core.file("event", directory=directory))
-    stas = io.read_station_table(core.file("station", directory=directory))
-    excl = io.read_exclude_file(core.file("exclude", directory=directory))
+    evl = io.read_event_table(evf)
+    stas = io.read_station_table(stf)
+    excl = io.read_exclude_file(core.file("exclude"))
 
     # Exclude some observations
     stas = set(stas) - set(excl["station"])
@@ -142,8 +124,8 @@ def main_align():
         logger.debug(f"Getting arguments for: {wvid}")
 
         station, phase = core.split_waveid(wvid)
-        source = (station, phase, iteration, directory)
-        dest = (station, phase, iteration + 1, directory)
+        source = (station, phase, iteration)
+        dest = (station, phase, iteration + 1)
 
         # Check the destination
         if not overwrite:  # Try to read the destination files
@@ -203,20 +185,18 @@ def main_align():
 def main_exclude():
     args = get_arguments()
 
-    directory = args.directory
     iteration = args.n_align
     overwrite = args.overwrite
     donodata = args.no_data
     dosnr = args.snr
     doecn = args.ecn
 
-    conff = args.config
+    conf = args.config
 
-    conf = _get_config(conff, directory)
+    exf = core.file("exclude")
 
-    exf = core.file("exclude", directory=directory)
-
-    stas = io.read_station_table(core.file("station", directory=directory))
+    staf = conf["station_file"]
+    stas = io.read_station_table(staf)
 
     try:
         logger.info(f"Reading excludes from: {exf}")
@@ -241,7 +221,6 @@ def main_exclude():
                 sta,
                 pha,
                 iteration,
-                directory=directory,
             )
         except FileNotFoundError:
             continue
@@ -298,36 +277,30 @@ def main_bandpass():
 
     args = get_arguments()
 
-    directory = args.directory
     iteration = args.n_align
     overwrite = args.overwrite
-    conff = args.config
+    conf = args.config
 
-    conf = _get_config(conff, directory)
+    evf = conf["event_file"]
+    stf = conf["station_file"]
 
-    evl = io.read_event_table(core.file("event", directory=directory))
-    stas = io.read_station_table(core.file("station", directory=directory))
-    excl = io.read_exclude_file(core.file("exclude", directory=directory))
-    bpf = core.file("bandpass", directory=directory)
+    evl = io.read_event_table(evf)
+    stad = io.read_station_table(stf)
+
+    excl = io.read_exclude_file(core.file("exclude"))
+    bpf = core.file("bandpass")
 
     if bpf.exists() and not overwrite:
         msg = f"{bpf} exists. Use --overwrite option to overwrite. Exiting."
         logger.critical(msg)
         return
 
-    stas = set(stas) - set(excl["station"])
+    stas = set(stad) - set(excl["station"])
 
     stressdrop_range = conf["stressdrop_range"]
 
-    # srcd, _ = core.path_source_destination_align(iteration)
-
-    stad = io.read_station_table(core.file("station", directory=directory))
-    stas = stad.keys()
-
     # Exclude excluded waveforms
     wvids = set(core.iterate_waveid(stas)) - set(excl["waveform"])
-
-    evl = io.read_event_table(core.file("event", directory=directory))
 
     bpd = {}
     for wvid in wvids:
@@ -337,9 +310,7 @@ def main_bandpass():
         sta, pha = core.split_waveid(wvid)
 
         try:
-            arr, hdr = io.read_waveform_array_header(
-                sta, pha, iteration, directory=directory
-            )
+            arr, hdr = io.read_waveform_array_header(sta, pha, iteration)
         except FileNotFoundError:
             continue
 
@@ -395,31 +366,31 @@ def main_amplitude():
     # Subdirectory, e.g. A_Muji
     args = get_arguments()
 
-    directory = args.directory
     iteration = args.n_align
-    conff = args.config
+    conf = args.config
 
-    conf = _get_config(conff, directory)
+    stf = conf["station_file"]
+    evf = conf["event_file"]
 
     ls.logger.setLevel("ERROR")
     signal.logger.setLevel("ERROR")
     align.logger.setLevel("WARNING")
 
-    excl = io.read_exclude_file(core.file("exclude", directory=directory))
+    excl = io.read_exclude_file(core.file("exclude"))
 
     ncpu = conf["ncpu"]
     min_dynamic_range = conf["min_dynamic_range"]
 
-    stas = io.read_station_table(core.file("station", directory=directory))
+    stas = io.read_station_table(stf)
 
     # Exclude some observations
     stas = set(stas) - set(excl["station"])
     wvids = set(core.iterate_waveid(stas)) - set(excl["waveform"])
 
-    evl = io.read_event_table(core.file("event", directory=directory))
+    evl = io.read_event_table(evf)
     nev = len(evl)
 
-    bpf = core.file("bandpass", directory=directory)
+    bpf = core.file("bandpass")
     with open(bpf, "r") as fid:
         pasbnds = yaml.safe_load(fid)  # Pass bands
 
@@ -429,9 +400,7 @@ def main_amplitude():
         sta, pha = core.split_waveid(wvid)
 
         try:
-            arr, hdr = io.read_waveform_array_header(
-                sta, pha, iteration, directory=directory
-            )
+            arr, hdr = io.read_waveform_array_header(sta, pha, iteration)
         except FileNotFoundError:
             continue
 
@@ -457,9 +426,7 @@ def main_amplitude():
         abA = [amp.process_p(*arg) for arg in pargs]
 
     abA = [tup for tup in abA if tup is not None]
-    io.save_amplitudes(
-        core.file("amplitude_observation", sta, "P", directory=directory), abA
-    )
+    io.save_amplitudes(core.file("amplitude_observation", sta, "P"), abA)
 
     # ... later S
     if ncpu > 1:
@@ -469,9 +436,7 @@ def main_amplitude():
         abcB = [amp.process_s(*arg) for arg in sargs]
 
     abcB = [tup for tup in abcB if tup is not None]
-    io.save_amplitudes(
-        core.file("amplitude_observation", sta, "S", directory=directory), abcB
-    )
+    io.save_amplitudes(core.file("amplitude_observation", sta, "S"), abcB)
 
 
 def main_linear_system():
@@ -479,11 +444,13 @@ def main_linear_system():
     ls.logger.setLevel("WARNING")
 
     args = get_arguments()
-    directory = args.directory
     suffix = "-" + args.suffix
-    conff = args.config
+    conf = args.config
 
-    conf = _get_config(conff, directory)
+    evf = conf["event_file"]
+    stf = conf["station_file"]
+    phf = conf["phase_file"]
+    refmtf = conf["reference_mt_file"]
 
     max_misfit = conf["max_amplitude_misfit"]
     all_ref_mts = conf["reference_mts"]
@@ -494,24 +461,20 @@ def main_linear_system():
 
     ref_id = "-".join([f"{iref}" for iref in all_ref_mts])
 
-    all_evl = io.read_event_table(core.file("event", directory=directory))
-    all_phd = io.read_phase_table(core.file("phase", directory=directory))
-    stad = io.read_station_table(core.file("station", directory=directory))
-    all_mtd = io.read_mt_table(core.file("reference_mt", directory=directory))
+    all_evl = io.read_event_table(evf)
+    all_phd = io.read_phase_table(phf)
+    stad = io.read_station_table(stf)
+    all_mtd = io.read_mt_table(refmtf)
 
     outsuffix = suffix + "_iref_" + ref_id + f"_{constraint}"
 
     # Read amplitudes from file
     all_p_amplitudes = io.read_amplitudes(
-        core.file(
-            "amplitude_observation", phase="P", suffix=suffix, directory=directory
-        ),
+        core.file("amplitude_observation", phase="P", suffix=suffix),
         "P",
     )
     all_s_amplitudes = io.read_amplitudes(
-        core.file(
-            "amplitude_observation", phase="S", suffix=suffix, directory=directory
-        ),
+        core.file("amplitude_observation", phase="S", suffix=suffix),
         "S",
     )
 
@@ -522,7 +485,7 @@ def main_linear_system():
     )
     inev = sorted(set(ab.flat).union(set(abc.flat)))
 
-    np.savetxt(core.file("inev.txt", directory=directory), inev, fmt="%.0f")
+    np.savetxt(core.file("inev.txt"), inev, fmt="%.0f")
 
     # Change all the indexing
     evl = [all_evl[n] for n in inev]
@@ -602,23 +565,16 @@ def main_linear_system():
     b = np.vstack((bh, bi))
 
     # np.save(core.file("amplitude_matrix", directory=directory, suffix=outsuffix), A)
-    save_npz(core.file("amplitude_matrix", directory=directory, suffix=outsuffix), A)
-    np.save(
-        core.file("amplitude_data_vector", directory=directory, suffix=outsuffix), b
-    )
-    np.save(
-        core.file("amplitude_scale", directory=directory, suffix=outsuffix), ev_scale
-    )
+    save_npz(core.file("amplitude_matrix", suffix=outsuffix), A)
+    np.save(core.file("amplitude_data_vector", suffix=outsuffix), b)
+    np.save(core.file("amplitude_scale", suffix=outsuffix), ev_scale)
 
 
 def main_solve():
 
     args = get_arguments()
-    directory = args.directory
     suffix = "-" + args.suffix
-    conff = args.config
-
-    conf = _get_config(conff, directory)
+    conf = args.config
 
     ref_mts = conf["reference_mts"]
     constraint = conf["mt_constraint"]
@@ -631,16 +587,10 @@ def main_solve():
     outsuf = suffix + "_iref_" + ref_id + f"_{constraint}"
 
     pamps = io.read_amplitudes(
-        core.file(
-            "amplitude_observation", directory=directory, phase="P", suffix=suffix
-        ),
-        "P",
+        core.file("amplitude_observation", phase="P", suffix=suffix), "P"
     )
     samps = io.read_amplitudes(
-        core.file(
-            "amplitude_observation", directory=directory, phase="S", suffix=suffix
-        ),
-        "S",
+        core.file("amplitude_observation", phase="S", suffix=suffix), "S"
     )
 
     n_p = len(pamps)
@@ -652,9 +602,9 @@ def main_solve():
     #    core.file("amplitude_matrix", directory=directory, suffix=outsuf),
     #    allow_pickle=True,
     # ).item()
-    A = load_npz(core.file("amplitude_matrix", directory=directory, suffix=outsuf))
-    b = np.load(core.file("amplitude_data_vector", directory=directory, suffix=outsuf))
-    ev_scale = np.load(core.file("amplitude_scale", directory=directory, suffix=outsuf))
+    A = load_npz(core.file("amplitude_matrix", suffix=outsuf))
+    b = np.load(core.file("amplitude_data_vector", suffix=outsuf))
+    ev_scale = np.load(core.file("amplitude_scale", suffix=outsuf))
 
     # Invert and save results
     m, residuals = ls.solve_lsmr(A, b, ev_scale)
@@ -662,26 +612,18 @@ def main_solve():
         residuals, n_p, n_ref, mt_elements
     )
 
-    np.savetxt(
-        core.file("moment_residual", directory=directory, phase="P", suffix=outsuf),
-        p_residuals,
-    )
-    np.savetxt(
-        core.file("moment_residual", directory=directory, phase="S", suffix=outsuf),
-        s_residuals,
-    )
+    np.savetxt(core.file("moment_residual", phase="P", suffix=outsuf), p_residuals)
+    np.savetxt(core.file("moment_residual", phase="S", suffix=outsuf), s_residuals)
 
     try:
-        inev = np.loadtxt(core.file("inev.txt", directory=directory)).astype(int)
+        inev = np.loadtxt(core.file("inev.txt")).astype(int)
     except FileNotFoundError:
         inev = list(range(int(A.shape[1] // mt_elements)))
 
     relmts = {
         inev[i]: momt for i, momt in enumerate(mt.mt_tuples(m, constraint)) if any(momt)
     }
-    io.make_mt_table(
-        relmts, core.file("relative_mt", directory=directory, suffix=outsuf)
-    )
+    io.make_mt_table(relmts, core.file("relative_mt", suffix=outsuf))
 
     # Bootstrap
     if nboot:
@@ -694,10 +636,7 @@ def main_solve():
                 bootmts[i].append(momt)
 
         # Make and save a
-        io.make_mt_table(
-            bootmts,
-            core.file("relative_mt", directory=directory, suffix=outsuf + "_boot"),
-        )
+        io.make_mt_table(bootmts, core.file("relative_mt", suffix=outsuf + "_boot"))
 
 
 if __name__ == "__main__":
