@@ -70,13 +70,6 @@ def test_config_init_type_error():
         _ = core.Config(**float_dict)
 
 
-def test_config_init_key_error():
-    # Test if an arror is raised if given wrong key
-    config = core.Config()
-    with pytest.raises(KeyError):
-        config["foo"] = "bar"
-
-
 def test_config_to_from_file():
     filename = "myconfig"
     filename2 = "myconfig.yaml"
@@ -372,7 +365,7 @@ def test_default_header():
 
 
 def test_default_exclude():
-    dex = default.exclude
+    dex = core.exclude
 
     # Default exclude file should be all empty
     for key in dex:

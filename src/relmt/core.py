@@ -544,6 +544,17 @@ class Exclude(TypedDict, total=True):
     Overwritten when invoking ``relmt-exclude``"""
 
 
+# The one exclude dictionary we are going to use.
+exclude = Exclude(
+    station=[],
+    event=[],
+    waveform=[],
+    phase_manual=[],
+    phase_auto_nodata=[],
+    phase_auto_snr=[],
+    phase_auto_ecn=[],
+)
+
 # Attributes set in the global configuration file
 _config_args_comments = {
     "event_file": ("str", "Path to the seismic event caltalog"),
@@ -661,10 +672,9 @@ class Config:
     def __setitem__(self, key, value):
         # Only defined keys are allowed
         if key not in self._valid_args:
-            msg = f"Key was '{key}', but must be one of: " + ", ".join(
-                self._valid_args.keys()
-            )
-            raise KeyError(msg)
+            msg = f"Found unknown key: '{key}'. Ignoring."
+            logger.warning(msg)
+            return
 
         # None value has NoneType
         if value is None:

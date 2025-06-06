@@ -62,14 +62,3 @@ header = core.Header(
     min_signal_noise_ratio=0.0,
     min_expansion_coefficient_norm=0.5,
 )
-
-# The one exclude dictionary we are going to use.
-exclude = core.Exclude(
-    station=[],
-    event=[],
-    waveform=[],
-    phase_manual=[],
-    phase_auto_nodata=[],
-    phase_auto_snr=[],
-    phase_auto_ecn=[],
-)

@@ -25,7 +25,7 @@
 
 import numpy as np
 import logging
-from relmt import core, mt, default
+from relmt import core, mt
 from typing import Callable
 import yaml
 from scipy.io import loadmat
@@ -130,7 +130,7 @@ def read_exclude_file(filename: str | Path) -> core.Exclude:
     Dictionary with station, event and phase exclusions
     """
 
-    template = default.exclude
+    template = core.exclude
 
     with open(str(filename), "r") as fid:
         excl = yaml.safe_load(fid)
