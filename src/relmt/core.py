@@ -545,7 +545,7 @@ class Exclude(TypedDict, total=True):
 
 
 # Attributes set in the global configuration file
-_config_arg_comments = {
+_config_args_comments = {
     "event_file": ("str", "Path to the seismic event caltalog"),
     "station_file": (
         "str",
@@ -561,6 +561,17 @@ _config_arg_comments = {
         "Suffix (read/write) of amplitude files of this run",
     ),
     "result_suffix": ("str", "Suffix (read/write) of result files of this run"),
+    "compute_synthetics": (
+        "bool",
+        (
+            "Compute synthetic amplitudes for each moment tensor in "
+            "'reference_mt_file'"
+        ),
+    ),
+    "solve_synthetics": (
+        "bool",
+        "Compute moment tensors from synthetic, not meassured amplitudes",
+    ),
     "reference_mts": (
         "list",
         "Event indices of the reference moment tensors to use",
@@ -611,7 +622,7 @@ class Config:
     __doc__ += "----------\n"
     __doc__ += "\n"
     __doc__ += "".join(
-        f"{key}:\n    {doc}\n" for key, (_, doc) in _config_arg_comments.items()
+        f"{key}:\n    {doc}\n" for key, (_, doc) in _config_args_comments.items()
     )
     __doc__ += "\n"
     __doc__ += "Raises\n"
@@ -621,7 +632,7 @@ class Config:
     __doc__ += "\n"
 
     # Valid arguments for this class (different for header)
-    _valid_args = _config_arg_comments
+    _valid_args = _config_args_comments
 
     def __init__(
         self,
@@ -631,6 +642,8 @@ class Config:
         reference_mt_file: str | None = None,
         amplitude_suffix: str | None = None,
         result_suffix: str | None = None,
+        compute_synthetics: bool | None = None,
+        solve_synthetics: bool | None = None,
         reference_mts: list[int] | None = None,
         mt_constraint: str | None = None,
         reference_weight: float | None = None,
@@ -952,7 +965,7 @@ def _module_hint(module_name: str) -> str:
     return msg
 
 
-_all_args_comments = {**_config_arg_comments, **_header_args_comments}
+_all_args_comments = {**_config_args_comments, **_header_args_comments}
 
 
 def _doc_config_args(func):

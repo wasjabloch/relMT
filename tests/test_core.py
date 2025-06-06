@@ -24,7 +24,7 @@
 Test the in- and output functions
 """
 
-from relmt import core
+from relmt import core, default
 from pathlib import Path
 import tempfile
 
@@ -41,7 +41,7 @@ def test_config_init_floats():
     # Test if floats are handled correctly
     float_dict = {
         key: 1.0
-        for key, value in core._config_arg_comments.items()
+        for key, value in core._config_args_comments.items()
         if value[0] == "float"
     }
     config = core.Config(**float_dict)
@@ -52,7 +52,7 @@ def test_config_init_lists():
     # Test if lists are handled correctly
     list_dict = {
         key: []
-        for key, value in core._config_arg_comments.items()
+        for key, value in core._config_args_comments.items()
         if value[0] == "list"
     }
     config = core.Config(**list_dict)
@@ -63,7 +63,7 @@ def test_config_init_type_error():
     # Test if an arror is raised if given wrong type
     float_dict = {
         key: "a"
-        for key, value in core._config_arg_comments.items()
+        for key, value in core._config_args_comments.items()
         if value[0] == "float"
     }
     with pytest.raises(TypeError):
@@ -82,13 +82,13 @@ def test_config_to_from_file():
     filename2 = "myconfig.yaml"
     confdict = {
         key: 1.0
-        for key, value in core._config_arg_comments.items()
+        for key, value in core._config_args_comments.items()
         if value[0] == "float"
     }
     confdict.update(
         {
             key: []
-            for key, value in core._config_arg_comments.items()
+            for key, value in core._config_args_comments.items()
             if value[0] == "list"
         }
     )
@@ -150,7 +150,7 @@ def test_config_iter():
     # Test if config iterates correctly
     given = dict(max_amplitude_misfit=99.0, bootstrap_samples=99.0)
     notgiven = [
-        key for key in core._config_arg_comments.keys() if key not in given.keys()
+        key for key in core._config_args_comments.keys() if key not in given.keys()
     ]
     conf = core.Config(**given)
     for key in conf:
@@ -161,7 +161,7 @@ def test_config_iter():
 def test_config_repr():
     given = dict(max_amplitude_misfit=99.0, bootstrap_samples=99.0)
     notgiven = [
-        key for key in core._config_arg_comments.keys() if key not in given.keys()
+        key for key in core._config_args_comments.keys() if key not in given.keys()
     ]
     conf = core.Config(**given)
     for key in given:
@@ -353,6 +353,30 @@ def test_header():
     hdr = core.Header(**hdrkws)
     for kw in hdrkws:
         assert hdrkws[kw] == hdr[kw]
+
+
+def test_default_config():
+    dconf = default.config
+
+    # Assert all keys are present
+    for key in core._config_args_comments:
+        assert dconf[key] is not None
+
+
+def test_default_header():
+    dhead = default.header
+
+    # Assert all keys are present
+    for key in core._header_args_comments:
+        assert dhead[key] is not None
+
+
+def test_default_exclude():
+    dex = default.exclude
+
+    # Default exclude file should be all empty
+    for key in dex:
+        assert dex[key] == []
 
 
 def test_doc_config_args():
