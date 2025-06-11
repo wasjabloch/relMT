@@ -257,13 +257,8 @@ def pca_align(
         # Compute estimate of shift and correlation coefficients.
         # (Eq. 15) Bostock et al. (2021, BSSA)
         for i in range(ns):
-            tshift[i] = np.dot(scomp1d[i,], scomp2N[i,]) / np.dot(
-                scomp1d[
-                    i,
-                ],
-                scomp1d[
-                    i,
-                ],
+            tshift[i] = np.dot(scomp1d[i, :], scomp2N[i, :]) / np.dot(
+                scomp1d[i, :], scomp1d[i, :]
             )
 
         # Apply zero sum constraint and shift
@@ -378,10 +373,13 @@ def run(
         signal.demean_filter_window(wvarr, **header.kwargs(signal.demean_filter_window))
     )
 
+    maxshift = header["phase_end"] - header["phase_start"]
+
     # Align using MCCC
     dt_cc, cc, dd, _, evpairs = mccc_align(
         pwv,
         verbose=True,
+        maxshift=maxshift,
         **header.kwargs(mccc_align),
     )
 

@@ -50,7 +50,11 @@ def get_arguments():
     )
 
     parser.add_argument(
-        "-c", "--config", type=str, help="Use this configuration file", default=""
+        "-c",
+        "--config",
+        type=str,
+        help="Use this configuration file",
+        default=core.file("config"),
     )
 
     parser.add_argument(
@@ -100,7 +104,9 @@ def main_align():
 
     iteration = args.n_align
     overwrite = args.overwrite
-    conf = args.config
+    conff = args.config
+
+    conf = io.read_config(conff)
 
     evf = conf["event_file"]
     stf = conf["station_file"]
@@ -143,7 +149,7 @@ def main_align():
             logger.debug("Trying Matlab file.")
             try:
                 arr, hdr = io.read_waveform_array_header(*source, matlab=True)
-            except FileNotFoundError:
+            except OSError:
                 logger.debug("Expected an absent file. Continuing.")
                 continue
 
@@ -169,9 +175,6 @@ def main_align():
             mmax = max([ev.mag for ev in evl])
             hdr["lowpass"] = utils.corner_frequency(mmax, hdr["phase"], 5e7, 3500)
 
-        if hdr["maxshift"] is None:
-            hdr["maxshift"] = hdr["phase_end"] - hdr["phase_start"]
-
         args.append((arr, hdr, dest))
 
     if ncpu > 1:
@@ -191,7 +194,7 @@ def main_exclude():
     dosnr = args.snr
     doecn = args.ecn
 
-    conf = args.config
+    conf = io.read_config(args.config)
 
     exf = core.file("exclude")
 
@@ -243,12 +246,12 @@ def main_exclude():
         snr = signal.signal_noise_ratio(arr, **hdr.kwargs(signal.signal_noise_ratio))
 
         isnr = np.full_like(ind, False)
-        if conf["min_signal_noise_ratio"] is not None:
-            isnr = snr < conf["min_signal_noise_ratio"]
+        if hdr["min_signal_noise_ratio"] is not None:
+            isnr = snr < hdr["min_signal_noise_ratio"]
 
         iecn = np.full_like(ind, False)
-        if conf["min_expansion_coefficient_norm"] is not None:
-            iecn = ec_score < conf["min_expansion_coefficient_norm"]
+        if hdr["min_expansion_coefficient_norm"] is not None:
+            iecn = ec_score < hdr["min_expansion_coefficient_norm"]
 
         # Write the full phase ID to the exclude lists
         excludes["no_data"] += [core.join_phaseid(iev, sta, pha) for iev in events[ind]]
