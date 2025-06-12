@@ -414,7 +414,7 @@ def expansion_coefficient_norm(arr: np.ndarray, phase: str) -> np.ndarray:
 
 
 def included_events(
-    exclude: core.Exclude,
+    exclude: core.Exclude | None,
     station: str,
     phase: str,
     events: list[int],
@@ -427,7 +427,8 @@ def included_events(
     Parameters
     ----------
     exclude:
-        Dictionary holding exclusion criteria
+        Dictionary holding exclusion criteria. If `None`, consider all events
+        included.
     station:
         Station code to consider
     phase:
@@ -451,9 +452,12 @@ def included_events(
 
     # Get phases already excluded
     exphids = []
-    for key in core.exclude:
-        if key.startswith("phase_"):
-            exphids += exclude.get(key, [])
+
+    # Start excluding if exlude is not None
+    if exclude is not None:
+        for key in core.exclude:
+            if key.startswith("phase_"):
+                exphids += exclude.get(key, [])
 
     # Excluded event IDs
     evns = [
