@@ -644,9 +644,9 @@ def demean_filter_window(
 @core._doc_config_args
 def subset_filter_align(
     arr: np.ndarray,
-    indices: tuple[int],
-    lpas: float,
+    indices: list[int],
     hpas: float,
+    lpas: float,
     phase: str,
     sampling_rate: float,
     phase_start: float,
@@ -661,7 +661,7 @@ def subset_filter_align(
         ``(events, channels, samples)`` 3-D seismogram array
     indices:
         Event indices to select from `arr`
-    lpas, hpas:
+    hpas, lpas:
         Highpass, lowpass filter corners
 
 
