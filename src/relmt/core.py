@@ -595,11 +595,24 @@ _config_args_comments = {
         "str",
         "Constrain the moment tensor. 'none' or 'deviatoric'",
     ),
-    "max_amplitude_misfit": (
-        "float",
-        "Maximum misfit allowed for amplitude reconstruction",
+    "amplitude_measure": (
+        "str",
+        (
+            "Method to meassure relative amplitudes. 'principal': Estimate "
+            "relative amplitude as the ratio of principal seismogram contributions "
+            "to each seismogram. 'combination': Compare each event combination "
+            "seperatly."
+        ),
     ),
-    "lowpass_method": (
+    "amplitude_filter": (
+        "str",
+        (
+            "Filter method to apply for amplitude measure. 'manual': Use 'highpass'"
+            "and 'lowpass' of the waveform header files. 'auto': compute filter corners "
+            "using the 'auto_' options"
+        ),
+    ),
+    "auto_lowpass_method": (
         "str",
         (
             "Method to estimate lowpass filter that eliminates"
@@ -608,12 +621,24 @@ _config_args_comments = {
             "event magnitude"
         ),
     ),
-    "lowpass_stressdrop_range": (
+    "auto_lowpass_stressdrop_range": (
         "list",
         (
             "When estimating the lowpass frequency of an event as the corner "
             "frequency, assume a stressdrop within this range (Pa)."
         ),
+    ),
+    "auto_bandpass_snr_target": (
+        "float",
+        (
+            "If supplied, include frequencies with this signal-to-noise ratio to "
+            "optimal bandpass filter. If not supplied, do not attempt to optimize "
+            "passband."
+        ),
+    ),
+    "max_amplitude_misfit": (
+        "float",
+        "Maximum misfit allowed for amplitude reconstruction",
     ),
     "bootstrap_samples": (
         "int",
@@ -661,9 +686,12 @@ class Config:
         reference_mts: list[int] | None = None,
         mt_constraint: str | None = None,
         reference_weight: float | None = None,
+        amplitude_measure: str | None = None,
+        amplitude_filter: str | None = None,
+        auto_lowpass_method: str | None = None,
+        auto_lowpass_stressdrop_range: tuple[float, float] | None = None,
+        auto_bandpass_snr_target: float | None = None,
         max_amplitude_misfit: float | None = None,
-        lowpass_method: str | None = None,
-        lowpass_stressdrop_range: tuple[float, float] | None = None,
         bootstrap_samples: int | None = None,
         ncpu: int | None = None,
         min_dynamic_range: float | None = None,
