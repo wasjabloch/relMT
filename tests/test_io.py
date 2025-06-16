@@ -101,7 +101,7 @@ def test_make_read_event_table():
 def test_read_config():
     # Test the io.read_config() function
     filename = "myconfig.yaml"
-    config1 = core.Config(ncpu=1, lowpass_method="duration")
+    config1 = core.Config(ncpu=1, auto_lowpass_method="duration")
     with tempfile.TemporaryDirectory() as tempdir:
         config1.to_file(filename=str(tempdir + filename))
         config2 = io.read_config(str(tempdir + filename))
