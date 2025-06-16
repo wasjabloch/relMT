@@ -62,6 +62,31 @@ def pca_amplitude_2p(mtx_ab: np.ndarray) -> float:
     return Aab
 
 
+def pca_amplitudes_p(mtx: np.ndarray) -> np.ndarray:
+    """
+    Calculate the relative amplitude of all P-wave pairs in mtx as the relative
+    contribution of the principal seismogram
+
+    Parameters
+    ----------
+    mtx:
+        ``(events, samples)`` waveform matrix
+
+    Returns
+    -------
+    ``(events * (events - 1) / 2, )`` relative ampltiude between all pairwise
+    event combinations.
+    """
+
+    _, _, Vh = svd(mtx.T / np.max(abs(mtx)), full_matrices=False)
+
+    aa, bb, _, _ = np.array(list(core.iterate_event_pair(mtx.shape[0]))).T
+
+    Aabs = Vh[0, aa] / Vh[0, bb]
+
+    return Aabs
+
+
 def p_misfit(mtx_ab: np.ndarray, Aab: float) -> float:
     """
     Misfit of the P waveform reconstruction
@@ -125,23 +150,89 @@ def pca_amplitude_3s(
     if order:
         iord = order_by_ccsum(mtx_abc)
 
-    _, ss, Vh = svd(mtx_abc[iord].T / np.max(abs(mtx_abc)), full_matrices=False)
+    _, ss, Vh = svd(mtx_abc.T / np.max(abs(mtx_abc)), full_matrices=False)
 
     # Bostock et al. (2021) Eq. 10
-    PCs = np.diag(ss) @ Vh
-    A = PCs[0:2, 1:3]
-    bb = PCs[0:2, 0]
+    # Expansion coefficients
+    ecs = np.diag(ss) @ Vh
+
+    # Pull out expansion coefficients b, c...
+    # (LHS Eq. 10)
+    A = ecs[0:2, iord[1:]]
+
+    # ... and a
+    # (RHS Eq. 10)
+    bb = ecs[0:2, iord[0]]
+
     if bb[1] == 0:
         logger.warning("All wavefroms are similar, so treated with Bacb = 0")
         return bb[0], 0.0, iord
+
     else:
         try:
-            Aabc = solve(A, bb)
+            Babc, Bacb = solve(A, bb)
+
         except LinAlgError as e:
             msg = f"Met error in SVD: {e.__repr__()}. Returning NaN values."
             logger.warning(msg)
             return np.nan, np.nan, iord
-        return Aabc[0], Aabc[1], iord
+
+        return Babc, Bacb, iord
+
+
+def pca_amplitudes_s(mtx: np.ndarray) -> np.ndarray:
+    """
+    Calculate the relative amplitude of all P-wave pairs in mtx as the relative
+    contribution of the principal seismogram
+
+    Parameters
+    ----------
+    mtx:
+        ``(events, samples)`` waveform matrix
+
+    Returns
+    -------
+    ``(events * (events - 1) / 2, )`` relative ampltiude between all pairwise
+    event combinations.
+    """
+
+    _, ss, Vh = svd(mtx.T / np.max(abs(mtx)), full_matrices=False)
+
+    # Expansion coefficients
+    ecs = np.diag(ss) @ Vh
+
+    Babcs = np.full(mtx.shape[0], np.nan)
+    Bacbs = np.full(mtx.shape[0], np.nan)
+    iords = np.full((mtx.shape[0], 3), [0, 1, 2])
+
+    for n, (a, b, c, _, _, _) in enumerate(core.iterate_event_triplet(mtx.shape[0])):
+
+        # oa is the one most similar to the other two
+        # ob and oc are most different from each other
+        iords[n] = order_by_ccsum(mtx[[a, b, c], :])
+        oa, ob, oc = np.array([a, b, c])[iords[n]]
+
+        # Bostock et al. (2021) Eq. 10
+        # Pull out expansion coefficients b, c...
+        # (LHS Eq. 10)
+        A = ecs[0:2, [ob, oc]]
+
+        # ... and a
+        # (RHS Eq. 10)
+        bb = ecs[0:2, oa]
+
+        if bb[1] == 0:
+            logger.warning("All wavefroms are similar, so treated with Bacb = 0")
+            Babcs[n], Bacbs[n] = bb[0], 0.0
+        else:
+            try:
+                Babcs[n], Bacbs[n] = solve(A, bb)[:2]
+            except LinAlgError as e:
+                msg = f"Met error in SVD: {e.__repr__()}. Returning NaN values."
+                logger.warning(msg)
+                Babcs[n], Bacbs[n] = np.nan, np.nan
+
+    return Babcs, Bacbs, iords
 
 
 def s_misfit(mtx_abc: np.ndarray, Babc: float, Bacb: float) -> float:
@@ -186,7 +277,7 @@ def order_by_ccsum(mtx_abc: np.ndarray) -> np.ndarray:
     Returns
     -------
     iord: :class:`~numpy.ndarray`
-        Indices ``(3,) that order :math:`u_a, u_b, u_c` by cc
+        Indices ``(3,)`` that order :math:`u_a, u_b, u_c` by cc
     """
     # Calculate cross-correlation coefficients between all pairs of waveforms
     ab = abs(signal.cc_coef(mtx_abc[0, :], mtx_abc[1, :]))
@@ -358,57 +449,219 @@ def synthetic(
     return p_ratios, s_ratios, orders
 
 
-def process_p(arr, hdr, passband, min_dynamic_range, a, b, ia, ib):
+def principal_p_amplitudes(
+    arr: np.ndarray, hdr: core.Header, highpass: float, lowpass: float
+) -> list[core.P_Amplitude_Ratio]:
+    """Compute relative P amplitude ratios for all event combinations in arr
+
+    Apply a common filter to all events and meassure amplitude ratio as the
+    ratio of principal seismogram contribtions.
+
+    ..note:
+        The here implemented approach may be more stable against noise than
+        :func:`paired_p_amplitudes`, but requires a common filter for all events
+
+    Parameters
+    ----------
+    arr:
+        Waveform matrix of shape ``(events, components, samples)`` holding all events
+    hdr:
+        Header with metadata, including sampling rate, phase start and end,
+        taper length, and event information
+    highpass:
+        Highpass filter frequency in Hz
+    lowpass:
+        Lowpass filter frequency in Hz
+
+    Returns
+    -------
+    List of relative P amplitude ratios for all event pairs
     """
-    Take event pair a, b, on station (and phase) defined by wvid and return
-    relative P amplitdue
+
+    evns = hdr["events"]
+
+    mat = utils.concat_components(
+        signal.demean_filter_window(
+            arr,
+            hdr["sampling_rate"],
+            hdr["phase_start"],
+            hdr["phase_end"],
+            hdr["taper_length"],
+            highpass,
+            lowpass,
+        )
+    )
+
+    As = pca_amplitudes_p(mat)
+
+    # Iterate through solutions and assign event numbers
+    p_amplitudes = [
+        core.P_Amplitude_Ratio(
+            hdr["station"], a, b, As[n], p_misfit(mat[[ia, ib], :], As[n])
+        )
+        for n, (ia, ib, a, b) in enumerate(core.iterate_event_pair(len(evns), evns))
+    ]
+
+    return p_amplitudes
+
+
+def paired_p_amplitudes(
+    arr: np.ndarray, hdr: core.Header, highpass: float, lowpass: float, a: int, b: int
+):
+    """Compute relative P amplitude ratios for one event pair in arr
+
+    ..note:
+        The here implemented approach allows to filter each event pair
+        individually allowing for more flexibility than
+        :func:`principal_p_amplitudes` when comparing large differences in
+        magnitude
+
+    Parameters
+    ----------
+    arr:
+        Waveform array of shape ``(2, components, samples)`` holding the event pair
+    hdr:
+        Header with metadata, including sampling rate, phase start and end,
+        taper length, and event information
+    highpass:
+        Highpass filter frequency in Hz
+    lowpass:
+        Lowpass filter frequency in Hz
+    a:
+       Number of event a
+    b:
+       Number of event b
+
+    Returns
+    -------
+    P amplitude ratio
     """
-
-    # Find passband
-    hpass = [passband[i][0] for i in [a, b]]
-    lpass = [passband[i][1] for i in [a, b]]
-
-    hpas, lpas = signal.choose_passband(hpass, lpass, min_dynamic_range)
-
-    if hpas is None:
-        return
 
     mat = signal.subset_filter_align(
-        arr, [ia, ib], lpas, hpas, **hdr.kwargs(signal.subset_filter_align)
+        arr, [0, 1], highpass, lowpass, **hdr.kwargs(signal.subset_filter_align)
     )
 
     A = pca_amplitude_2p(mat)
     mis = p_misfit(mat, A)
 
-    return (hdr["station"], a, b, A, mis)
+    return core.P_Amplitude_Ratio(hdr["station"], a, b, A, mis)
 
 
-def process_s(arr, hdr, passband, min_dynamic_range, a, b, c, ia, ib, ic):
+def principal_s_amplitudes(
+    arr: np.ndarray, hdr: core.Header, highpass: float, lowpass: float
+) -> list[core.S_Amplitude_Ratios]:
+    """Compute relative S amplitude ratios for all event combinations in arr
+
+    Apply a common filter to all events and meassure amplitude ratio as the
+    ratio of principal seismogram contribtions.
+
+    ..note:
+        The here implemented approach may be more stable against noise than
+        :func:`triplet_s_amplitudes`, but requires a common filter for all events
+
+    Parameters
+    ----------
+    arr:
+        Waveform matrix of shape ``(events, components, samples)`` holding all events
+    hdr:
+        Header with metadata, including sampling rate, phase start and end,
+        taper length, and event information
+    highpass:
+        Highpass filter frequency in Hz
+    lowpass:
+        Lowpass filter frequency in Hz
+
+    Returns
+    -------
+    List of relative S amplitude ratios for all event triplet combinations
     """
-    Take event triplet a, b, c on station (and phase) defined by wvid and return
-    relative S amplitdues
+
+    # TODO: Are we sure that excluded evetns are really excluded?
+    evns = hdr["events"]
+
+    mat = utils.concat_components(
+        signal.demean_filter_window(
+            arr,
+            hdr["sampling_rate"],
+            hdr["phase_start"],
+            hdr["phase_end"],
+            hdr["taper_length"],
+            highpass,
+            lowpass,
+        )
+    )
+
+    Babcs, Bacbs, isorts = pca_amplitudes_s(mat)
+
+    # Iterate through solutions and assign event number in order
+    s_amplitudes = [
+        core.S_Amplitude_Ratios(
+            hdr["station"],
+            # Order events as in amplitude comparison
+            *np.array([a, b, c])[isorts[n]],
+            Babcs[n],
+            Bacbs[n],
+            s_misfit(mat[[ia, ib, ic], :], Babcs[n], Bacbs[n]),
+        )
+        for n, (ia, ib, ic, a, b, c) in enumerate(
+            core.iterate_event_triplet(len(evns), evns)
+        )
+    ]
+
+    return s_amplitudes
+
+
+def triplet_s_amplitudes(
+    arr: np.ndarray,
+    hdr: core.Header,
+    highpass: float,
+    lowpass: float,
+    a: int,
+    b: int,
+    c: int,
+):
+    """Compute relative S amplitude ratios for one event triplet in arr
+
+    ..note:
+        The here implemented approach allows to filter each event pair
+        individually allowing for more flexibility than
+        :func:`principal_s_amplitudes` when comparing large differences in
+        magnitude
+
+    Parameters
+    ----------
+    arr:
+        Waveform array of shape ``(3, components, samples)`` holding the event triplet
+    hdr:
+        Header with metadata, including sampling rate, phase start and end,
+        taper length, and event information
+    highpass:
+        Highpass filter frequency in Hz
+    lowpass:
+        Lowpass filter frequency in Hz
+    a:
+       Number of event a
+    b:
+       Number of event b
+    c:
+       Number of event c
+
+    Returns
+    -------
+    S amplitude ratios
     """
-
-    # Find passband
-    hpass = [passband[i][0] for i in [a, b, c]]
-    lpass = [passband[i][1] for i in [a, b, c]]
-
-    hpas, lpas = signal.choose_passband(hpass, lpass, min_dynamic_range)
-
-    if hpas is None:
-        return
 
     mat = signal.subset_filter_align(
-        arr, [ia, ib, ic], lpas, hpas, **hdr.kwargs(signal.subset_filter_align)
+        arr, [0, 1, 2], highpass, lowpass, **hdr.kwargs(signal.subset_filter_align)
     )
 
     Babc, Bacb, iord = pca_amplitude_3s(mat)
 
-    # Indices sorted according to greatest differences in waveforms
-    # iabc = tuple(np.array((ia, ib, ic))[iord])
     mis = s_misfit(mat[iord, :], Babc, Bacb)
 
-    return (hdr["station"], *np.array((a, b, c))[iord], Babc, Bacb, mis)
+    return core.S_Amplitude_Ratios(
+        hdr["station"], *np.array((a, b, c))[iord], Babc, Bacb, mis
+    )
 
 
 def info(

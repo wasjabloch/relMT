@@ -40,7 +40,7 @@ except ImportError:
 RNG = Generator(PCG64())
 
 
-def test_relP_PCA():
+def test_pca_amplitude_2p():
     # Test if a P waveform as a multiple from another one.
     n = 512
     Aab = 1 / 50
@@ -49,6 +49,20 @@ def test_relP_PCA():
 
     Aout = amp.pca_amplitude_2p(np.array([wvA, wvB]))
     assert Aout == pytest.approx(Aab)
+
+
+def test_pca_amplitudes_p():
+    # Test if a set of 3 P amplitudes yields the correct amplitude ratios
+    n = 512
+    A12 = 1 / 50
+    A13 = 1 / 10
+    A23 = A13 / A12
+    wv1 = signal.make_wavelet(n, 30, "sin", 60)
+    wv2 = wv1 / A12
+    wv3 = wv2 / A23
+
+    Aout = amp.pca_amplitudes_p(np.array([wv1, wv2, wv3]))
+    assert Aout == pytest.approx([A12, A13, A23])
 
 
 def test_p_misfit():
@@ -68,16 +82,22 @@ def test_pca_amplitude_3s():
     # Test if an S waveform is reconstructed from a linear combination of two
     # others, and if the order is preserved
     n = 512
-    Babc = 0.7
-    Bacb = 0.3
-    wvA = signal.make_wavelet(n, 60, "sin", 80)  # 0: Singal
+    Babc = 0.3
+    Bacb = 0.7
+    wvC = signal.make_wavelet(n, 60, "sin", 80)  # 2: Singal
     wvB = 2 * RNG.random(n) - 1  # 1: Noise
-    wvC = Babc * wvA + Bacb * wvB  # 2: More signal than noise
+    wvA = Babc * wvB + Bacb * wvC  # 0: More signal than noise
 
     Babc2, Bacb2, iord = amp.pca_amplitude_3s(np.array([wvA, wvB, wvC]))
-    assert iord == pytest.approx([2, 0, 1])
-    assert Babc == pytest.approx(Babc2)
-    assert Bacb == pytest.approx(Bacb2)
+    assert iord == pytest.approx([0, 2, 1])
+
+    # Order is 0, 2, 1, so we compare A, C, B
+    assert pytest.approx(wvA) == Babc2 * wvC + Bacb2 * wvB
+
+    # Note: the algorithm exchanged b and c, so
+    # we expect b and c to be exchanged
+    assert Babc == pytest.approx(Bacb2)
+    assert Bacb == pytest.approx(Babc2)
 
 
 def test_pca_amplitude_3s_2():
@@ -91,10 +111,14 @@ def test_pca_amplitude_3s_2():
     wvA = wvB * Babc + wvC * Bacb
 
     Babc2, Bacb2, iord = amp.pca_amplitude_3s(np.array([wvA, wvB, wvC]))
-    assert iord == pytest.approx(
-        [0, 2, 1]
-    )  # Note: the algorithm exchanged b and c, so ...
-    assert Babc == pytest.approx(Bacb2)  # ... we expect b and c to be exchanged
+    assert iord == pytest.approx([0, 2, 1])
+
+    # Order is 0, 2, 1, so we compare A, C, B
+    assert pytest.approx(wvA) == Babc2 * wvC + Bacb2 * wvB
+
+    # Note: the algorithm exchanged b and c, so
+    # we expect b and c to be exchanged
+    assert Babc == pytest.approx(Bacb2)
     assert Bacb == pytest.approx(Babc2)
 
 
@@ -105,13 +129,41 @@ def test_pca_amplitude_3s_3():
     wvC = signal.make_wavelet(n, 30, "sin", 60)
     wvB = signal.make_wavelet(n, 60, "sin", 80)
     wvA = wvB * Babc
+    mtx_abc = np.array([wvA, wvB, wvC])
 
-    Babc2, Bacb2, iord = amp.pca_amplitude_3s(np.array([wvA, wvB, wvC]))
-    assert iord == pytest.approx(
-        [1, 0, 2]
-    )  # Note: the alogorithm exchanged a and b, so ...
-    assert Babc2 == pytest.approx(1 / Babc)  # ... we expect a and b to be exchanged
+    Babc2, Bacb2, iord = amp.pca_amplitude_3s(mtx_abc)
+    assert iord == pytest.approx([1, 0, 2])
+
+    # Order is 1, 0, 2, so we compare B, A, C
+    assert pytest.approx(wvB) == Babc2 * wvA + Bacb2 * wvC
+
+    # Note: the alogorithm exchanged a and b, so ...
+    # ... we expect a and b to be exchanged
+    assert Babc2 == pytest.approx(1 / Babc)
     assert Bacb2 == pytest.approx(0.0)
+
+
+def test_pca_amplitudes_s():
+    # Test if a set of 4 S amplitudes yields the correct amplitude ratios
+    n = 512
+    Bacd = 0.1
+    Badc = 0.2
+    Bbcd = 0.3
+    Bbdc = 0.4
+    wvC = signal.make_wavelet(n, 60, "sin", 80)  # 0: Singal
+    wvD = signal.make_wavelet(n, 30, "cos", 80)
+    wvA = Bacd * wvC + Badc * wvD
+    wvB = Bbcd * wvC + Bbdc * wvD
+    mtx = np.array([wvA, wvB, wvC, wvD])
+    Babcs, Bacbs, iords = amp.pca_amplitudes_s(mtx)
+
+    for n, (a, b, c, _, _, _) in enumerate(core.iterate_event_triplet(4)):
+
+        # Let's apply the order
+        isort = np.array([a, b, c])[iords[n]]
+
+        wvaa, wvbb, wvcc = mtx[isort, :]
+        assert pytest.approx(wvaa) == wvbb * Babcs[n] + wvcc * Bacbs[n]
 
 
 def test_synthetic():
@@ -211,13 +263,6 @@ def test_event_order():
     wvC = 0.7 * wvA + 0.3 * wvB  # 2: More signal than noise
     iord = amp.order_by_ccsum(np.array([wvA, wvB, wvC]))
     assert iord == pytest.approx([2, 0, 1])
-
-
-# Created by Cvscode Co-pilot
-def test_pca_amplitude_2p():
-    wvfAB = np.random.rand(2, 100)
-    result = amp.pca_amplitude_2p(wvfAB)
-    assert isinstance(result, float)
 
 
 def test_p_misfit():
