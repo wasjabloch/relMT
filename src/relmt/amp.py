@@ -201,11 +201,15 @@ def pca_amplitudes_s(mtx: np.ndarray) -> np.ndarray:
     # Expansion coefficients
     ecs = np.diag(ss) @ Vh
 
-    Babcs = np.full(mtx.shape[0], np.nan)
-    Bacbs = np.full(mtx.shape[0], np.nan)
-    iords = np.full((mtx.shape[0], 3), [0, 1, 2])
+    aa, bb, cc, *_ = np.array(list(core.iterate_event_triplet(mtx.shape[0]))).T
 
-    for n, (a, b, c, _, _, _) in enumerate(core.iterate_event_triplet(mtx.shape[0])):
+    nn = len(aa)
+
+    Babcs = np.full(nn, np.nan)
+    Bacbs = np.full(nn, np.nan)
+    iords = np.full((nn, 3), [0, 1, 2])
+
+    for n, (a, b, c) in enumerate(zip(aa, bb, cc)):
 
         # oa is the one most similar to the other two
         # ob and oc are most different from each other
@@ -215,18 +219,18 @@ def pca_amplitudes_s(mtx: np.ndarray) -> np.ndarray:
         # Bostock et al. (2021) Eq. 10
         # Pull out expansion coefficients b, c...
         # (LHS Eq. 10)
-        A = ecs[0:2, [ob, oc]]
+        lhs = ecs[0:2, [ob, oc]]
 
         # ... and a
         # (RHS Eq. 10)
-        bb = ecs[0:2, oa]
+        rhs = ecs[0:2, oa]
 
-        if bb[1] == 0:
+        if rhs[1] == 0:
             logger.warning("All wavefroms are similar, so treated with Bacb = 0")
-            Babcs[n], Bacbs[n] = bb[0], 0.0
+            Babcs[n], Bacbs[n] = rhs[0], 0.0
         else:
             try:
-                Babcs[n], Bacbs[n] = solve(A, bb)[:2]
+                Babcs[n], Bacbs[n] = solve(lhs, rhs)[:2]
             except LinAlgError as e:
                 msg = f"Met error in SVD: {e.__repr__()}. Returning NaN values."
                 logger.warning(msg)
