@@ -276,93 +276,138 @@ def main_exclude():
     io.save_yaml(exf, excl)
 
 
-def main_bandpass():
+@core._doc_config_args
+def phase_passbands(
+    arr: np.ndarray,
+    hdr: core.Header,
+    evl: list[core.Event],
+    exclude: core.Exclude | None = None,
+    auto_lowpass_method: str | None = None,
+    auto_lowpass_stressdrop_range: tuple[float, float] = [1.0e6, 1.0e6],
+    auto_bandpass_snr_target: float | None = None,
+) -> dict[str, list[float]]:
+    """Compute the bandpass filter corners for a waveform array.
 
-    args = get_arguments()
+    This function computes the bandpass filter corners for each event in the
+    waveform array. The following logic is applied:
 
-    iteration = args.n_align
-    overwrite = args.overwrite
-    conf = args.config
+    The lowpass corner should be the corner frequency of the phase spectrum. We
+    estimate it as:
 
-    evf = conf["event_file"]
-    stf = conf["station_file"]
+    - 1/source duration of the event magnitude when `lowpass_method` is 'duration'.
+    - Based on the stressdrop within  `lowpass_stressdrop_range` when
+    `lowpass_method` is 'stressdrop':
+      - If the upper bound is smaller or equal the lower bound (i.e. no range is
+        given), estimate the corner frequency using
+        :func:`utils.corner_frequency` with an S-wave velocity of 4 km/s.
+      - If a range is given, we convert it to a corner frequency range as above
+        and search for the maximum of the phase velocity spectrum within this range
+        using :func:`extra.apparent_corner_frequency`
 
-    evl = io.read_event_table(evf)
-    stad = io.read_station_table(stf)
+    The default highpass corner is chosen as 1/phase length.
 
-    excl = io.read_exclude_file(core.file("exclude"))
-    bpf = core.file("bandpass")
+    When `bandpass_snr_target` is given, we determine the frequency band in the
+    signal and noise spectra for which the signal-to-noise ratio is larger than
+    `bandpass_snr_target` (dB), compare with the above estimates, and return the
+    highest highpass and the lowest lowpass corner.
 
-    if bpf.exists() and not overwrite:
-        msg = f"{bpf} exists. Use --overwrite option to overwrite. Exiting."
-        logger.critical(msg)
-        return
+    Parameters
+    ----------
+    arr:
+        The waveform array with shape ``(events, channels, samples)``.
+    hdr:
+        The header containing metadata about the waveform array, including
+        phase phase start and end times, sampling rate, included events.
+    evl:
+        The seismic event catalog.
+    exclude:
+        An optional exclude object with observations to be excluded from the
+        computation. If None, all observatinos are included.
 
-    stas = set(stad) - set(excl["station"])
+    Returns
+    -------
+    Dictionary mapping phaseIDs (event ID, station, phase) to filter corners
+    [highpass, lowpass].
 
-    stressdrop_range = conf["stressdrop_range"]
+    Raises
+    ------
+    ValueError:
+        If an unknown lowpass method is specified.
+    """
 
-    # Exclude excluded waveforms
-    wvids = set(core.iterate_waveid(stas)) - set(excl["waveform"])
+    ievs, evns = qc.included_events(exclude, **hdr.kwargs(qc.included_events))
+
+    pha = hdr["phase"]
+
+    # At least one period within window
+    fmin = 1 / (hdr["phase_end"] - hdr["phase_start"])
+
+    # One sample more than the Nyquist frequency
+    fnyq = (arr.shape[-1] - 1) / hdr["data_window"] / 2
 
     bpd = {}
-    for wvid in wvids:
+    for iev, evn in zip(ievs, evns):
+        print("{:02d} events to go   ".format(len(evns) - iev), end="\r")
 
-        print(f"Working on: {wvid}")
+        ev = evl[evn]
 
-        sta, pha = core.split_waveid(wvid)
+        phase_arr = arr[iev, :, :]
 
-        try:
-            arr, hdr = io.read_waveform_array_header(sta, pha, iteration)
-        except FileNotFoundError:
-            continue
+        # First get the corner frequency
+        if auto_lowpass_method == "duration":
+            # Corner frequency from duration
+            fc = 1 / utils.source_duration(ev.mag)
 
-        bpd[wvid] = {}
-
-        ievs, evns = qc.included_events(excl, **hdr.kwargs(qc.included_events))
-
-        sr = hdr["sampling_rate"]
-
-        # At least one period within window
-        fmin = 1 / (hdr["phase_end"] - hdr["phase_start"])
-
-        # Signal and noise indices
-        isig, _ = signal.indices_signal(**hdr.kwargs(signal.indices_signal))
-
-        for iev, evn in zip(ievs, evns):
-            print("{:02d} events to go   ".format(len(evns) - iev), end="\r")
-
-            ev = evl[evn]
-
+        elif auto_lowpass_method == "stressdrop":
             # Corner frequency from stress drop
-            fcmin = utils.corner_frequency(ev.mag, pha, stressdrop_range[0], 4000)
-            fcmax = utils.corner_frequency(ev.mag, pha, stressdrop_range[1], 4000)
 
-            sig = signal.demean(arr[iev, :, isig:])
+            if auto_lowpass_stressdrop_range[0] >= auto_lowpass_stressdrop_range[1]:
+                fc = utils.corner_frequency(
+                    ev.mag, pha, auto_lowpass_stressdrop_range[0], 4000
+                )
 
-            ohpas, olpas = extra.optimal_bandpass(
-                arr[iev, :, :],
-                fmin=fmin,
-                fmax=fcmax,
-                min_snr=1.5,
+            else:
+                # Convert stressdrop range to possile corner frequencies
+                fcmin = utils.corner_frequency(
+                    ev.mag, pha, auto_lowpass_stressdrop_range[0], 4000
+                )
+                fcmax = utils.corner_frequency(
+                    ev.mag, pha, auto_lowpass_stressdrop_range[1], 4000
+                )
+
+                # Isolate the signal
+                isig, _ = signal.indices_signal(**hdr.kwargs(signal.indices_signal))
+                sig = signal.demean(phase_arr[:, isig:])
+
+                # Try to compute the corner frequency
+                try:
+                    fc = extra.apparent_corner_frequency(
+                        sig, hdr["sampling_rate"], fmin=fcmin, fmax=fcmax
+                    )
+                except ValueError:
+                    # It might be outside the range of the signal
+                    fc = fcmax
+        else:
+            raise ValueError(f"Unknown lowpass method: {auto_lowpass_method}")
+
+        # Now try to optimize the SNR
+        if auto_bandpass_snr_target is not None:
+            hpas, lpas = extra.optimal_bandpass(
+                phase_arr,
+                fmin=min(fmin, fnyq),
+                fmax=min(fc, fnyq),
+                min_snr=auto_bandpass_snr_target,
                 **hdr.kwargs(extra.optimal_bandpass),
             )
+        else:
+            # No SNR optimization, use the corner frequency
+            hpas = min(fmin, fnyq)
+            lpas = min(fc, fnyq)
 
-            # Don't look below minimum frequency
-            try:
-                fc = extra.apparent_corner_frequency(sig, sr, fmin=fcmin, fmax=fcmax)
-            except ValueError:
-                fc = fcmax
+        # Return the filter corners
+        bpd[evn] = [float(hpas), float(lpas)]
 
-            # Filter below corner frequency or optimal lowpass, whichever is
-            # lower
-            lpas = min((olpas, fc))
-            hpas = ohpas
-
-            # Save to dictionary
-            bpd[wvid][evn] = [float(hpas), float(lpas)]
-
-    io.save_yaml(bpf, bpd)
+    return bpd
 
 
 def main_amplitude():
@@ -370,76 +415,219 @@ def main_amplitude():
     args = get_arguments()
 
     iteration = args.n_align
-    conf = args.config
+    conff = args.config
+    overwrite = args.overwrite
 
-    stf = conf["station_file"]
-    evf = conf["event_file"]
+    config = io.read_config(conff)
+
+    stf = config["station_file"]
+    evf = config["event_file"]
+    ncpu = config["ncpu"]
+    compare_method = config["amplitude_measure"]  # combination or principal
+    filter_method = config["amplitude_filter"]  # auto or manual
 
     ls.logger.setLevel("ERROR")
     signal.logger.setLevel("ERROR")
     align.logger.setLevel("WARNING")
 
-    excl = io.read_exclude_file(core.file("exclude"))
-
-    ncpu = conf["ncpu"]
-    min_dynamic_range = conf["min_dynamic_range"]
+    exclude = io.read_exclude_file(core.file("exclude"))
 
     stas = io.read_station_table(stf)
 
     # Exclude some observations
-    stas = set(stas) - set(excl["station"])
-    wvids = set(core.iterate_waveid(stas)) - set(excl["waveform"])
+    stas = set(stas) - set(exclude["station"])
+    wvids = set(core.iterate_waveid(stas)) - set(exclude["waveform"])
 
-    evl = io.read_event_table(evf)
-    nev = len(evl)
+    # Read the events
+    event_list = io.read_event_table(evf)
 
-    bpf = core.file("bandpass")
-    with open(bpf, "r") as fid:
-        pasbnds = yaml.safe_load(fid)  # Pass bands
+    pasbnds = {}
+    if filter_method == "manual":
+        logger.info("Applying filters set in header files.")
 
+        # Write the manually set filter corners into the dictionary
+        for wvid in wvids:
+            logger.debug(f"Working on: {wvid}")
+            sta, pha = core.split_waveid(wvid)
+
+            try:
+                hdr = io.read_header(
+                    core.file("waveform_header", sta, pha, iteration),
+                    default_name=core.file("waveform_header", iteration),
+                )
+            except FileNotFoundError:
+                continue
+
+            pasbnds[wvid] = {
+                evn: [hdr["highpass"], hdr["lowpass"]] for evn in hdr["events"]
+            }
+
+    elif filter_method == "auto":
+        logger.info("Finding filter automatically")
+
+        # Read or compute bassbands
+        bpf = core.file("bandpass", suffix=config["amplitude_suffix"])
+
+        # Read the bandpass if it exists
+        if bpf.exists() and not overwrite:
+            logger.info(f"Reading bandpass from file: {bpf}")
+            with open(bpf, "r") as fid:
+                pasbnds = yaml.safe_load(fid)
+
+        # Compute it if not
+        else:
+            logger.info("No bandpass file found or overwrite option set. Computing.")
+
+            for wvid in wvids:
+                logger.debug(f"Working on: {wvid}")
+                sta, pha = core.split_waveid(wvid)
+
+                try:
+                    arr, hdr = io.read_waveform_array_header(sta, pha, iteration)
+                except FileNotFoundError:
+                    continue
+
+                pasbnds[wvid] = phase_passbands(
+                    arr,
+                    hdr,
+                    event_list,
+                    **config.kwargs(phase_passbands),
+                    exclude=exclude,
+                )
+
+            io.save_yaml(bpf, pasbnds)
+            logger.info(f"Saved bandpass to file: {bpf}")
+
+    else:
+        raise ValueError(f"Unknown 'amplitude_filter': {filter_method}")
+
+    # Collect the arguments to the amplitude function
     pargs = []
     sargs = []
-    for wvid in wvids:
-        sta, pha = core.split_waveid(wvid)
 
-        try:
-            arr, hdr = io.read_waveform_array_header(sta, pha, iteration)
-        except FileNotFoundError:
-            continue
+    if compare_method == "combination":
+        for wvid in wvids:
+            sta, pha = core.split_waveid(wvid)
 
-        _, evns = qc.included_events(excl, **hdr.kwargs(qc.included_events))
+            try:
+                arr, hdr = io.read_waveform_array_header(sta, pha, iteration)
+            except FileNotFoundError:
+                continue
 
-        if pha == "P":
-            pargs += [
-                (arr, hdr, pasbnds[wvid], min_dynamic_range, *iabs)
-                for iabs in core.iterate_event_pair(nev, evns)
-            ]
+            # Make sure what's excluded is excluded
+            ievs, evns = qc.included_events(exclude, **hdr.kwargs(qc.included_events))
+            xarr = arr[ievs, :, :]
 
-        if pha == "S":
-            sargs += [
-                (arr, hdr, pasbnds[wvid], min_dynamic_range, *iabcs)
-                for iabcs in core.iterate_event_triplet(nev, evns)
-            ]
+            # Look up correct passband and collect the arguments
+            if pha == "P":
+                for ia, ib, a, b in core.iterate_event_pair(len(evns), evns):
+
+                    hpas, lpas = signal.choose_passband(
+                        [pasbnds[wvid][evns[i]][0] for i in [a, b]],
+                        [pasbnds[wvid][evns[i]][1] for i in [a, b]],
+                        config["min_dynamic_range"],
+                    )
+
+                    # Passband is within dynamic range
+                    if hpas is not None:
+                        pargs.append((xarr[[ia, ib], :], hdr, hpas, lpas, a, b))
+
+            if pha == "S":
+                for ia, ib, ic, a, b, c in core.iterate_event_triplet(len(evns), evns):
+                    hpas, lpas = signal.choose_passband(
+                        [pasbnds[wvid][evns[i]][0] for i in [a, b, c]],
+                        [pasbnds[wvid][evns[i]][1] for i in [a, b, c]],
+                        config["min_dynamic_range"],
+                    )
+
+                    # Passband is within dynamic range
+                    if hpas is not None:
+                        sargs.append((xarr[[ia, ib, ic], :], hdr, hpas, lpas, a, b, c))
+
+        # Argumets above pertain to these functions
+        p_amp_fun = amp.paired_p_amplitudes
+        s_amp_fun = amp.triplet_s_amplitudes
+
+    elif compare_method == "principal":
+
+        for wvid in wvids:
+            sta, pha = core.split_waveid(wvid)
+
+            try:
+                arr, hdr = io.read_waveform_array_header(sta, pha, iteration)
+            except FileNotFoundError:
+                continue
+
+            # Exclude the excluded events
+            ievs, evns = qc.included_events(exclude, **hdr.kwargs(qc.included_events))
+            xarr = arr[ievs, :, :]
+            hdr["events"] = evns
+
+            # Choose highest highpass and lowest lowpass
+            # Note all event passbands are equl if filter method is "manual"
+            hpas = max([pasbnds[wvid][evn][0] for evn in pasbnds[wvid] if evn in evns])
+            lpas = min([pasbnds[wvid][evn][1] for evn in pasbnds[wvid] if evn in evns])
+
+            if (dr := signal.dB(lpas / hpas)) < config["min_dynamic_range"]:
+                hpas = lpas / 10 ** (config["min_dynamic_range"] / 10)
+                msg = (
+                    "Dynamic range ({:.0f} dB) for {:} is too low. "
+                    "Relaxed highpass to {:5.1e} Hz"
+                ).format(dr, wvid, hpas)
+                logger.info(msg)
+
+            if pha == "P":
+                pargs += [(xarr, hdr, hpas, lpas)]
+
+            if pha == "S":
+                sargs += [(xarr, hdr, hpas, lpas)]
+
+        # Arguments above pertain to these functions
+        p_amp_fun = amp.principal_p_amplitudes
+        s_amp_fun = amp.principal_s_amplitudes
+
+    else:
+        raise ValueError(f"Unknown 'amplitude_measure': {compare_method}")
 
     # First process and save P ...
     if ncpu > 1:
         with mp.Pool(ncpu) as pool:
-            abA = pool.starmap(amp.process_p, pargs)
+            result = pool.starmap(p_amp_fun, pargs)
     else:
-        abA = [amp.process_p(*arg) for arg in pargs]
+        result = [p_amp_fun(*arg) for arg in pargs]
 
-    abA = [tup for tup in abA if tup is not None]
-    io.save_amplitudes(core.file("amplitude_observation", sta, "P"), abA)
+    if compare_method == "principal":
+        # Result is a list of list. Let's make it just a list
+        abA = []
+        for pamplist in result:
+            abA.extend(pamplist)
+    else:
+        abA = result
+
+    io.save_amplitudes(
+        core.file("amplitude_observation", sta, "P", suffix=config["amplitude_suffix"]),
+        abA,
+    )
 
     # ... later S
     if ncpu > 1:
         with mp.Pool(ncpu) as pool:
-            abcB = pool.starmap(amp.process_s, sargs)
+            result = pool.starmap(s_amp_fun, sargs)
     else:
-        abcB = [amp.process_s(*arg) for arg in sargs]
+        result = [s_amp_fun(*arg) for arg in sargs]
 
-    abcB = [tup for tup in abcB if tup is not None]
-    io.save_amplitudes(core.file("amplitude_observation", sta, "S"), abcB)
+    if compare_method == "principal":
+        # Result is a list of list. Let's make it just a list
+        abcB = []
+        for samplist in result:
+            abcB.extend(samplist)
+    else:
+        abcB = result
+
+    io.save_amplitudes(
+        core.file("amplitude_observation", sta, "S", suffix=config["amplitude_suffix"]),
+        abcB,
+    )
 
 
 def main_linear_system():
