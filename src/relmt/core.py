@@ -679,8 +679,8 @@ class Config:
         station_file: str | None = None,
         phase_file: str | None = None,
         reference_mt_file: str | None = None,
-        amplitude_suffix: str | None = None,
-        result_suffix: str | None = None,
+        amplitude_suffix: str = "",
+        result_suffix: str = "",
         compute_synthetics: bool | None = None,
         solve_synthetics: bool | None = None,
         reference_mts: list[int] | None = None,
@@ -707,10 +707,14 @@ class Config:
             logger.warning(msg)
             return
 
-        # None value has NoneType
         if value is None:
-            self.__setattr__(key, value)
-            return
+            # None suffixes become empty stings
+            if key.endswith("_suffix"):
+                value = ""
+            else:
+                # Don't attempt to cast not-set values
+                self.__setattr__(key, value)
+                return
 
         # If not None, get type from _config_attr_comments
         for attr in self._valid_args:
