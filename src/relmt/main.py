@@ -517,10 +517,11 @@ def main_amplitude():
             # Make sure what's excluded is excluded
             ievs, evns = qc.included_events(exclude, **hdr.kwargs(qc.included_events))
             xarr = arr[ievs, :, :]
+            hdr["events"] = evns
 
             # Look up correct passband and collect the arguments
             if pha == "P":
-                for ia, ib, a, b in core.iterate_event_pair(len(evns), evns):
+                for a, b, _, _ in core.iterate_event_pair(len(evns)):
 
                     hpas, lpas = signal.choose_passband(
                         [pasbnds[wvid][evns[i]][0] for i in [a, b]],
@@ -530,10 +531,13 @@ def main_amplitude():
 
                     # Passband is within dynamic range
                     if hpas is not None:
-                        pargs.append((xarr[[ia, ib], :], hdr, hpas, lpas, a, b))
+                        pargs.append(
+                            (xarr[[a, b], :], hdr, hpas, lpas, evns[a], evns[b])
+                        )
 
+            # TODO: change the S indexing, if the P works out
             if pha == "S":
-                for ia, ib, ic, a, b, c in core.iterate_event_triplet(len(evns), evns):
+                for a, b, c, _, _, _ in core.iterate_event_triplet(len(evns), evns):
                     hpas, lpas = signal.choose_passband(
                         [pasbnds[wvid][evns[i]][0] for i in [a, b, c]],
                         [pasbnds[wvid][evns[i]][1] for i in [a, b, c]],
@@ -542,7 +546,17 @@ def main_amplitude():
 
                     # Passband is within dynamic range
                     if hpas is not None:
-                        sargs.append((xarr[[ia, ib, ic], :], hdr, hpas, lpas, a, b, c))
+                        sargs.append(
+                            (
+                                xarr[[a, b, c], :],
+                                hdr,
+                                hpas,
+                                lpas,
+                                evns[a],
+                                evns[b],
+                                evns[c],
+                            )
+                        )
 
         # Argumets above pertain to these functions
         p_amp_fun = amp.paired_p_amplitudes
