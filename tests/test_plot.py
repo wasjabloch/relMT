@@ -90,6 +90,10 @@ def test_p_reconstruction(iplot=False):
 
     plot.p_reconstruction(wvA, wvB, Aab)
     plot.p_reconstruction(wvA, wvB, Aab, 100.0)
+    plot.p_reconstruction(wvA, wvB, Aab, 100.0, (1, 2))
+
+    _, axs = plt.subplots(1, 3)
+    plot.p_reconstruction(wvA, wvB, Aab, 100.0, (1, 2), axs)
 
 
 def test_s_reconstruction(iplot=False):
@@ -105,6 +109,10 @@ def test_s_reconstruction(iplot=False):
 
     plot.s_reconstruction(wvA, wvB, wvC, Babc, Bacb)
     plot.s_reconstruction(wvA, wvB, wvC, Babc, Bacb, 100.0)
+    plot.s_reconstruction(wvA, wvB, wvC, Babc, Bacb, 100.0, (1, 2, 3))
+
+    _, axs = plt.subplots(1, 4)
+    plot.s_reconstruction(wvA, wvB, wvC, Babc, Bacb, 100.0, (1, 2, 3), axs)
 
 
 def test_bootstrap_matrix(iplot=False):

@@ -27,7 +27,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 import matplotlib.transforms as transforms
-from relmt import core, mt
+from relmt import core, mt, amp
 import logging
 
 logger = logging.getLogger(__name__)
@@ -282,7 +282,12 @@ def section_2d(
 
 
 def p_reconstruction(
-    wvfA: np.ndarray, wvfB: np.ndarray, Aab: float, sampling_rate: float | None = None
+    wvfA: np.ndarray,
+    wvfB: np.ndarray,
+    Aab: float,
+    sampling_rate: float | None = None,
+    events_ab: tuple[int, int] | None = None,
+    axs: tuple[Axes, Axes, Axes] | None = None,
 ) -> tuple[Axes, Axes, Axes]:
     """
     Plot reconstruction of P wave train of event B from event A
@@ -298,13 +303,15 @@ def p_reconstruction(
         Relative amplitude between A and B
     sampling_rate:
         Sampling rate (seconds)
+    events_ab:
+        Show event numbers in axis titles
+    axs:
+        A tuple of axes to plot into. If `None`, create new axes.
 
     Returns
     -------
     Axes of the resulting subplots
     """
-
-    _, axs = plt.subplots(nrows=3, ncols=1, sharex=True, layout="constrained")
 
     xx = np.arange(wvfA.shape[0], dtype=float)
 
@@ -312,11 +319,23 @@ def p_reconstruction(
     if sampling_rate is not None:
         xx /= sampling_rate
         xlabel = "Time (s)"
+
+    if events_ab is None:
+        events_ab = ("", "")
+
+    if axs is None:
+        _, axs = plt.subplots(nrows=3, ncols=1, sharex=True, layout="constrained")
+
     rcA = Aab * wvfB
+    mis = amp.p_misfit(np.array([wvfA, wvfB]), Aab)
 
-    titles = ["Reconstruction Aab = {:.1e}".format(Aab), "Event B", "Event A"]
+    titles = [
+        "Reconstruction $A_{{ab}}$ = {:.3g} misfit = {:.5f}".format(Aab, mis),
+        f"Event {events_ab[0]} (A)",
+        f"Event {events_ab[1]} (B)",
+    ]
 
-    for n, (tit, wv, ax) in enumerate(zip(titles, [wvfA, wvfB, wvfA], axs)):
+    for n, (tit, wv, ax) in enumerate(zip(titles, [wvfA, wvfA, wvfB], axs)):
 
         if n == 0:
             ax.plot(xx, wv, color="gray", zorder=-5)
@@ -340,6 +359,8 @@ def s_reconstruction(
     Babc: float,
     Bacb: float,
     sampling_rate: float | None = None,
+    events_abc: tuple[int, int, int] | None = None,
+    axs: tuple[Axes, Axes, Axes, Axes] | None = None,
 ) -> tuple[Axes, Axes, Axes, Axes]:
     """
     Plot reconstruction of S wave train of event A from events B and C
@@ -355,6 +376,12 @@ def s_reconstruction(
         Relative contribution of B to A
     Bacb:
         Relative contribution of C to A
+    samling_rate:
+        Supply to show a time axis
+    events_abc:
+        Show event numbers in axis titles.
+    axs:
+        Tuple of axes to plot into. If `None`, create new axes.
 
     Returns
     -------
@@ -370,15 +397,24 @@ def s_reconstruction(
         xx /= sampling_rate
         xlabel = "Time (s)"
 
-    _, axs = plt.subplots(nrows=4, ncols=1, sharex=True, layout="constrained")
+    if events_abc is None:
+        events_abc = ("", "", "")
+
+    if axs is None:
+        _, axs = plt.subplots(nrows=4, ncols=1, sharex=True, layout="constrained")
+
+    mis = amp.s_misfit(np.array([wvfA, wvfB, wvfC]), Babc, Bacb)
 
     titles = [
-        "Reconstruction Babc = {:.1e}, Bacb = {:.1e}".format(Babc, Bacb),
-        "Event C",
-        "Event B",
-        "Event A",
+        "Reconstruction $B_{{abc}}$ = {:.3g}, $B_{{acb}}$ = {:.3g} misfit = {:.5f}".format(
+            Babc, Bacb, mis
+        ),
+        f"Event {events_abc[0]} (A)",
+        f"Event {events_abc[1]} (B)",
+        f"Event {events_abc[2]} (C)",
     ]
-    for n, (tit, wv, ax) in enumerate(zip(titles, [wvfA, wvfC, wvfB, wvfA], axs)):
+
+    for n, (tit, wv, ax) in enumerate(zip(titles, [wvfA, wvfA, wvfB, wvfC], axs)):
 
         if n == 0:
             ax.plot(xx, wv, color="gray", zorder=-5)
