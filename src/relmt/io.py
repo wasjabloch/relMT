@@ -148,6 +148,13 @@ def save_yaml(filename: str, data: dict):
         yaml.safe_dump(data, fid, sort_keys=False)
 
 
+def read_yaml(filename: str) -> dict:
+    """Read data from .yaml file"""
+    with open(filename, "r") as fid:
+        buf = yaml.safe_load(fid)
+    return buf
+
+
 def make_event_table(
     event_list: list[core.Event], filename: Path | str | None = None
 ) -> str:
