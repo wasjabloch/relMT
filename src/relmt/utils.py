@@ -640,6 +640,24 @@ def concat_components(arr: np.ndarray) -> np.ndarray:
     return arr.reshape(ne, ns * nc)  # events, components * samples
 
 
+def select_events(arr: np.ndarray, select: list[int], events: list[int]) -> np.ndarray:
+    """Return waveforms of specific evetn numbers
+
+    arr:
+       ``(events, ...)`` or waveform array or matrix
+    select:
+        List of event numbers to select
+    events:
+        List of event numbers in the array
+    Returns
+    -------
+    ``(selected_events, ...)`` Waveform array or matrix
+    """
+
+    iin = [events.index(i) for i in select]
+    return arr[iin, ...]
+
+
 def collect_takeoff(
     phase_dict: dict[str : core.Phase],
     event_index: int,
