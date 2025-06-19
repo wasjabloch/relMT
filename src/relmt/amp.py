@@ -501,16 +501,22 @@ def principal_p_amplitudes(
     # Iterate through solutions and assign event numbers
     p_amplitudes = [
         core.P_Amplitude_Ratio(
-            hdr["station"], a, b, As[n], p_misfit(mat[[ia, ib], :], As[n])
+            hdr["station"], evns[a], evns[b], As[n], p_misfit(mat[[a, b], :], As[n])
         )
-        for n, (ia, ib, a, b) in enumerate(core.iterate_event_pair(len(evns), evns))
+        for n, (a, b, _, _) in enumerate(core.iterate_event_pair(len(evns)))
     ]
 
     return p_amplitudes
 
 
 def paired_p_amplitudes(
-    arr: np.ndarray, hdr: core.Header, highpass: float, lowpass: float, a: int, b: int
+    arr: np.ndarray,
+    hdr: core.Header,
+    highpass: float,
+    lowpass: float,
+    a: int,
+    b: int,
+    realign: bool = False,
 ):
     """Compute relative P amplitude ratios for one event pair in arr
 
@@ -532,18 +538,34 @@ def paired_p_amplitudes(
     lowpass:
         Lowpass filter frequency in Hz
     a:
-       Number of event a
+        Number of event a
     b:
-       Number of event b
+        Number of event b
+    realign:
+        Re-align seismograms after applying filter
 
     Returns
     -------
     P amplitude ratio
     """
 
-    mat = signal.subset_filter_align(
-        arr, [0, 1], highpass, lowpass, **hdr.kwargs(signal.subset_filter_align)
-    )
+    if realign:
+        mat = signal.subset_filter_align(
+            arr, [0, 1], highpass, lowpass, **hdr.kwargs(signal.subset_filter_align)
+        )
+
+    else:
+        arr_sub = signal.demean_filter_window(
+            arr,
+            hdr["sampling_rate"],
+            hdr["phase_start"],
+            hdr["phase_end"],
+            hdr["taper_length"],
+            highpass,
+            lowpass,
+        )
+
+        mat = utils.concat_components(arr_sub)
 
     A = pca_amplitude_2p(mat)
     mis = p_misfit(mat, A)
@@ -580,8 +602,7 @@ def principal_s_amplitudes(
     List of relative S amplitude ratios for all event triplet combinations
     """
 
-    # TODO: Are we sure that excluded evetns are really excluded?
-    evns = hdr["events"]
+    evns = np.array(hdr["events"])
 
     mat = utils.concat_components(
         signal.demean_filter_window(
@@ -602,14 +623,14 @@ def principal_s_amplitudes(
         core.S_Amplitude_Ratios(
             hdr["station"],
             # Order events as in amplitude comparison
-            *np.array([a, b, c])[isorts[n]],
+            # and reference to event list
+            *evns[np.array([a, b, c])[isorts[n]]],
             Babcs[n],
             Bacbs[n],
-            s_misfit(mat[[ia, ib, ic], :], Babcs[n], Bacbs[n]),
+            # Remember to re-order events also here
+            s_misfit(mat[np.array([a, b, c])[isorts[n]], :], Babcs[n], Bacbs[n]),
         )
-        for n, (ia, ib, ic, a, b, c) in enumerate(
-            core.iterate_event_triplet(len(evns), evns)
-        )
+        for n, (a, b, c, _, _, _) in enumerate(core.iterate_event_triplet(len(evns)))
     ]
 
     return s_amplitudes
@@ -623,6 +644,7 @@ def triplet_s_amplitudes(
     a: int,
     b: int,
     c: int,
+    realign: bool = False,
 ):
     """Compute relative S amplitude ratios for one event triplet in arr
 
@@ -644,20 +666,35 @@ def triplet_s_amplitudes(
     lowpass:
         Lowpass filter frequency in Hz
     a:
-       Number of event a
+        Number of event a
     b:
-       Number of event b
+        Number of event b
     c:
-       Number of event c
+        Number of event c
+    realign:
+        Re-align seismograms after applying filter
 
     Returns
     -------
     S amplitude ratios
     """
 
-    mat = signal.subset_filter_align(
-        arr, [0, 1, 2], highpass, lowpass, **hdr.kwargs(signal.subset_filter_align)
-    )
+    if realign:
+        mat = signal.subset_filter_align(
+            arr, [0, 1, 2], highpass, lowpass, **hdr.kwargs(signal.subset_filter_align)
+        )
+    else:
+        arr_sub = signal.demean_filter_window(
+            arr,
+            hdr["sampling_rate"],
+            hdr["phase_start"],
+            hdr["phase_end"],
+            hdr["taper_length"],
+            highpass,
+            lowpass,
+        )
+
+        mat = utils.concat_components(arr_sub)
 
     Babc, Bacb, iord = pca_amplitude_3s(mat)
 
