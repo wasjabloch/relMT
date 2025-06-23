@@ -365,11 +365,6 @@ def test_cartesian_distance_zero():
     assert result == 0
 
 
-def test_azimuth():
-    result = utils.azimuth(0, 0, 1, 1)
-    assert np.isclose(result, 45.0)
-
-
 def test_next_fftw_size():
     result = utils.next_fftw_size(100)
     assert result > 100

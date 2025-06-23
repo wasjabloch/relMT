@@ -59,3 +59,19 @@ def test_hash_plunge_table():
     # Near-horizontal angle is least stable. Increasing distance and depth
     # sampling helps at the cost of longer runtimes
     assert pytest.approx(plunge_out, abs=2) == plunge
+
+
+def test_azimuth():
+    result = angle.azimuth(0, 0, 1, 1)
+    assert np.isclose(result, 45.0)
+
+
+def test_plunge():
+    result = angle.plunge(0, 0, 0, 0, 0, -1)
+    assert np.isclose(result, -90.0)
+
+    result = angle.plunge(0, 0, 0, 10, 12, 0)
+    assert np.isclose(result, 0.0)
+
+    result = angle.plunge(100, 0.0, 100, 0, 0, 0)
+    assert np.isclose(result, -45.0)
