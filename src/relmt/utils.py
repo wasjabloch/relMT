@@ -74,17 +74,6 @@ def cartesian_distance(
     return np.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2 + (z1 - z2) ** 2)
 
 
-def azimuth(
-    x1: float | np.ndarray,
-    y1: float | np.ndarray,
-    x2: float | np.ndarray,
-    y2: float | np.ndarray,
-) -> float | np.ndarray:
-    """Azimuth (degree x -> y) from point (x1, y1) to (x2, y2)"""
-    azi = (np.arctan2((y2 - y1), (x2 - x1)) * 180 / np.pi) % 360.0
-    return azi
-
-
 def approx_time_lookup(
     time1: list[str] | list[float],
     time2: list[str] | list[float],
@@ -255,7 +244,7 @@ def phase_dict_azimuth(
     azis = np.array(
         [
             (
-                azimuth(
+                angle.azimuth(
                     *xyzarray(event_list[core.split_phaseid(phid)[0]])[:2],
                     *xyzarray(station_dict[core.split_phaseid(phid)[1]])[:2],
                 ),
@@ -509,7 +498,7 @@ def interpolate_phase_dict(
                 # Interpolate time, azimuth, incidence
                 td = cartesian_distance(ex, ey, ez, *sxyz)  # distance
                 et = t0 + td / v  # arrival time
-                ea = azimuth(
+                ea = angle.azimuth(
                     ex, ey, sxyz[0], sxyz[1]
                 )  # event to station azimuth should be correct
 

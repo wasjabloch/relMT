@@ -364,3 +364,20 @@ def clean_vmodel(vmodel: np.ndarray) -> np.ndarray:
         vmodel = np.delete(vmodel, drop_constant_vel_ind, axis=0)
 
     return vmodel
+
+
+def plunge(x1: float, y1: float, z1: float, x2: float, y2: float, z2: float) -> float:
+    """Plunge (degree down from horizontal) from point 1 to point 2"""
+    epi_dist = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+    return np.arctan2(z2 - z1, epi_dist) * 180 / np.pi
+
+
+def azimuth(
+    x1: float | np.ndarray,
+    y1: float | np.ndarray,
+    x2: float | np.ndarray,
+    y2: float | np.ndarray,
+) -> float | np.ndarray:
+    """Azimuth (degree x -> y) from point (x1, y1) to (x2, y2)"""
+    azi = (np.arctan2((y2 - y1), (x2 - x1)) * 180 / np.pi) % 360.0
+    return azi
