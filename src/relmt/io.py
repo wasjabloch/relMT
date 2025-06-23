@@ -132,14 +132,21 @@ def read_exclude_file(filename: str | Path) -> core.Exclude:
 
     template = core.exclude
 
-    with open(str(filename), "r") as fid:
-        excl = yaml.safe_load(fid)
+    try:
+        with open(str(filename), "r") as fid:
+            excl = yaml.safe_load(fid)
+    except FileNotFoundError:
+        logger.info(
+            f"No exclude file found: {filename}. "
+            "Assuming there is nothing to exclude."
+        )
+        return template.copy()
 
-    this_excl = {}
+    this_excl = core.Exclude()
     for key in template:
         this_excl[key] = excl.get(key, [])
 
-    return core.Exclude(**this_excl)
+    return this_excl
 
 
 def save_yaml(filename: str, data: dict):
@@ -554,8 +561,12 @@ def read_header(filename: str, default_name: str | None = None) -> core.Header:
     """
     hdr = core.Header()
     if default_name is not None:
-        logger.debug(f"Read default values from file: {default_name}")
-        hdr.update_from_file(default_name)
+
+        try:
+            hdr.update_from_file(default_name)
+            logger.debug(f"Read default values from header file: {default_name}")
+        except FileNotFoundError:
+            logger.debug(f"No default header file found: {default_name}")
 
     hdr.update_from_file(filename)
 
