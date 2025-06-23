@@ -394,7 +394,7 @@ def integrate(arr: np.ndarray, sampling_rate: float) -> np.ndarray:
 
 def choose_passband(
     highpasses: list[float], lowpasses: list[float], min_dynamic_range: float = 1
-):
+) -> tuple[float, float] | tuple[None, None]:
     """
     Return the highest highpass and the lowest lowpass filter band
 
@@ -403,22 +403,35 @@ def choose_passband(
     highpasses, lowpasses:
         List of highpass and lowpass filter corner candidates
     min_dynamic_range:
-        Minimum ratio (dB) between lowpass and highpass
+        Minimum ratio (dB) between lowpass and highpass. If resulting filter
+        bandwidth is lower, and a positive value is given, return `None`. If a
+        negative value is given, interpret the absolute value and relax the
+        highpass filter corner.
 
     Returns
     -------
-    highpass, lowpass: float
-        Filter corners (Hz), `None` if filter band is below dynamic range.
+    highpass, lowpass:
+        Filter corners (Hz), `None` if filter band is below the positive
+        `min_dynamic_range`.
     """
 
     hpas = np.max(highpasses)
     lpas = np.min(lowpasses)
 
-    if (dr := dB(lpas / hpas)) < min_dynamic_range:
-        logger.debug(
-            "Dynamic range of {:.1e} below threshold. Returning None".format(dr)
-        )
+    # Positive strict, negative not strict
+    strict = bool(np.sign(min_dynamic_range) + 1)
+
+    if (dr := dB(lpas / hpas)) < abs(min_dynamic_range) and strict:
+        msg = "Dynamic range of {:.3g} below positive threshold.".format(dr)
+        msg += "Returning `None`"
+        logger.debug(msg)
         return None, None
+
+    elif dr < abs(min_dynamic_range) and not strict:
+        msg = "Dynamic range of {:.3g} below absolute negative threshold.".format(dr)
+        msg += "Relaxing highpass."
+        logger.debug(msg)
+        hpas = lpas / 10 ** (min_dynamic_range / 10)
 
     return hpas, lpas
 
