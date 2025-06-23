@@ -28,6 +28,7 @@
 import logging
 from relmt import io, utils, align, core, signal, extra, amp, ls, mt, qc
 from scipy.sparse import coo_matrix, save_npz, load_npz
+from pathlib import Path
 import yaml
 import numpy as np
 import multiprocessing as mp
@@ -38,7 +39,7 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(core.logsh)
 
 
-def get_arguments():
+def get_arguments(args=None):
     """Get command line options for :func:`main_align()`"""
 
     parser = ArgumentParser(
@@ -52,7 +53,7 @@ def get_arguments():
     parser.add_argument(
         "-c",
         "--config",
-        type=str,
+        type=Path,
         help="Use this configuration file",
         default=core.file("config"),
     )
@@ -92,15 +93,15 @@ def get_arguments():
         ),
     )
 
-    return parser.parse_args()
+    return parser.parse_args(args)
 
 
-def main_align():
+def main_align(args=None):
     """
     Align waveform files and write results into next alignment directory
     """
 
-    args = get_arguments()
+    args = get_arguments(args)
 
     iteration = args.n_align
     overwrite = args.overwrite
@@ -185,8 +186,8 @@ def main_align():
             align.run(*arg)
 
 
-def main_exclude():
-    args = get_arguments()
+def main_exclude(args=None):
+    args = get_arguments(args)
 
     iteration = args.n_align
     overwrite = args.overwrite
@@ -410,18 +411,25 @@ def phase_passbands(
     return bpd
 
 
-def main_amplitude():
+def main_amplitude(args=None):
     # Subdirectory, e.g. A_Muji
-    args = get_arguments()
+    args = get_arguments(args)
 
     iteration = args.n_align
     conff = args.config
     overwrite = args.overwrite
 
+    directory = conff.parent
+
     config = io.read_config(conff)
 
-    stf = config["station_file"]
-    evf = config["event_file"]
+    ampdir = directory / "amplitude"
+    if not ampdir.exists():
+        logger.info(f"Target directory does not exist: {ampdir}. Creating.")
+        ampdir.mkdir()
+
+    stf = directory / config["station_file"]
+    evf = directory / config["event_file"]
     ncpu = config["ncpu"]
     compare_method = config["amplitude_measure"]  # combination or principal
     filter_method = config["amplitude_filter"]  # auto or manual
@@ -430,7 +438,7 @@ def main_amplitude():
     signal.logger.setLevel("ERROR")
     align.logger.setLevel("WARNING")
 
-    exclude = io.read_exclude_file(core.file("exclude"))
+    exclude = io.read_exclude_file(core.file("exclude", directory=directory))
 
     stas = io.read_station_table(stf)
 
@@ -452,10 +460,13 @@ def main_amplitude():
 
             try:
                 hdr = io.read_header(
-                    core.file("waveform_header", sta, pha, iteration),
-                    default_name=core.file("waveform_header", iteration),
+                    core.file("waveform_header", sta, pha, iteration, directory),
+                    default_name=core.file(
+                        "waveform_header", n_align=iteration, directory=directory
+                    ),
                 )
-            except FileNotFoundError:
+            except FileNotFoundError as e:
+                logger.warning(e)
                 continue
 
             pasbnds[wvid] = {
@@ -466,7 +477,9 @@ def main_amplitude():
         logger.info("Finding filter automatically")
 
         # Read or compute bassbands
-        bpf = core.file("bandpass", suffix=config["amplitude_suffix"])
+        bpf = core.file(
+            "bandpass", directory=directory, suffix=config["amplitude_suffix"]
+        )
 
         # Read the bandpass if it exists
         if bpf.exists() and not overwrite:
@@ -483,8 +496,11 @@ def main_amplitude():
                 sta, pha = core.split_waveid(wvid)
 
                 try:
-                    arr, hdr = io.read_waveform_array_header(sta, pha, iteration)
-                except FileNotFoundError:
+                    arr, hdr = io.read_waveform_array_header(
+                        sta, pha, iteration, directory
+                    )
+                except FileNotFoundError as e:
+                    logger.warning(e)
                     continue
 
                 pasbnds[wvid] = phase_passbands(
@@ -510,8 +526,9 @@ def main_amplitude():
             sta, pha = core.split_waveid(wvid)
 
             try:
-                arr, hdr = io.read_waveform_array_header(sta, pha, iteration)
-            except FileNotFoundError:
+                arr, hdr = io.read_waveform_array_header(sta, pha, iteration, directory)
+            except FileNotFoundError as e:
+                logger.warning(e)
                 continue
 
             # Make sure what's excluded is excluded
@@ -535,7 +552,6 @@ def main_amplitude():
                             (xarr[[a, b], :], hdr, hpas, lpas, evns[a], evns[b])
                         )
 
-            # TODO: change the S indexing, if the P works out
             if pha == "S":
                 for a, b, c, _, _, _ in core.iterate_event_triplet(len(evns), evns):
                     hpas, lpas = signal.choose_passband(
@@ -568,8 +584,9 @@ def main_amplitude():
             sta, pha = core.split_waveid(wvid)
 
             try:
-                arr, hdr = io.read_waveform_array_header(sta, pha, iteration)
-            except FileNotFoundError:
+                arr, hdr = io.read_waveform_array_header(sta, pha, iteration, directory)
+            except FileNotFoundError as e:
+                logger.warning(e)
                 continue
 
             # Exclude the excluded events
@@ -579,16 +596,15 @@ def main_amplitude():
 
             # Choose highest highpass and lowest lowpass
             # Note all event passbands are equl if filter method is "manual"
-            hpas = max([pasbnds[wvid][evn][0] for evn in pasbnds[wvid] if evn in evns])
-            lpas = min([pasbnds[wvid][evn][1] for evn in pasbnds[wvid] if evn in evns])
+            hpas, lpas = signal.choose_passband(
+                [pasbnds[wvid][evn][0] for evn in pasbnds[wvid] if evn in evns],
+                [pasbnds[wvid][evn][1] for evn in pasbnds[wvid] if evn in evns],
+                config["min_dynamic_range"],
+            )
 
-            if (dr := signal.dB(lpas / hpas)) < config["min_dynamic_range"]:
-                hpas = lpas / 10 ** (config["min_dynamic_range"] / 10)
-                msg = (
-                    "Dynamic range ({:.0f} dB) for {:} is too low. "
-                    "Relaxed highpass to {:5.1e} Hz"
-                ).format(dr, wvid, hpas)
-                logger.info(msg)
+            # If we are strict (positive min_dynamic_range), don't process.
+            if hpas is None:
+                continue
 
             if pha == "P":
                 pargs += [(xarr, hdr, hpas, lpas)]
@@ -619,7 +635,13 @@ def main_amplitude():
         abA = result
 
     io.save_amplitudes(
-        core.file("amplitude_observation", sta, "P", suffix=config["amplitude_suffix"]),
+        core.file(
+            "amplitude_observation",
+            sta,
+            "P",
+            directory=directory,
+            suffix=config["amplitude_suffix"],
+        ),
         abA,
     )
 
@@ -639,18 +661,26 @@ def main_amplitude():
         abcB = result
 
     io.save_amplitudes(
-        core.file("amplitude_observation", sta, "S", suffix=config["amplitude_suffix"]),
+        core.file(
+            "amplitude_observation",
+            sta,
+            "S",
+            directory=directory,
+            suffix=config["amplitude_suffix"],
+        ),
         abcB,
     )
 
 
-def main_linear_system():
+def main_linear_system(args=None):
 
     ls.logger.setLevel("WARNING")
 
-    args = get_arguments()
+    args = get_arguments(args)
     suffix = "-" + args.suffix
-    conf = args.config
+    conff = args.config
+
+    conf = io.read_config(conff)
 
     evf = conf["event_file"]
     stf = conf["station_file"]
@@ -775,9 +805,9 @@ def main_linear_system():
     np.save(core.file("amplitude_scale", suffix=outsuffix), ev_scale)
 
 
-def main_solve():
+def main_solve(args=None):
 
-    args = get_arguments()
+    args = get_arguments(args)
     suffix = "-" + args.suffix
     conf = args.config
 
