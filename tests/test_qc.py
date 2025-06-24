@@ -115,8 +115,8 @@ def test_index_high_value():
 
 def test_clean_by_station():
     amplitudes = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1),
-        core.P_Amplitude_Ratio("STA2", 0, 1, 1.0, 0.1),
+        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA2", 0, 1, 1.0, 0.1, 0.9, 0.1, 0.5, 20.0),
     ]
     result = qc.clean_by_station(amplitudes, ["STA1"])
     assert len(result) == 1
@@ -125,8 +125,8 @@ def test_clean_by_station():
 
 def test_clean_by_misfit():
     amplitudes = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1),
-        core.P_Amplitude_Ratio("STA2", 0, 1, 1.0, 1.5),
+        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA2", 0, 1, 1.0, 1.5, 0.9, 0.1, 0.5, 20.0),
     ]
     result = qc.clean_by_misfit(amplitudes, 1.0)
     assert len(result) == 1
@@ -135,8 +135,8 @@ def test_clean_by_misfit():
 
 def test_clean_by_event_p():
     amplitudes = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1),
-        core.P_Amplitude_Ratio("STA2", 0, 2, 1.0, 1.5),
+        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA2", 0, 2, 1.0, 1.5, 0.9, 0.1, 0.5, 20.0),
     ]
     result = qc.clean_by_event(amplitudes, [2])
     assert len(result) == 1
@@ -145,8 +145,12 @@ def test_clean_by_event_p():
 
 def test_clean_by_event_s():
     amplitudes = [
-        core.S_Amplitude_Ratios("STA1", 0, 1, 2, 1.0, 1.0, 0.1),
-        core.S_Amplitude_Ratios("STA2", 0, 2, 3, 1.0, 1.0, 1.5),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 1, 2, 1.0, 1.0, 0.1, 0.8, 0.2, 0.0, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA2", 0, 2, 3, 1.0, 1.0, 1.5, 0.8, 0.2, 0.0, 0.5, 20.0
+        ),
     ]
     result = qc.clean_by_event(amplitudes, [3])
     assert len(result) == 1
@@ -160,8 +164,8 @@ def test_clean_by_magnitude_difference_p():
         core.Event(0, 0, 0, 0, 7, "Ev1"),
     ]
     amplitudes = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1),
-        core.P_Amplitude_Ratio("STA2", 0, 2, 1.0, 1.5),
+        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA2", 0, 2, 1.0, 1.5, 0.9, 0.1, 0.5, 20.0),
     ]
     result = qc.clean_by_magnitude_difference(amplitudes, events, 1.5)
     assert len(result) == 1
@@ -177,8 +181,12 @@ def test_clean_by_magnitude_difference_s():
     ]
 
     amplitudes = [
-        core.S_Amplitude_Ratios("STA1", 0, 1, 2, 1.0, 1.0, 0.1),
-        core.S_Amplitude_Ratios("STA2", 0, 1, 3, 1.0, 1.0, 0.1),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 1, 2, 1.0, 1.0, 0.1, 0.8, 0.2, 0.0, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA2", 0, 1, 3, 1.0, 1.0, 0.1, 0.8, 0.2, 0.0, 0.5, 20.0
+        ),
     ]
 
     result = qc.clean_by_magnitude_difference(amplitudes, events, 1.5)
@@ -195,8 +203,8 @@ def test_clean_by_valid_takeoff_angle():
     }
 
     amplitudes = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1),
-        core.P_Amplitude_Ratio("STA1", 0, 2, 1.0, 0.1),
+        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 0, 2, 1.0, 0.1, 0.9, 0.1, 0.5, 20.0),
     ]
 
     result = qc.clean_by_valid_takeoff_angle(amplitudes, phd)
@@ -208,10 +216,10 @@ def test_clean_by_valid_takeoff_angle():
 def test_clean_by_kurtosis_p():
 
     amplitudes = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1),
-        core.P_Amplitude_Ratio("STA1", 0, 2, 1.1, 1.5),
-        core.P_Amplitude_Ratio("STA1", 0, 3, 1.2, 1.5),
-        core.P_Amplitude_Ratio("STA1", 1, 3, 1e13, 1.5),
+        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 0, 2, 1.1, 1.5, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 0, 3, 1.2, 1.5, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 1, 3, 1e13, 1.5, 0.9, 0.1, 0.5, 20.0),
     ]
 
     events = [
@@ -229,11 +237,21 @@ def test_clean_by_kurtosis_p():
 def test_clean_by_kurtosis_s():
 
     amplitudes = [
-        core.S_Amplitude_Ratios("STA1", 0, 1, 2, 1.0, 1.0, 0.1),
-        core.S_Amplitude_Ratios("STA1", 0, 1, 3, 1.1, 1.1, 1.5),
-        core.S_Amplitude_Ratios("STA1", 0, 1, 4, 1.2, 1e-13, 1.5),
-        core.S_Amplitude_Ratios("STA1", 0, 2, 4, 1.1, 1.1e-13, 1.5),
-        core.S_Amplitude_Ratios("STA1", 0, 3, 4, 0.9, 0.9, 1.5),  # exclude me
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 1, 2, 1.0, 1.0, 0.1, 0.8, 0.2, 0.0, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 1, 3, 1.1, 1.1, 1.5, 0.8, 0.2, 0.0, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 1, 4, 1.2, 1e-13, 1.5, 0.8, 0.2, 0.0, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 2, 4, 1.1, 1.1e-13, 1.5, 0.8, 0.2, 0.0, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 3, 4, 0.9, 0.9, 1.5, 0.8, 0.2, 0.0, 0.5, 20.0
+        ),  # exclude me
     ]
 
     events = [
@@ -250,13 +268,17 @@ def test_clean_by_kurtosis_s():
 
 
 def test_ps_amplitudes_p():
-    pamps = [core.P_Amplitude_Ratio("STA1", 0, 1, 0.1, 0.1)]
+    pamps = [core.P_Amplitude_Ratio("STA1", 0, 1, 0.1, 0.1, 0.9, 0.1, 0.5, 20.0)]
 
     ip, _ = qc._ps_amplitudes(pamps)
     assert ip
 
 
 def test_ps_amplitudes_s():
-    samps = [core.S_Amplitude_Ratios("STA1", 0, 1, 3, 0.1, 0.2, 0.1)]
+    samps = [
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 1, 3, 0.1, 0.2, 0.1, 0.8, 0.2, 0.0, 0.5, 20.0
+        )
+    ]
     ip, _ = qc._ps_amplitudes(samps)
     assert not ip

@@ -47,8 +47,9 @@ def test_pca_amplitude_2p():
     wvA = signal.make_wavelet(n, 30, "sin", 60)
     wvB = wvA / Aab
 
-    Aout = amp.pca_amplitude_2p(np.array([wvA, wvB]))
+    Aout, sigma = amp.pca_amplitude_2p(np.array([wvA, wvB]))
     assert Aout == pytest.approx(Aab)
+    assert sigma == pytest.approx([1.0, 0.0])
 
 
 def test_pca_amplitudes_p():
@@ -61,8 +62,9 @@ def test_pca_amplitudes_p():
     wv2 = wv1 / A12
     wv3 = wv2 / A23
 
-    Aout = amp.pca_amplitudes_p(np.array([wv1, wv2, wv3]))
+    Aout, sigma = amp.pca_amplitudes_p(np.array([wv1, wv2, wv3]))
     assert Aout == pytest.approx([A12, A13, A23])
+    assert sigma == pytest.approx([1.0, 0.0])
 
 
 def test_p_misfit():
@@ -72,10 +74,11 @@ def test_p_misfit():
     wvA = signal.make_wavelet(n, 30, "sin", 60)
     wvB = wvA / Aab
 
-    Aout = amp.pca_amplitude_2p(np.array([wvA, wvB]))
+    Aout, sigma = amp.pca_amplitude_2p(np.array([wvA, wvB]))
     mis = amp.p_misfit(np.array([wvA, wvB]), Aout)
 
     assert mis == pytest.approx(0)
+    assert sigma == pytest.approx([1.0, 0.0])
 
 
 def test_pca_amplitude_3s():
@@ -88,8 +91,9 @@ def test_pca_amplitude_3s():
     wvB = 2 * RNG.random(n) - 1  # 1: Noise
     wvA = Babc * wvB + Bacb * wvC  # 0: More signal than noise
 
-    Babc2, Bacb2, iord = amp.pca_amplitude_3s(np.array([wvA, wvB, wvC]))
+    Babc2, Bacb2, iord, sigma = amp.pca_amplitude_3s(np.array([wvA, wvB, wvC]))
     assert iord == pytest.approx([0, 2, 1])
+    assert sigma == pytest.approx([0.5, 0.5, 0.0], abs=0.1)
 
     # Order is 0, 2, 1, so we compare A, C, B
     assert pytest.approx(wvA) == Babc2 * wvC + Bacb2 * wvB
@@ -110,8 +114,9 @@ def test_pca_amplitude_3s_2():
     wvB = signal.make_wavelet(n, 60, "sin", 80)
     wvA = wvB * Babc + wvC * Bacb
 
-    Babc2, Bacb2, iord = amp.pca_amplitude_3s(np.array([wvA, wvB, wvC]))
+    Babc2, Bacb2, iord, sigma = amp.pca_amplitude_3s(np.array([wvA, wvB, wvC]))
     assert iord == pytest.approx([0, 2, 1])
+    assert sigma == pytest.approx([0.8, 0.2, 0.0], abs=0.1)
 
     # Order is 0, 2, 1, so we compare A, C, B
     assert pytest.approx(wvA) == Babc2 * wvC + Bacb2 * wvB
@@ -131,8 +136,9 @@ def test_pca_amplitude_3s_3():
     wvA = wvB * Babc
     mtx_abc = np.array([wvA, wvB, wvC])
 
-    Babc2, Bacb2, iord = amp.pca_amplitude_3s(mtx_abc)
+    Babc2, Bacb2, iord, sigma = amp.pca_amplitude_3s(mtx_abc)
     assert iord == pytest.approx([1, 0, 2])
+    assert sigma == pytest.approx([0.8, 0.2, 0.0], abs=0.1)
 
     # Order is 1, 0, 2, so we compare B, A, C
     assert pytest.approx(wvB) == Babc2 * wvA + Bacb2 * wvC
@@ -155,7 +161,9 @@ def test_pca_amplitudes_s():
     wvA = Bacd * wvC + Badc * wvD
     wvB = Bbcd * wvC + Bbdc * wvD
     mtx = np.array([wvA, wvB, wvC, wvD])
-    Babcs, Bacbs, iords = amp.pca_amplitudes_s(mtx)
+    Babcs, Bacbs, iords, sigma = amp.pca_amplitudes_s(mtx)
+
+    assert sigma == pytest.approx([0.5, 0.5, 0.0], abs=0.1)
 
     for n, (a, b, c, _, _, _) in enumerate(core.iterate_event_triplet(4)):
 
@@ -206,7 +214,12 @@ def test_synthetic():
         for k in range(j + 1, len(evl))
     ]
 
-    Aab, Babc, orders = amp.synthetic(mtd, evl, stad, phd, p_pairs, s_triplets)
+    Aab, Babc, orders, psig, ssig = amp.synthetic(
+        mtd, evl, stad, phd, p_pairs, s_triplets
+    )
+
+    assert np.isclose(psig, [1.0, 0.0]).all()
+    assert np.isclose(ssig, [0.7, 0.3, 0.0], atol=0.2).all()
 
     # Check if the P amplitudes are computed correctly
     for n, (s, a, b) in enumerate(p_pairs):
@@ -224,7 +237,7 @@ def test_synthetic():
         assert pytest.approx(Babc[n, 0] * ub + Babc[n, 1] * uc) == ua
 
     # Let's try not to reorder the S wavefroms for PCA
-    _, Babc, _ = amp.synthetic(mtd, evl, stad, phd, p_pairs, s_triplets, order=False)
+    _, Babc, *_ = amp.synthetic(mtd, evl, stad, phd, p_pairs, s_triplets, order=False)
 
     # Now check the S amplitudes
     for n, (s, a, b, c) in enumerate(s_triplets):
@@ -275,9 +288,9 @@ def test_p_misfit():
 def test_info_p():
 
     amplitudes = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1),
-        core.P_Amplitude_Ratio("STA1", 0, 2, 1.1, 1.5),
-        core.P_Amplitude_Ratio("STA1", 0, 3, 1.2, 1.5),
+        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 0, 2, 1.1, 1.5, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 0, 3, 1.2, 1.5, 0.9, 0.1, 0.5, 20.0),
     ]
 
     amp.info(amplitudes, width=5)
@@ -286,9 +299,15 @@ def test_info_p():
 def test_info_s():
 
     amplitudes = [
-        core.S_Amplitude_Ratios("STA1", 0, 1, 2, 1.0, 1.0, 0.1),
-        core.S_Amplitude_Ratios("STA1", 0, 1, 3, 1.1, 1.1, 1.5),
-        core.S_Amplitude_Ratios("STA1", 0, 3, 4, 0.9, 0.9, 1.5),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 1, 2, 1.0, 1.0, 0.1, 0.8, 0.1, 0.1, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 1, 3, 1.1, 1.1, 1.5, 0.8, 0.1, 0.1, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 3, 4, 0.9, 0.9, 1.5, 0.8, 0.1, 0.1, 0.5, 20.0
+        ),
     ]
 
     amp.info(amplitudes, width=5)
