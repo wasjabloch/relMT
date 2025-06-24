@@ -296,14 +296,16 @@ def test_read_waveform_array_header():
 
 def test_save_read_p_amplitudes():
     pamps1 = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1e0, 0.5),
-        core.P_Amplitude_Ratio("STA1", 0, 2, -1e0, 1.5),
+        core.P_Amplitude_Ratio("STA1", 0, 1, 1e0, 0.5, 1.0, 0.0, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 0, 2, -1e0, 1.5, 1.0, 0.0, 0.5, 20.0),
     ]
 
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
         io.save_amplitudes(fid.name, pamps1)
         pamps2 = io.read_amplitudes(fid.name, "P")
-        sta, ev1, ev2, amp, mis = io.read_amplitudes(fid.name, "P", unpack=True)
+        sta, ev1, ev2, amp, mis, sig1, sig2, hpas, lpas = io.read_amplitudes(
+            fid.name, "P", unpack=True
+        )
     os.remove(fid.name)
 
     assert pytest.approx(pamps1) == pamps2
@@ -312,20 +314,39 @@ def test_save_read_p_amplitudes():
     assert pytest.approx(ev2) == [1, 2]
     assert pytest.approx(amp) == [1e0, -1e0]
     assert pytest.approx(mis) == [0.5, 1.5]
+    assert pytest.approx(sig1) == [1.0, 1.0]
+    assert pytest.approx(sig2) == [0.0, 0.0]
+    assert pytest.approx(hpas) == [0.5, 0.5]
+    assert pytest.approx(lpas) == [20.0, 20.0]
 
 
 def test_save_read_s_amplitudes():
     samps1 = [
-        core.S_Amplitude_Ratios("STA1", 0, 1, 3, 1e0, 1e1, 0.5),
-        core.S_Amplitude_Ratios("STA1", 0, 2, 3, -1e0, -1e1, 1.5),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 1, 3, 1e0, 1e1, 0.5, 0.7, 0.3, 0.0, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 2, 3, -1e0, -1e1, 1.5, 0.7, 0.3, 0.0, 0.5, 20.0
+        ),
     ]
 
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
         io.save_amplitudes(fid.name, samps1)
         samps2 = io.read_amplitudes(fid.name, "S")
-        sta, ev1, ev2, ev3, amp12, amp13, mis = io.read_amplitudes(
-            fid.name, "S", unpack=True
-        )
+        (
+            sta,
+            ev1,
+            ev2,
+            ev3,
+            amp12,
+            amp13,
+            mis,
+            sig1,
+            sig2,
+            sig3,
+            hpas,
+            lpas,
+        ) = io.read_amplitudes(fid.name, "S", unpack=True)
     os.remove(fid.name)
 
     assert pytest.approx(samps1) == samps2
@@ -336,6 +357,11 @@ def test_save_read_s_amplitudes():
     assert pytest.approx(amp12) == [1e0, -1e0]
     assert pytest.approx(amp13) == [1e1, -1e1]
     assert pytest.approx(mis) == [0.5, 1.5]
+    assert pytest.approx(sig1) == [0.7, 0.7]
+    assert pytest.approx(sig2) == [0.3, 0.3]
+    assert pytest.approx(sig3) == [0.0, 0.0]
+    assert pytest.approx(hpas) == [0.5, 0.5]
+    assert pytest.approx(lpas) == [20.0, 20.0]
 
 
 def test_save_error():

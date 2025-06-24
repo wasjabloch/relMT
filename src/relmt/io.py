@@ -597,15 +597,18 @@ def save_amplitudes(
     """
     ncol = len(table[0])
 
-    if ncol == 5:
-        fmt = "{:10s} {:7d} {:7d} {:25.18e} {:7.5f}\n"
-        out = "#Station    EventA  EventB  Amplitude_AB             Misfit\n"
-    elif ncol == 7:
-        fmt = "{:10s} {:7d} {:7d} {:7d} {:25.18e} {:25.18e} {:7.5f}\n"
+    if ncol == 9:
+        fmt = "{:10s} {:7d} {:7d} {:25.18e} {:7.5f} {:6.4f} {:6.4f} {:8.2e} {:8.2e}\n"
+        out = "#Station    EventA  EventB  Amplitude_AB             Misfit  "
+        out += "Sigma1 Sigma2 Highpass Lowpass\n"
+    elif ncol == 12:
+        fmt = "{:10s} {:7d} {:7d} {:7d} {:25.18e} {:25.18e} {:7.5f} "
+        fmt += "{:6.4f} {:6.4f} {:6.4f} {:8.2e} {:8.2e}\n"
         out = "#Station    EventA  EventB  EventC  Amplitude_ABC             "
-        out += "Amplitude_ACB            Misfit\n"
+        out += "Amplitude_ACB            Misfit  Sigma1 Sigma2 Sigma3 Highpass"
+        out += "Lowpass\n"
     else:
-        msg = "Found {ncol} index columns, but only 5 or 7 are allowed."
+        msg = f"Found {ncol} index columns, but only 9 or 11 are allowed."
         raise IndexError(msg)
 
     out += "".join(fmt.format(*line) for line in table)
@@ -645,28 +648,32 @@ def read_amplitudes(filename: str, phase: str, unpack: bool = False):
     stas = np.loadtxt(filename, usecols=0, dtype=str)
 
     if phase.upper() == "P":
-        X = np.loadtxt(filename, usecols=(1, 2, 3, 4), ndmin=2)
+        X = np.loadtxt(filename, usecols=(1, 2, 3, 4, 5, 6, 7, 8), ndmin=2)
 
         if unpack:
             return stas, *X.T
 
         return [
-            core.P_Amplitude_Ratio(sta, ia, ib, amp, mis)
-            for sta, ia, ib, amp, mis in zip(
-                stas, *X[:, :2].T.astype(int), X[:, 2], X[:, 3]
+            core.P_Amplitude_Ratio(sta, ia, ib, *floats)
+            for sta, ia, ib, floats in zip(
+                stas,
+                *X[:, :2].T.astype(int),
+                X[:, 2:],
             )
         ]
 
     elif phase.upper() == "S":
-        X = np.loadtxt(filename, usecols=(1, 2, 3, 4, 5, 6), ndmin=2)
+        X = np.loadtxt(filename, usecols=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11), ndmin=2)
 
         if unpack:
             return stas, *X.T
 
         return [
-            core.S_Amplitude_Ratios(sta, ia, ib, ic, amp_abc, amp_acb, mis)
-            for sta, ia, ib, ic, amp_abc, amp_acb, mis in zip(
-                stas, *X[:, :3].T.astype(int), *X[:, [3, 4]].T, X[:, 5]
+            core.S_Amplitude_Ratios(sta, ia, ib, ic, *floats)
+            for sta, ia, ib, ic, floats in zip(
+                stas,
+                *X[:, :3].T.astype(int),
+                X[:, 3:],
             )
         ]
 

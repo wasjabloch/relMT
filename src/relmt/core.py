@@ -479,7 +479,18 @@ MT.__doc__ = """A seismic moment tensor
     """
 
 P_Amplitude_Ratio = namedtuple(
-    "P_Amplitude_Ratio", ["station", "event_a", "event_b", "amp_ab", "misfit"]
+    "P_Amplitude_Ratio",
+    [
+        "station",
+        "event_a",
+        "event_b",
+        "amp_ab",
+        "misfit",
+        "sigma1",
+        "sigma2",
+        "highpass",
+        "lowpass",
+    ],
 )
 P_Amplitude_Ratio.__doc__ = """P-wave amplitude ratio observation
 
@@ -493,13 +504,31 @@ P_Amplitude_Ratio.__doc__ = """P-wave amplitude ratio observation
         Amplitude ratio
     misfit: float
         Reconstruction misfit
+    sigma1, sigma2: float
+        First and second singular value of the seismogram decomposition
+    highpass, lowpass: float
+        Filter corners at which the amplitude as astimated
     """
 
 S_Amplitude_Ratios = namedtuple(
     "S_Amplitude_Ratios",
-    ["station", "event_a", "event_b", "event_c", "amp_abc", "amp_acb", "misfit"],
+    [
+        "station",
+        "event_a",
+        "event_b",
+        "event_c",
+        "amp_abc",
+        "amp_acb",
+        "misfit",
+        "sigma1",
+        "sigma2",
+        "sigma3",
+        "highpass",
+        "lowpass",
+    ],
 )
-S_Amplitude_Ratios.__doc__ = """P-wave amplitude ratio observation
+
+S_Amplitude_Ratios.__doc__ = """S-wave amplitude ratio observations
 
     Attributes
     ----------
@@ -513,6 +542,10 @@ S_Amplitude_Ratios.__doc__ = """P-wave amplitude ratio observation
         Amplitude of event `c` in `a` assuming the third event is `b`
     misfit: float
         Reconstruction misfit
+    sigma1, sigma2, sigma3: float
+        First, second and third singular value of the seismogram decomposition
+    highpass, lowpass: float
+        Filter corners at which the amplitude as astimated
     """
 
 

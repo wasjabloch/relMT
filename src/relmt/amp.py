@@ -55,11 +55,11 @@ def pca_amplitude_2p(mtx_ab: np.ndarray) -> float:
     """
 
     # The line below here was
-    _, _, Vh = svd(mtx_ab.T / np.max(abs(mtx_ab)), full_matrices=False)
+    _, ss, Vh = svd(mtx_ab.T / np.max(abs(mtx_ab)), full_matrices=False)
 
     Aab = Vh[0, 0] / Vh[0, 1]
 
-    return Aab
+    return Aab, ss[:2] / np.sum(ss)
 
 
 def pca_amplitudes_p(mtx: np.ndarray) -> np.ndarray:
@@ -78,13 +78,13 @@ def pca_amplitudes_p(mtx: np.ndarray) -> np.ndarray:
     event combinations.
     """
 
-    _, _, Vh = svd(mtx.T / np.max(abs(mtx)), full_matrices=False)
+    _, ss, Vh = svd(mtx.T / np.max(abs(mtx)), full_matrices=False)
 
     aa, bb, _, _ = np.array(list(core.iterate_event_pair(mtx.shape[0]))).T
 
     Aabs = Vh[0, aa] / Vh[0, bb]
 
-    return Aabs
+    return Aabs, ss[:2] / np.sum(ss)
 
 
 def p_misfit(mtx_ab: np.ndarray, Aab: float) -> float:
@@ -138,12 +138,14 @@ def pca_amplitude_3s(
 
     Returns
     -------
-    Babc: float
+    Babc:
         Relative ampltiude between event `a` and `b`, given the third event is `c`
-    Bacb: float
+    Bacb:
         Relative ampltiude between event `a` and `c`, given the third event is `b`
-    iord:  ndarray
+    iord:
         Resulting ``(3,)`` row indices into `mtx_abc` of events `a`, `b` and `c`
+    sigmas:
+        ``(3,)`` first three singular values of the seismogram decomposition
     """
 
     iord = np.array([0, 1, 2])
@@ -151,6 +153,7 @@ def pca_amplitude_3s(
         iord = order_by_ccsum(mtx_abc)
 
     _, ss, Vh = svd(mtx_abc.T / np.max(abs(mtx_abc)), full_matrices=False)
+    sigmas = ss[:3] / np.sum(ss)
 
     # Bostock et al. (2021) Eq. 10
     # Expansion coefficients
@@ -166,7 +169,7 @@ def pca_amplitude_3s(
 
     if bb[1] == 0:
         logger.warning("All wavefroms are similar, so treated with Bacb = 0")
-        return bb[0], 0.0, iord
+        return bb[0], 0.0, iord, sigmas
 
     else:
         try:
@@ -175,12 +178,14 @@ def pca_amplitude_3s(
         except LinAlgError as e:
             msg = f"Met error in SVD: {e.__repr__()}. Returning NaN values."
             logger.warning(msg)
-            return np.nan, np.nan, iord
+            return np.nan, np.nan, iord, sigmas
 
-        return Babc, Bacb, iord
+        return Babc, Bacb, iord, sigmas
 
 
-def pca_amplitudes_s(mtx: np.ndarray) -> np.ndarray:
+def pca_amplitudes_s(
+    mtx: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculate the relative amplitude of all P-wave pairs in mtx as the relative
     contribution of the principal seismogram
@@ -192,8 +197,13 @@ def pca_amplitudes_s(mtx: np.ndarray) -> np.ndarray:
 
     Returns
     -------
-    ``(events * (events - 1) / 2, )`` relative ampltiude between all pairwise
-    event combinations.
+    Babc, Bacb:
+        ``(events * (events - 1) / 2, )`` relative ampltiude between all
+        tripletwise event combinations.
+    iord:
+        ``(events * (events - 1) / 2, 3)``
+    sigmas:
+        ``(3,)`` first three singular values of seismogram decomposition
     """
 
     _, ss, Vh = svd(mtx.T / np.max(abs(mtx)), full_matrices=False)
@@ -208,6 +218,7 @@ def pca_amplitudes_s(mtx: np.ndarray) -> np.ndarray:
     Babcs = np.full(nn, np.nan)
     Bacbs = np.full(nn, np.nan)
     iords = np.full((nn, 3), [0, 1, 2])
+    sigmas = ss[:3] / np.sum(ss)
 
     for n, (a, b, c) in enumerate(zip(aa, bb, cc)):
 
@@ -236,7 +247,7 @@ def pca_amplitudes_s(mtx: np.ndarray) -> np.ndarray:
                 logger.warning(msg)
                 Babcs[n], Bacbs[n] = np.nan, np.nan
 
-    return Babcs, Bacbs, iords
+    return Babcs, Bacbs, iords, sigmas
 
 
 def s_misfit(mtx_abc: np.ndarray, Babc: float, Bacb: float) -> float:
@@ -301,7 +312,7 @@ def synthetic(
     p_pairs: list[tuple[str, int, int]],
     s_triplets: list[tuple[str, int, int, int]],
     order: bool = True,
-) -> tuple[list[core.P_Amplitude_Ratio], list[core.S_Amplitude_Ratios], np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Generate synthetic relative amplitude meassurements.
 
@@ -341,6 +352,12 @@ def synthetic(
     orders:
         ``(len(s_triplets, 3)`` array of indices that order the S waveforms
         according to greatest differences in waveforms.
+    p_sigmas:
+        ``(len(p_pairs), 2)`` First two singular values of the P-amplitude
+        decomposition
+    s_sigmas
+        ``(len(s_triplets), 3)`` first three singular values of the S-amplitude
+        decomposition
     """
 
     rho = 3600
@@ -351,6 +368,8 @@ def synthetic(
     p_ratios = np.full(len(p_pairs), np.nan)
     s_ratios = np.full((len(s_triplets), 2), np.nan)
     orders = np.full((len(s_triplets), 3), [0, 1, 2], dtype=int)
+    p_sigmas = np.full((len(p_pairs), 2), np.nan)
+    s_sigmas = np.full((len(s_triplets), 3), np.nan)
 
     # First compute the P amplitude ratios
     for i, (s, a, b) in enumerate(p_pairs):
@@ -385,7 +404,7 @@ def synthetic(
         )
 
         # Calculate the relative P amplitude
-        p_ratios[i] = pca_amplitude_2p(
+        p_ratios[i], p_sigmas[i, :] = pca_amplitude_2p(
             np.array(
                 [
                     mt.p_radiation(mt_a, azi_a, plu_a, dist_a, rho, alpha),
@@ -439,7 +458,9 @@ def synthetic(
         us_b = mt.s_radiation(mt_b, azi_b, plu_b, dist_b, rho, beta)
         us_c = mt.s_radiation(mt_c, azi_c, plu_c, dist_c, rho, beta)
 
-        Babc, Bacb, iord = pca_amplitude_3s(np.array([us_a, us_b, us_c]), order=order)
+        Babc, Bacb, iord, s_sigmas[i, :] = pca_amplitude_3s(
+            np.array([us_a, us_b, us_c]), order=order
+        )
         print(f"Triplet {s}, {a}, {b}, {c}: Babc = {Babc}, Bacb = {Bacb}")
         print(f"ua: ", us_a)
         print(f"ub: ", us_b)
@@ -450,7 +471,7 @@ def synthetic(
         s_ratios[i, 1] = Bacb
         orders[i, :] = iord
 
-    return p_ratios, s_ratios, orders
+    return p_ratios, s_ratios, orders, p_sigmas, s_sigmas
 
 
 def principal_p_amplitudes(
@@ -496,12 +517,19 @@ def principal_p_amplitudes(
         )
     )
 
-    As = pca_amplitudes_p(mat)
+    As, sigmas = pca_amplitudes_p(mat)
 
     # Iterate through solutions and assign event numbers
     p_amplitudes = [
         core.P_Amplitude_Ratio(
-            hdr["station"], evns[a], evns[b], As[n], p_misfit(mat[[a, b], :], As[n])
+            hdr["station"],
+            evns[a],
+            evns[b],
+            As[n],
+            p_misfit(mat[[a, b], :], As[n]),
+            *sigmas,
+            highpass,
+            lowpass,
         )
         for n, (a, b, _, _) in enumerate(core.iterate_event_pair(len(evns)))
     ]
@@ -567,10 +595,12 @@ def paired_p_amplitudes(
 
         mat = utils.concat_components(arr_sub)
 
-    A = pca_amplitude_2p(mat)
+    A, sigmas = pca_amplitude_2p(mat)
     mis = p_misfit(mat, A)
 
-    return core.P_Amplitude_Ratio(hdr["station"], a, b, A, mis)
+    return core.P_Amplitude_Ratio(
+        hdr["station"], a, b, A, mis, *sigmas, highpass, lowpass
+    )
 
 
 def principal_s_amplitudes(
@@ -616,7 +646,7 @@ def principal_s_amplitudes(
         )
     )
 
-    Babcs, Bacbs, isorts = pca_amplitudes_s(mat)
+    Babcs, Bacbs, isorts, sigmas = pca_amplitudes_s(mat)
 
     # Iterate through solutions and assign event number in order
     s_amplitudes = [
@@ -629,6 +659,9 @@ def principal_s_amplitudes(
             Bacbs[n],
             # Remember to re-order events also here
             s_misfit(mat[np.array([a, b, c])[isorts[n]], :], Babcs[n], Bacbs[n]),
+            *sigmas,  # sigma1, sigma2, sigma3
+            highpass,
+            lowpass,
         )
         for n, (a, b, c, _, _, _) in enumerate(core.iterate_event_triplet(len(evns)))
     ]
@@ -645,7 +678,7 @@ def triplet_s_amplitudes(
     b: int,
     c: int,
     realign: bool = False,
-):
+) -> list[core.S_Amplitude_Ratios]:
     """Compute relative S amplitude ratios for one event triplet in arr
 
     ..note:
@@ -696,12 +729,19 @@ def triplet_s_amplitudes(
 
         mat = utils.concat_components(arr_sub)
 
-    Babc, Bacb, iord = pca_amplitude_3s(mat)
+    Babc, Bacb, iord, sigmas = pca_amplitude_3s(mat)
 
     mis = s_misfit(mat[iord, :], Babc, Bacb)
 
     return core.S_Amplitude_Ratios(
-        hdr["station"], *np.array((a, b, c))[iord], Babc, Bacb, mis
+        hdr["station"],
+        *np.array((a, b, c))[iord],
+        Babc,
+        Bacb,
+        mis,
+        sigmas,
+        highpass,
+        lowpass,
     )
 
 

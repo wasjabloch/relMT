@@ -34,7 +34,7 @@ import pytest
 def test_config_init_empty():
     # Test if an empty config is produced correctly
     config = core.Config()
-    assert all(value is None for value in config.values())
+    assert all(value is None or value == "" for value in config.values())
 
 
 def test_config_init_floats():
@@ -45,7 +45,7 @@ def test_config_init_floats():
         if value[0] == "float"
     }
     config = core.Config(**float_dict)
-    assert all(value == 1.0 for value in config.values() if value is not None)
+    assert all(config[key] == 1.0 for key in float_dict)
 
 
 def test_config_init_lists():
@@ -56,7 +56,7 @@ def test_config_init_lists():
         if value[0] == "list"
     }
     config = core.Config(**list_dict)
-    assert all(value == [] for value in config.values() if value is not None)
+    assert all(config[key] == [] for key in list_dict)
 
 
 def test_config_init_type_error():
@@ -127,11 +127,9 @@ def test_config_update_not_from_file():
 
 def test_config_unpack():
     # Test if config object is upacked correctly
+    keys = ["max_amplitude_misfit", "bootstrap_samples"]
     conf_dict = {**core.Config(max_amplitude_misfit=99.0, bootstrap_samples=99)}
-    assert all(
-        key in ["max_amplitude_misfit", "bootstrap_samples"] for key in conf_dict.keys()
-    )
-    assert all(value == 99.0 for value in conf_dict.values())
+    assert all(conf_dict[key] == 99.0 for key in keys)
 
 
 def test_config_file():
@@ -141,7 +139,12 @@ def test_config_file():
 
 def test_config_iter():
     # Test if config iterates correctly
-    given = dict(max_amplitude_misfit=99.0, bootstrap_samples=99.0)
+    given = dict(
+        max_amplitude_misfit=99.0,
+        bootstrap_samples=99.0,
+        amplitude_suffix="amp",
+        result_suffix="res",
+    )
     notgiven = [
         key for key in core._config_args_comments.keys() if key not in given.keys()
     ]
@@ -152,7 +155,12 @@ def test_config_iter():
 
 
 def test_config_repr():
-    given = dict(max_amplitude_misfit=99.0, bootstrap_samples=99.0)
+    given = dict(
+        max_amplitude_misfit=99.0,
+        bootstrap_samples=99.0,
+        amplitude_suffix="amp",
+        result_suffix="res",
+    )
     notgiven = [
         key for key in core._config_args_comments.keys() if key not in given.keys()
     ]
