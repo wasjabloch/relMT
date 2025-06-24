@@ -593,97 +593,133 @@ exclude = Exclude(
 
 # Attributes set in the global configuration file
 _config_args_comments = {
-    "event_file": ("str", "Path to the seismic event caltalog"),
+    "event_file": (
+        "str",
+        """
+Path to the seismic event caltalog""",
+    ),
     "station_file": (
         "str",
-        "Path to the station location file, e.g. 'data/stations.txt'",
+        """
+Path to the station location file, e.g. 'data/stations.txt'""",
     ),
-    "phase_file": ("str", "Path to the phase file, e.g. 'data/phases.txt'"),
+    "phase_file": (
+        "str",
+        """
+Path to the phase file, e.g. 'data/phases.txt'""",
+    ),
     "reference_mt_file": (
         "str",
-        "Path to the reference moment tensor file, e.g. 'data/reference_mt.txt'",
+        """
+Path to the reference moment tensor file, e.g. 'data/reference_mt.txt'""",
     ),
     "amplitude_suffix": (
         "str",
-        "Suffix (read/write) of amplitude files of this run",
+        """
+Suffix (read/write) of amplitude files of this run""",
     ),
-    "result_suffix": ("str", "Suffix (read/write) of result files of this run"),
+    "result_suffix": (
+        "str",
+        """
+Suffix (read/write) of result files of this run""",
+    ),
     "compute_synthetics": (
         "bool",
-        (
-            "Compute synthetic amplitudes for each moment tensor in "
-            "'reference_mt_file'"
-        ),
+        """
+Compute synthetic amplitudes for each moment tensor in 'reference_mt_file'""",
     ),
     "solve_synthetics": (
         "bool",
-        "Compute moment tensors from synthetic, not meassured amplitudes",
+        """
+Compute moment tensors from synthetic, not meassured amplitudes""",
     ),
     "reference_mts": (
         "list",
-        "Event indices of the reference moment tensors to use",
+        """
+Event indices of the reference moment tensors to use""",
     ),
-    "reference_weight": ("float", "Weight of the reference moment tensor"),
+    "reference_weight": (
+        "float",
+        """
+Weight of the reference moment tensor""",
+    ),
     "mt_constraint": (
         "str",
-        "Constrain the moment tensor. 'none' or 'deviatoric'",
+        """
+Constrain the moment tensor. 'none' or 'deviatoric'""",
     ),
     "amplitude_measure": (
         "str",
-        (
-            "Method to meassure relative amplitudes. 'principal': Estimate "
-            "relative amplitude as the ratio of principal seismogram contributions "
-            "to each seismogram. 'combination': Compare each event combination "
-            "seperatly."
-        ),
+        """
+Method to meassure relative amplitudes. 'principal': Estimate relative amplitude
+as the ratio of principal seismogram contributions to each seismogram.
+'combination': Compare each event combination seperatly.""",
     ),
     "amplitude_filter": (
         "str",
-        (
-            "Filter method to apply for amplitude measure. 'manual': Use 'highpass'"
-            "and 'lowpass' of the waveform header files. 'auto': compute filter corners "
-            "using the 'auto_' options"
-        ),
+        """
+Filter method to apply for amplitude measure. 'manual': Use 'highpass' and
+'lowpass' of the waveform header files. 'auto': compute filter corners using the
+'auto_' options""",
     ),
     "auto_lowpass_method": (
         "str",
-        (
-            "Method to estimate lowpass filter that eliminates"
-            "the source time function. 'duration': Filter by 1/source duration "
-            "of event magnitude. 'stress_drop': estimate from stress drop of "
-            "event magnitude"
-        ),
+        """
+Method to estimate lowpass filter that eliminates the source time function.
+'duration': Filter by 1/source duration of event magnitude. 'stress_drop':
+estimate from stress drop of event magnitude""",
     ),
     "auto_lowpass_stressdrop_range": (
         "list",
-        (
-            "When estimating the lowpass frequency of an event as the corner "
-            "frequency, assume a stressdrop within this range (Pa)."
-        ),
+        """
+When estimating the lowpass frequency of an event as the corner frequency,
+assume a stressdrop within this range (Pa).""",
     ),
     "auto_bandpass_snr_target": (
         "float",
-        (
-            "If supplied, include frequencies with this signal-to-noise ratio to "
-            "optimal bandpass filter. If not supplied, do not attempt to optimize "
-            "passband."
-        ),
+        """
+If supplied, include frequencies with this signal-to-noise ratio to optimal
+bandpass filter. If not supplied, do not attempt to optimize passband.""",
+    ),
+    "min_dynamic_range": (
+        "float",
+        """
+Minimum ratio (dB) of low- / highpass filter bandwidth in an amplitude ratio
+measurement""",
+    ),
+    "min_amplitude_misfit": (
+        "float",
+        """
+Minimum misfit to assign a full weight of 1. Weights are scaled lineraly from
+`min_amplitude mistfit` = 1 to `max_amplitude_misfit` = 0"
+""",
     ),
     "max_amplitude_misfit": (
         "float",
-        "Maximum misfit allowed for amplitude reconstruction",
+        """
+Maximum misfit allowed for amplitude reconstruction""",
+    ),
+    "max_s_sigma1": (
+        "float",
+        """
+Maximum first normalized singular value to allow for an S-wave reconstruction. A
+value of 1 indicates that S-waveform adheres to rank 1 rather than rank 2 model.
+The relative amplitudes Babc and Bacb are then not lineraly independent.""",
+    ),
+    "min_equations": (
+        "int",
+        """
+Minimum number of equations required to constrain one moment tensor""",
     ),
     "bootstrap_samples": (
         "int",
-        "Number of samples to draw for calculating uncertainties",
+        """
+Number of samples to draw for calculating uncertainties""",
     ),
-    "ncpu": ("int", "Number of threads to use for parallel computations"),
-    "min_dynamic_range": (
-        "float",
-        (
-            "Minimum ratio (dB) of low- / highpass filter bandwidth in an "
-            "amplitude ratio measurement"
-        ),
+    "ncpu": (
+        "int",
+        """
+Number of threads to use for parallel computations""",
     ),
 }
 
@@ -724,10 +760,13 @@ class Config:
         auto_lowpass_method: str | None = None,
         auto_lowpass_stressdrop_range: tuple[float, float] | None = None,
         auto_bandpass_snr_target: float | None = None,
+        min_dynamic_range: float | None = None,
+        min_amplitude_misfit: float | None = None,
         max_amplitude_misfit: float | None = None,
+        max_s_sigma1: float | None = None,
+        min_equations: int | None = None,
         bootstrap_samples: int | None = None,
         ncpu: int | None = None,
-        min_dynamic_range: float | None = None,
     ):
         for key, value in locals().items():
             if key != "self":
@@ -783,8 +822,8 @@ class Config:
         out = "# relMT configuration\n"
         for key in self._valid_args:
             # Print the comment
+            out += "\n# ".join(self._valid_args[key][1].split("\n"))
             out += "\n"
-            out += "# " + self._valid_args[key][1] + "\n"
             out += "# (" + self._valid_args[key][0] + ")\n"
 
             # Print the key, value pair
@@ -903,64 +942,80 @@ class Config:
 
 # Attributes that must be present in station header file
 _header_args_comments = {
-    "station": ("str", "Station code"),
-    "phase": ("str", "Seismic phase type to consider ('P' or 'S')"),
-    "variable_name": ("str", "Optional variable name that holds the waveform array"),
+    "station": (
+        "str",
+        """
+Station code""",
+    ),
+    "phase": (
+        "str",
+        """
+Seismic phase type to consider ('P' or 'S')""",
+    ),
+    "variable_name": (
+        "str",
+        """
+Optional variable name that holds the waveform array""",
+    ),
     "components": (
         "str",
-        (
-            "One-character component names ordered as in the waveform array, "
-            "as one string (e.g. 'ZNE')"
-        ),
+        """
+One-character component names ordered as in the waveform array, as one string
+(e.g. 'ZNE')""",
     ),
-    "sampling_rate": ("float", "Sampling rate of the seismic waveform (Hertz)"),
+    "sampling_rate": (
+        "float",
+        """
+Sampling rate of the seismic waveform (Hertz)""",
+    ),
     "events": (
         "list",
-        (
-            "Event indices corresponding to the first dimension of the "
-            "waveform array."
-        ),
+        """
+Event indices corresponding to the first dimension of the waveform array.""",
     ),
     "data_window": (
         "float",
-        (
-            "Time window symmetric about the phase pick (i.e. pick is near the "
-            "central sample) (seconds)"
-        ),
+        """
+Time window symmetric about the phase pick (i.e. pick is near the central
+sample) (seconds)""",
     ),
     "phase_start": (
         "float",
-        (
-            "Start of the phase window before the arrival time pick "
-            "(negative seconds before pick)."
-        ),
+        """
+Start of the phase window before the arrival time pick (negative seconds before
+pick).""",
     ),
     "phase_end": (
         "float",
-        "End of the phase window after the arrival time pick (seconds after pick).",
+        """
+End of the phase window after the arrival time pick (seconds after pick).""",
     ),
     "taper_length": (
         "float",
-        "Combined length of taper that is applied at both ends beyond the phase window. (seconds)",
+        """
+Combined length of taper that is applied at both ends beyond the phase window.
+(seconds)""",
     ),
     "highpass": (
         "float",
-        "Common high-pass filter corner of the waveform (Hertz)",
+        """
+Common high-pass filter corner of the waveform (Hertz)""",
     ),
     "lowpass": (
         "float",
-        "Common low-pass filter corner of the waveform (Hertz)",
+        """
+Common low-pass filter corner of the waveform (Hertz)""",
     ),
     "min_signal_noise_ratio": (
         "float",
-        "Minimum signal-to-noise ratio (dB) of signals",
+        """
+Minimum signal-to-noise ratio (dB) of signals""",
     ),
     "min_expansion_coefficient_norm": (
         "float",
-        (
-            "Minimum norm of the principal component expansion coefficients "
-            "contributing to the waveform reconstruction"
-        ),
+        """
+Minimum norm of the principal component expansion coefficients contributing to
+the waveform reconstruction""",
     ),
 }
 
@@ -1015,8 +1070,8 @@ class Header(Config):
         out = "# relMT waveform header\n"
         for key in self._valid_args:
             # Print the comment
+            out += "\n# ".join(self._valid_args[key][1].split("\n"))
             out += "\n"
-            out += "# " + self._valid_args[key][1] + "\n"
             out += "# (" + self._valid_args[key][0] + ")\n"
 
             # Print the key, value pair

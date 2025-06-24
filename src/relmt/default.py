@@ -38,15 +38,18 @@ config = core.Config(
     reference_mts=[0],
     mt_constraint="none",
     reference_weight=1000.0,
+    min_amplitude_misfit=0.1,
     max_amplitude_misfit=0.8,
+    max_s_sigma1=0.95,
     amplitude_measure="principal",
     amplitude_filter="auto",
     auto_lowpass_method="duration",
     auto_lowpass_stressdrop_range=[1.0e6, 1.0e8],
     auto_bandpass_snr_target=0.0,
+    min_dynamic_range=2.0,
+    min_equations=8,
     bootstrap_samples=100,
     ncpu=1,
-    min_dynamic_range=2.0,
 )
 
 header = core.Header(
