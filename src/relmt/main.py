@@ -585,9 +585,7 @@ def main_amplitude(args=None):
             sta, pha = core.split_waveid(wvid)
 
             try:
-                arr, hdr = apparent_cornerio.read_waveform_array_header(
-                    sta, pha, iteration, directory
-                )
+                arr, hdr = io.read_waveform_array_header(sta, pha, iteration, directory)
             except FileNotFoundError as e:
                 logger.warning(e)
                 continue
