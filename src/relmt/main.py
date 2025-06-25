@@ -296,14 +296,15 @@ def phase_passbands(
     estimate it as:
 
     - 1/source duration of the event magnitude when `lowpass_method` is 'duration'.
-    - Based on the stressdrop within  `lowpass_stressdrop_range` when
-    `lowpass_method` is 'stressdrop':
+    - Based on the corner frequency pertaining to a stressdrop (Pa) within
+    `lowpass_stressdrop_range` when `lowpass_method` is 'corner':
       - If the upper bound is smaller or equal the lower bound (i.e. no range is
         given), estimate the corner frequency using
         :func:`utils.corner_frequency` with an S-wave velocity of 4 km/s.
       - If a range is given, we convert it to a corner frequency range as above
-        and search for the maximum of the phase velocity spectrum within this range
-        using :func:`extra.apparent_corner_frequency`
+      and search the apparent corner frequency as the maximum of the phase
+      velocity spectrum within this range using
+      :func:`extra.apparent_corner_frequency`
 
     The default highpass corner is chosen as 1/phase length.
 
@@ -359,7 +360,7 @@ def phase_passbands(
             # Corner frequency from duration
             fc = 1 / utils.source_duration(ev.mag)
 
-        elif auto_lowpass_method == "stressdrop":
+        elif auto_lowpass_method == "corner":
             # Corner frequency from stress drop
 
             if auto_lowpass_stressdrop_range[0] >= auto_lowpass_stressdrop_range[1]:
@@ -431,7 +432,7 @@ def main_amplitude(args=None):
     stf = directory / config["station_file"]
     evf = directory / config["event_file"]
     ncpu = config["ncpu"]
-    compare_method = config["amplitude_measure"]  # combination or principal
+    compare_method = config["amplitude_measure"]  # direct or indirect
     filter_method = config["amplitude_filter"]  # auto or manual
 
     ls.logger.setLevel("ERROR")
@@ -521,7 +522,7 @@ def main_amplitude(args=None):
     pargs = []
     sargs = []
 
-    if compare_method == "combination":
+    if compare_method == "direct":
         for wvid in wvids:
             sta, pha = core.split_waveid(wvid)
 
@@ -578,13 +579,15 @@ def main_amplitude(args=None):
         p_amp_fun = amp.paired_p_amplitudes
         s_amp_fun = amp.triplet_s_amplitudes
 
-    elif compare_method == "principal":
+    elif compare_method == "indirect":
 
         for wvid in wvids:
             sta, pha = core.split_waveid(wvid)
 
             try:
-                arr, hdr = io.read_waveform_array_header(sta, pha, iteration, directory)
+                arr, hdr = apparent_cornerio.read_waveform_array_header(
+                    sta, pha, iteration, directory
+                )
             except FileNotFoundError as e:
                 logger.warning(e)
                 continue
@@ -626,7 +629,7 @@ def main_amplitude(args=None):
     else:
         result = [p_amp_fun(*arg) for arg in pargs]
 
-    if compare_method == "principal":
+    if compare_method == "indirect":
         # Result is a list of list. Let's make it just a list
         abA = []
         for pamplist in result:
@@ -652,7 +655,7 @@ def main_amplitude(args=None):
     else:
         result = [s_amp_fun(*arg) for arg in sargs]
 
-    if compare_method == "principal":
+    if compare_method == "indirect":
         # Result is a list of list. Let's make it just a list
         abcB = []
         for samplist in result:

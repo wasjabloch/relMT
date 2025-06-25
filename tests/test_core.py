@@ -132,6 +132,20 @@ def test_config_unpack():
     assert all(conf_dict[key] == 99.0 for key in keys)
 
 
+def test_config_test_sanity():
+    # Test if arguments with an ill choice are raise
+    choice_args = [
+        "mt_constraint",
+        "amplitude_measure",
+        "amplitude_filter",
+        "auto_lowpass_method",
+    ]
+
+    for arg in choice_args:
+        with pytest.raises(ValueError):
+            core.Config()[arg] = "invalid"
+
+
 def test_config_file():
     # Test if config file directories are returned correctly
     assert core.file("config") == Path("config.yaml")

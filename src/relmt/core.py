@@ -800,6 +800,8 @@ class Config:
                 except ValueError:
                     msg = f"Unable to cast value '{value}' of '{key}' to type: {typ}"
                     raise TypeError(msg)
+
+        self._check_choices(key, value)
         self.__setattr__(key, value)
 
     def __getitem__(self, key):
@@ -839,6 +841,37 @@ class Config:
         return len(self) == len(other) and all(
             sv == ov for sv, ov in zip(self.values(), other.values())
         )
+
+    def _check_choices(self, key, value):
+        """Check arguments that allow for a set of choices"""
+
+        if value is None:
+            return
+
+        if key == "mt_constraint" and value not in ["none", "deviatoric"]:
+            raise ValueError(
+                f"Unknown 'mt_constraint': {self['mt_constraint']}. "
+                "Must be 'none' or 'deviatoric'."
+            )
+        if key == "amplitude_measure" and value not in ["direct", "indirect"]:
+            raise ValueError(
+                f"Unknown 'amplitude_measure': {self['amplitude_measure']}. "
+                "Must be 'direct' or 'indirect'."
+            )
+        if key == "amplitude_filter" and value not in ["manual", "auto"]:
+            raise ValueError(
+                f"Unknown 'amplitude_filter': {self['amplitude_filter']}. "
+                "Must be 'manual' or 'auto'."
+            )
+        if key == "auto_lowpass_method" and value not in ["duration", "corner"]:
+            raise ValueError(
+                f"Unknown 'auto_lowpass_method': {self['auto_lowpass_method']}. "
+                "Must be 'duration' or 'corner'."
+            )
+        if key == "phase" and value not in ["P", "S"]:
+            raise ValueError(f"Unknown 'phase': {self['phase']}. Must be 'P' or 'S'.")
+
+        return
 
     def to_file(self, filename: str | Path, overwrite: bool = False):
         """
@@ -1077,6 +1110,24 @@ class Header(Config):
             # Print the key, value pair
             out += f"{key}: {self[key] if self[key] is not None else ''}\n"
         return out
+
+    def validate(self):
+        """Check if all arguments are valid"""
+        if (
+            self["phase_start"] is not None
+            and self["phase_end"] is not None
+            and self["phase_start"] >= self["phase_end"]
+        ):
+            raise ValueError(
+                f"'phase_start' ({self['phase_start']}) must be smaller than "
+                f"'phase_end' ({self['phase_end']})."
+            )
+        if (hp := self["highpass"]) is not None and (lp := self["lowpass"]) is not None:
+            if hp > lp:
+                raise ValueError(
+                    "'lowpass' ({lp} Hz) must be larger than 'highpass' ({hp} Hz)"
+                )
+        return True
 
 
 # TODO: Only make an 'extra' optional dependency
