@@ -149,10 +149,29 @@ def read_exclude_file(filename: str | Path) -> core.Exclude:
     return this_excl
 
 
-def save_yaml(filename: str, data: dict):
+def save_yaml(filename: str, data: dict, format_bandpass=False):
     """Save data to .yaml file"""
+
+    # Format for bandpass yaml files, by ChatGPT
+    class BandpassDumper(yaml.SafeDumper):
+        pass
+
+    def represent_list(dumper, data):
+        # flow_style=True → [a, b], flow_style=False → block style
+        return dumper.represent_sequence("tag:yaml.org,2002:seq", data, flow_style=True)
+
+    def represent_float(dumper, data):
+        return dumper.represent_scalar("tag:yaml.org,2002:float", format(data, ".5g"))
+
+    BandpassDumper.add_representer(float, represent_float)
+    BandpassDumper.add_representer(list, represent_list)
+
+    dumper = yaml.dumper.SafeDumper
+    if format_bandpass:
+        dumper = BandpassDumper
+
     with open(filename, "w") as fid:
-        yaml.safe_dump(data, fid, sort_keys=False)
+        yaml.dump(data, fid, sort_keys=False, Dumper=dumper)
 
 
 def read_yaml(filename: str) -> dict:
@@ -595,7 +614,11 @@ def save_amplitudes(
     table:
         List of P- or S-amplitude ratios
     """
-    ncol = len(table[0])
+    try:
+        ncol = len(table[0])
+    except IndexError:
+        logger.error("Table is empty. No data to be saved.")
+        return
 
     if ncol == 9:
         fmt = "{:10s} {:7d} {:7d} {:25.18e} {:7.5f} {:6.4f} {:6.4f} {:8.2e} {:8.2e}\n"
@@ -605,7 +628,7 @@ def save_amplitudes(
         fmt = "{:10s} {:7d} {:7d} {:7d} {:25.18e} {:25.18e} {:7.5f} "
         fmt += "{:6.4f} {:6.4f} {:6.4f} {:8.2e} {:8.2e}\n"
         out = "#Station    EventA  EventB  EventC  Amplitude_ABC             "
-        out += "Amplitude_ACB            Misfit  Sigma1 Sigma2 Sigma3 Highpass"
+        out += "Amplitude_ACB            Misfit  Sigma1 Sigma2 Sigma3 Highpass "
         out += "Lowpass\n"
     else:
         msg = f"Found {ncol} index columns, but only 9 or 11 are allowed."

@@ -224,6 +224,38 @@ def test_read_event_table_unpack(mock_event_table_file):
     assert len(result[0]) == 2  # Number of events
 
 
+@pytest.fixture
+def mock_bandpass_file(tmp_path):
+    file = tmp_path / "bandpass.yaml"
+    # Some variations of the ".5g" general format
+    data = """
+STA1_P:
+  0: [5.4152, 9.5668e+05]
+  1: [5.4152, 9.5668e+05]
+STA1_S:
+  0: [5.4152e-05, 95668]
+  1: [5.4152e-05, 95668]
+    """
+    file.write_text(data)
+    return file
+
+
+def test_read_bandpass(mock_bandpass_file):
+    bpd = io.read_yaml(str(mock_bandpass_file))
+    assert isinstance(bpd, dict)
+    assert "STA1_P" in bpd
+    assert "STA1_S" in bpd
+    assert isinstance(bpd["STA1_P"], dict)
+    assert 0 in bpd["STA1_P"]
+    assert 1 in bpd["STA1_S"]
+    assert pytest.approx(bpd["STA1_P"][0]) == [5.4152, 9.5668e05]
+
+
+def test_write_bandpass(mock_bandpass_file):
+    bpd = io.read_yaml(str(mock_bandpass_file))
+    io.save_yaml(str(mock_bandpass_file), bpd, format_bandpass=True)
+
+
 def test_make_read_phase_table():
     # Test if a phase table is read correctly
     phd1 = {
