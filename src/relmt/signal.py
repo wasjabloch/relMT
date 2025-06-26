@@ -431,7 +431,7 @@ def choose_passband(
         msg = "Dynamic range of {:.3g} below absolute negative threshold.".format(dr)
         msg += "Relaxing highpass."
         logger.debug(msg)
-        hpas = lpas / 10 ** (min_dynamic_range / 10)
+        hpas = lpas / 10 ** (abs(min_dynamic_range) / 10)
 
     return hpas, lpas
 
