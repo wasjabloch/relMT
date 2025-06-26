@@ -218,6 +218,11 @@ def pca_amplitudes_s(
     Babcs = np.full(nn, np.nan)
     Bacbs = np.full(nn, np.nan)
     iords = np.full((nn, 3), [0, 1, 2])
+
+    # TODO:  are these sigmas meaningful?
+    # Consider the case of a stack with two sets of two waveforms present
+    # sigma1 reconstructs one set and sigma two the other.
+    # Yet, within one set the comparison relies only on sigma1, not on sigma2
     sigmas = ss[:3] / np.sum(ss)
 
     for n, (a, b, c) in enumerate(zip(aa, bb, cc)):
@@ -739,7 +744,7 @@ def triplet_s_amplitudes(
         Babc,
         Bacb,
         mis,
-        sigmas,
+        *sigmas,
         highpass,
         lowpass,
     )
