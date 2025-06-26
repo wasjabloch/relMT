@@ -666,8 +666,9 @@ Filter method to apply for amplitude measure. 'manual': Use 'highpass' and
         "str",
         """
 Method to estimate lowpass filter that eliminates the source time function.
-'duration': Filter by 1/source duration of event magnitude. 'stress_drop':
-estimate from stress drop of event magnitude""",
+'duration': Filter by 1/source duration of event magnitude. 'corner':
+estimate corner frequency from stress drop of event magnitude. Requires
+'auto_lowpass_stressdrop_range'""",
     ),
     "auto_lowpass_stressdrop_range": (
         "list",
@@ -850,26 +851,24 @@ class Config:
 
         if key == "mt_constraint" and value not in ["none", "deviatoric"]:
             raise ValueError(
-                f"Unknown 'mt_constraint': {self['mt_constraint']}. "
-                "Must be 'none' or 'deviatoric'."
+                f"Unknown 'mt_constraint': {value}. " "Must be 'none' or 'deviatoric'."
             )
         if key == "amplitude_measure" and value not in ["direct", "indirect"]:
             raise ValueError(
-                f"Unknown 'amplitude_measure': {self['amplitude_measure']}. "
+                f"Unknown 'amplitude_measure': {value}. "
                 "Must be 'direct' or 'indirect'."
             )
         if key == "amplitude_filter" and value not in ["manual", "auto"]:
             raise ValueError(
-                f"Unknown 'amplitude_filter': {self['amplitude_filter']}. "
-                "Must be 'manual' or 'auto'."
+                f"Unknown 'amplitude_filter': {value}. " "Must be 'manual' or 'auto'."
             )
         if key == "auto_lowpass_method" and value not in ["duration", "corner"]:
             raise ValueError(
-                f"Unknown 'auto_lowpass_method': {self['auto_lowpass_method']}. "
+                f"Unknown 'auto_lowpass_method': {value}. "
                 "Must be 'duration' or 'corner'."
             )
         if key == "phase" and value not in ["P", "S"]:
-            raise ValueError(f"Unknown 'phase': {self['phase']}. Must be 'P' or 'S'.")
+            raise ValueError(f"Unknown 'phase': {value}. Must be 'P' or 'S'.")
 
         return
 
