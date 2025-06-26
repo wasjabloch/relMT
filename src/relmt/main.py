@@ -31,69 +31,13 @@ from scipy.sparse import coo_matrix, save_npz, load_npz
 from pathlib import Path
 import yaml
 import numpy as np
+import sys
 import multiprocessing as mp
 from argparse import ArgumentParser
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(core.logsh)
-
-
-def get_arguments(args=None):
-    """Get command line options for :func:`main_align()`"""
-
-    parser = ArgumentParser(
-        usage="%(prog)s [arguments] <station database>",
-        description=(
-            "Align waveforms using multi channel cross correlation"
-            "and pricinipal component analyses."
-        ),
-    )
-
-    parser.add_argument(
-        "-c",
-        "--config",
-        type=Path,
-        help="Use this configuration file",
-        default=core.file("config"),
-    )
-
-    parser.add_argument(
-        "-n", "--n_align", type=int, help="Alignment iteration", default=0
-    )
-
-    parser.add_argument(
-        "-o",
-        "--overwrite",
-        help="Overwrite existing files",
-        action="store_true",
-    )
-
-    parser.add_argument(
-        "--no-data",
-        action="store_true",
-        help="Exlude data with no data or data containing NaNs",
-    )
-
-    parser.add_argument(
-        "--snr",
-        action="store_true",
-        help=(
-            "Exlude data with signal to noise ratio higher than "
-            "'min_signal_noise_ratio' in the configuration file"
-        ),
-    )
-
-    parser.add_argument(
-        "--ecn",
-        action="store_true",
-        help=(
-            "Exlude data with expansion coefficient norm higher than "
-            "'min_expansion_coefficient_norm' in the configuration file"
-        ),
-    )
-
-    return parser.parse_args(args)
 
 
 def main_align(args=None):
@@ -412,17 +356,13 @@ def phase_passbands(
     return bpd
 
 
-def main_amplitude(args=None):
-    # Subdirectory, e.g. A_Muji
-    args = get_arguments(args)
-
-    iteration = args.n_align
-    conff = args.config
-    overwrite = args.overwrite
-
-    directory = conff.parent
-
-    config = io.read_config(conff)
+def main_amplitude(
+    config: core.Config, directory: Path, iteration: int, overwrite: bool = False
+):
+    """
+    Compute relative amplitudes using options in config. Assemble path directory
+    and iteration. Choose 'overwrite' to overwrite existing files.
+    """
 
     ampdir = directory / "amplitude"
     if not ampdir.exists():
@@ -512,7 +452,7 @@ def main_amplitude(args=None):
                     exclude=exclude,
                 )
 
-            io.save_yaml(bpf, pasbnds)
+            io.save_yaml(bpf, pasbnds, format_bandpass=True)
             logger.info(f"Saved bandpass to file: {bpf}")
 
     else:
@@ -875,7 +815,102 @@ def main_solve(args=None):
         io.make_mt_table(bootmts, core.file("relative_mt", suffix=outsuf + "_boot"))
 
 
-if __name__ == "__main__":
+def get_arguments(args=None):
+    """Get command line options for :func:`main_align()`"""
 
-    # We will eventually be able to invoke relMT from the command line
-    pass
+    parser = ArgumentParser(
+        description="""
+Software for computing relative seismic moment tensors"""
+    )
+
+    subpars = parser.add_subparsers(dest="mode")
+
+    init_p = subpars.add_parser("init", help="Initialize directories and default files")
+    align_p = subpars.add_parser("align", help="Align waveforms")
+    amp_p = subpars.add_parser(
+        "amplitude", help="Measure relative amplitudes on aligned waveforms"
+    )
+    solve_p = subpars.add_parser(
+        "solve", help="Compute moment tensors from amplitude measurements"
+    )
+
+    # Now set the functions to be called
+    align_p.set_defaults(command=main_align)
+    amp_p.set_defaults(command=main_amplitude)
+    solve_p.set_defaults(command=main_solve)
+
+    # Global arguments
+    parser.add_argument(
+        "-c",
+        "--config",
+        type=Path,
+        help="Use this configuration file",
+        default=core.file("config"),
+    )
+
+    parser.add_argument(
+        "-o",
+        "--overwrite",
+        help="Overwrite existing files",
+        action="store_true",
+    )
+
+    parser.add_argument(
+        "-n", "--n_align", type=int, help="Alignment iteration", default=0
+    )
+
+    # Align sub arguments
+    align_p.add_argument(
+        "--no-data",
+        action="store_true",
+        help="Exlude data with no data or data containing NaNs",
+    )
+
+    align_p.add_argument(
+        "--snr",
+        action="store_true",
+        help=(
+            "Exlude data with signal to noise ratio higher than "
+            "'min_signal_noise_ratio' in the configuration file"
+        ),
+    )
+
+    align_p.add_argument(
+        "--ecn",
+        action="store_true",
+        help=(
+            "Exlude data with expansion coefficient norm higher than "
+            "'min_expansion_coefficient_norm' in the configuration file"
+        ),
+    )
+
+    parsed = parser.parse_args(args)
+
+    if parsed.mode is None:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+
+    return parsed
+
+
+def main(args=None):
+    # Subdirectory, e.g. A_Muji
+    parsed = get_arguments(args)
+
+    conff = parsed.config
+    config = io.read_config(conff)
+
+    # Let's parse the keyword arguments explicitly
+    n_align = parsed.n_align
+    overwrite = parsed.overwrite
+    parent = conff.parent
+
+    if parsed.mode == "amplitude" or parsed.mode == "align":
+        kwargs = dict(directory=parent, iteration=n_align, overwrite=overwrite)
+
+    # The command to be executed is defined above for each of the subparsers
+    parsed.command(config, **kwargs)
+
+
+if __name__ == "__main__":
+    main()

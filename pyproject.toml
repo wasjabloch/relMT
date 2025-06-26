@@ -84,6 +84,7 @@ ninja.version = ">=1.10"
 cmake.version = ">=3.17.2"
 
 [project.scripts]
+relmt = "relmt.main:main"
 relmt-exclude = "relmt.main:main_exclude"
 relmt-align = "relmt.main:main_align"
 relmt-bandpass = "relmt.main:main_bandpass"
