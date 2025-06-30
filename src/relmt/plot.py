@@ -26,8 +26,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.colors import LinearSegmentedColormap
+from itertools import combinations
 import matplotlib.transforms as transforms
-from relmt import core, mt, amp
+from relmt import core, mt, amp, qc
 import logging
 
 logger = logging.getLogger(__name__)
@@ -428,6 +430,166 @@ def s_reconstruction(
         ax.set_xlabel(xlabel)
         ax.grid(axis="x")
 
+    return ax
+
+
+def amplitude_connections(
+    amplitudes: list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios],
+    s_amplitudes: list[core.S_Amplitude_Ratios] | None = None,
+    reference_mts: list[int] | None = None,
+    ax: Axes | None = None,
+    node_size: float = 250.0,
+    node_linewidth: float = 1.0,
+) -> Axes:
+    """Plot a graph representation of event connections.
+
+    Events are connected as pairs or triplets through relative amplitude
+    measurements. Represent these connections as a graph and colour by number of
+    connections
+
+    ..note:
+        Requires :module:`networkx` to be installed.
+
+    Parameters
+    ----------
+    amplitudes:
+        Event pair- or tripletwise P- or S-amplitude mesuremetns.
+    s_samplitudes:
+        Second set of S-amplitude measurements. Observations will be combined
+    referenc_mts:
+        Highlight these reference moment tensors with a larger node and thicker
+        outline
+    ax:
+        Plot into this axis. If `None`, create one
+    node_size:
+        Size of a node. Increase if you have big numbers
+    node_linewidth:
+        Width of the node edge
+
+    Returns
+    -------
+    The axis of the plot
+    """
+
+    # Prototype by ChatGPT o4-mini-high
+    import networkx as nx
+
+    ip, _ = qc._ps_amplitudes(amplitudes)
+
+    if ip:
+        evs = [(amp.event_a, amp.event_b) for amp in amplitudes]
+        this_cmap = plt.cm.Reds
+    else:
+        evs = [(amp.event_a, amp.event_b, amp.event_c) for amp in amplitudes]
+        this_cmap = plt.cm.Blues
+
+    if s_amplitudes is not None:
+        this_cmap = plt.cm.Purples
+
+    # Crop brightest end from colormap
+    cmap = LinearSegmentedColormap.from_list(
+        "cmap", this_cmap(np.linspace(0.3, 1.0, 256))
+    )
+
+    MG = nx.MultiGraph()
+
+    if ip:
+        MG.add_edges_from(evs, conn_type="P")
+    else:
+        for a, b, c in evs:
+            MG.add_edges_from([(a, b), (b, c), (a, c)], conn_type="S")
+
+    if s_amplitudes is not None:
+        evs_extra = [(amp.event_a, amp.event_b, amp.event_c) for amp in s_amplitudes]
+        for a, b, c in evs_extra:
+            MG.add_edges_from([(a, b), (b, c), (a, c)], conn_type="S")
+
+    deg = MG.degree()
+    nodes = MG.nodes()
+
+    # A connection between two nodes counts only once, even when it occurs in
+    # many triplets.
+    connections = np.array([deg[n] for n in nodes])
+
+    # Make reference MTs larger and line thicker
+    node_sizes = [node_size if n not in reference_mts else node_size * 2 for n in nodes]
+
+    linewidths = [
+        node_linewidth if n not in reference_mts else node_linewidth * 2 for n in nodes
+    ]
+
+    # Collapse to graph after counting connections for efficient plotting
+    G = nx.Graph()
+    G.add_nodes_from(MG.nodes(data=True))
+    for u, v, _, data in MG.edges(keys=True, data=True):
+        ct = data.get("conn_type", None)
+        if G.has_edge(u, v):
+            # there is already an edge in G: merge the conn_type
+            prev = G[u][v].get("conn_type")
+            if prev != ct:
+                # if they disagree, mark as mixed
+                G[u][v]["conn_type"] = "PS"
+        else:
+            # first time we see (u,v) — just copy it
+            G.add_edge(u, v, conn_type=ct)
+
+    p_edges = [(u, v) for u, v, d in G.edges(data=True) if d["conn_type"] == "P"]
+    s_edges = [(u, v) for u, v, d in G.edges(data=True) if d["conn_type"] == "S"]
+    ps_edges = [(u, v) for u, v, d in G.edges(data=True) if d["conn_type"] == "PS"]
+
+    pos = nx.spring_layout(G)
+
+    # Set up the figure
+    if ax is None:
+        _, ax = plt.subplots(1, 1, figsize=(8, 6), layout="tight")
+
+    nx.draw_networkx_nodes(
+        G,
+        pos,
+        nodelist=nodes,
+        node_size=node_sizes,
+        linewidths=linewidths,
+        node_color=connections,
+        edgecolors="white",
+        cmap=cmap,
+        ax=ax,
+    )
+
+    # Node labels
+    nx.draw_networkx_labels(
+        G,
+        pos,
+        labels={n: n for n in nodes},
+        font_color="white",
+        font_size=8,
+        ax=ax,
+    )
+
+    for edges, style, label in zip(
+        [p_edges, s_edges, ps_edges], ["dotted", "dashed", "solid"], ["P", "S", "P+S"]
+    ):
+        nx.draw_networkx_edges(
+            G, pos, edgelist=edges, style=style, alpha=0.5, ax=ax, label=label
+        )
+
+    ax.legend(title="Type")
+
+    vmin = connections.min()
+    vmax = connections.max()
+    ticks = np.linspace(vmin, vmax, 5)
+    labels = ["{:.0f}".format(t) for t in ticks]
+
+    sm = plt.cm.ScalarMappable(
+        cmap=cmap,
+        norm=plt.Normalize(vmin=vmin, vmax=vmax),
+    )
+    sm.set_array([])
+    cbar = plt.colorbar(sm, ax=ax)
+    cbar.set_label("Connections")
+
+    cbar.set_ticks(ticks, labels=labels)
+
+    ax.axis("off")
     return ax
 
 
