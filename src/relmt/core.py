@@ -132,6 +132,10 @@ basenames_phase_station = {
 }
 
 
+# Suffix to add to cleaned amplitude observations
+clean_amplitude_suffix = "-qced"
+
+
 def file(
     file_id: str,
     station: str = "",
@@ -707,6 +711,17 @@ Maximum first normalized singular value to allow for an S-wave reconstruction. A
 value of 1 indicates that S-waveform adheres to rank 1 rather than rank 2 model.
 The relative amplitudes Babc and Bacb are then not lineraly independent.""",
     ),
+    "max_magnitude_difference": (
+        "float",
+        """
+Maximum difference in magnitude between two events to allow an amplitude
+measurement.""",
+    ),
+    "max_event_distance": (
+        "float",
+        """
+Maximum distance (m) between two events to include measurement in linear system """,
+    ),
     "min_equations": (
         "int",
         """
@@ -765,6 +780,8 @@ class Config:
         min_amplitude_misfit: float | None = None,
         max_amplitude_misfit: float | None = None,
         max_s_sigma1: float | None = None,
+        max_magnitude_difference: float | None = None,
+        max_event_distance: float | None = None,
         min_equations: int | None = None,
         bootstrap_samples: int | None = None,
         ncpu: int | None = None,
