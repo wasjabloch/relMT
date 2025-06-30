@@ -31,6 +31,7 @@ from relmt import core, signal, mt, utils, qc
 from scipy.stats import skew, kurtosis
 from scipy.linalg import svd
 from typing import Iterable
+from collections import Counter
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -146,7 +147,7 @@ def clean_by_event(
 def clean_by_magnitude_difference(
     amplitudes: list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios],
     event_list: list[core.Event],
-    magnitude_difference: list[str],
+    magnitude_difference: list[str] | None,
 ) -> list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios]:
     """
     Remove amplitude readings made for certain events
@@ -164,6 +165,10 @@ def clean_by_magnitude_difference(
     -------
     Cleaned list of amplitude observations
     """
+
+    if magnitude_difference is None:
+        return amplitudes
+
     ip, _ = _ps_amplitudes(amplitudes)
     if ip:
         return [
@@ -186,6 +191,139 @@ def clean_by_magnitude_difference(
             ]
         )
     ]
+
+
+def clean_by_event_distance(
+    amplitudes: list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios],
+    event_list: list[core.Event],
+    event_distance: list[str] | None,
+) -> list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios]:
+    """Remove amplitude readings of distant event combinations
+
+    Event pairs or triplets whose maximum distance is larger than
+    `event_distance` will be removed.
+
+    Parameters
+    ----------
+    amplitudes:
+        List of amplitude observations
+    event_list:
+        The seismic event catalog
+    event_distance:
+        Maximum distance between events
+
+    Returns
+    -------
+    Cleaned list of amplitude observations
+    """
+
+    if event_distance is None:
+        return amplitudes
+
+    ip, _ = _ps_amplitudes(amplitudes)
+
+    xyz = utils.xyzarray(event_list)
+
+    if ip:
+        ievs = np.array([(amp.event_a, amp.event_b) for amp in amplitudes])
+        dist = utils.cartesian_distance(*xyz[ievs[:, 0], :].T, *xyz[ievs[:, 1], :].T)
+    else:
+        ievs = np.array([(amp.event_a, amp.event_b, amp.event_c) for amp in amplitudes])
+        ab = utils.cartesian_distance(*xyz[ievs[:, 0], :].T, *xyz[ievs[:, 1], :].T)
+        ac = utils.cartesian_distance(*xyz[ievs[:, 0], :].T, *xyz[ievs[:, 2], :].T)
+        bc = utils.cartesian_distance(*xyz[ievs[:, 1], :].T, *xyz[ievs[:, 2], :].T)
+        # Maximum distance between any two events
+        dist = np.max(np.array([ab, ac, bc]), axis=0)
+
+    iin = (dist <= event_distance).nonzero()[0]
+
+    if not any(iin):
+        logger.warning("Excluded all observations.")
+
+    return [amplitudes[n] for n in iin]
+
+
+def clean_by_equation_count(
+    p_amplitudes: list[core.P_Amplitude_Ratio],
+    s_amplitudes: list[core.S_Amplitude_Ratios],
+    min_equations: int | None,
+) -> tuple[list[core.P_Amplitude_Ratio], list[core.S_Amplitude_Ratios]]:
+    """Remove observations that occurr in less than `min_equations` iteratively
+
+    Counts the number of ocurrences of each event. Events that occurr fewer than
+    `min_equations` times are discarded, togther with the events they are
+    connected to. This procedure is repeated until all remaining events are
+    constrained by at least 'min_equations` equations.
+
+    Parameters
+    ----------
+    p_amplitudes:
+        List of P amplitude observations
+    S_amplitudes:
+        List of S amplitude observations
+    min_equations:
+        Minimum number of occurrences of each event
+
+    Returns
+    -------
+    Cleaned list of P- and S-amplitude observations
+    """
+
+    if min_equations is None:
+        return p_amplitudes, s_amplitudes
+
+    p_pairs = np.array([(amp.event_a, amp.event_b) for amp in p_amplitudes])
+    s_triplets = np.array(
+        [(amp.event_a, amp.event_b, amp.event_c) for amp in s_amplitudes]
+    )
+
+    # Below created with ChatGPT o4-mini-high
+    keep_p = np.ones(len(p_pairs), dtype=bool)
+    keep_s = np.ones(len(s_triplets), dtype=bool)
+
+    while True:
+        # Count occurrences of each integer over the kept events
+        cnt = Counter()
+
+        for i in np.nonzero(keep_p)[0]:
+            cnt.update(p_pairs[i])
+
+        for i in np.nonzero(keep_s)[0]:
+            cnt.update(s_triplets[i])
+
+        # Events with too few observations
+        few = {node for node, c in cnt.items() if c < min_equations}
+        if any(few):
+            logger.debug("Excluding events: " + ", ".join(f"{f}" for f in few))
+
+        # Drop all occurrences of the events with too few observations
+        new_keep_p = keep_p.copy()
+        for i in np.nonzero(keep_p)[0]:
+            if any(x in few for x in p_pairs[i]):
+                new_keep_p[i] = False
+
+        new_keep_s = keep_s.copy()
+        for i in np.nonzero(keep_s)[0]:
+            if any(x in few for x in s_triplets[i]):
+                new_keep_s[i] = False
+
+        # If nothing was dropped, exit the loop
+        if np.array_equal(new_keep_p, keep_p) and np.array_equal(new_keep_s, keep_s):
+            break
+
+        # Else, start counting again
+        keep_p, keep_s = new_keep_p, new_keep_s
+
+    # Included P and S observations
+    pin = np.nonzero(keep_p)[0]
+    sin = np.nonzero(keep_s)[0]
+
+    if not any(pin):
+        logger.warning("Excluded all P-observations.")
+    if not any(sin):
+        logger.warning("Excluded all S-observations.")
+
+    return [p_amplitudes[n] for n in pin], [s_amplitudes[n] for n in sin]
 
 
 def clean_by_valid_takeoff_angle(
@@ -482,6 +620,7 @@ def included_events(
 
     if return_bool:
         return ievs, inevns
+
     return ievs.nonzero()[0].tolist(), inevns.tolist()
 
 
