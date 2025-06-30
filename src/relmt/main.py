@@ -131,6 +131,7 @@ def main_align(args=None):
 
 
 def main_exclude(args=None):
+    """Exclude observations from alignment procedure"""
     args = get_arguments(args)
 
     iteration = args.n_align
@@ -613,6 +614,114 @@ def main_amplitude(
     )
 
 
+def main_qc(config: core.Config, directory: Path):
+    """Read amplitudes and construct the linear system
+
+    Before constructing the system, apply amplitude exlusion criteria and
+    minumum number of equation constraints.
+    """
+
+    max_mis = config["max_amplitude_misfit"]
+    max_mag_diff = config["max_magnitude_difference"]
+    max_s1 = config["max_s_sigma1"]
+    max_ev_dist = config["max_event_distance"]
+    min_eq = config["min_equations"]
+
+    exclude = io.read_yaml(core.file("exclude", directory=directory))
+
+    exclude_wvid = exclude["waveform"]
+
+    ampsuf = config["amplitude_suffix"]
+
+    evl = io.read_event_table(config["event_file"])
+    phd = io.read_phase_table(config["phase_file"])
+
+    samps = io.read_amplitudes(
+        core.file(
+            "amplitude_observation", directory=directory, phase="S", suffix=ampsuf
+        ),
+        "S",
+    )
+
+    for ph in "PS":
+        infile = core.file(
+            "amplitude_observation", directory=directory, phase=ph, suffix=ampsuf
+        )
+
+        amps = io.read_amplitudes(infile, ph)
+
+        exclude_stations = set(
+            core.split_waveid(wvid)[0]
+            for wvid in exclude_wvid
+            if core.split_waveid(wvid)[1] == ph
+        ).union(exclude["station"])
+
+        # Read the files again, this time unpack QCed values in arrays
+        if ph == "P":
+            sta, _, _, _, mis, *_ = io.read_amplitudes(infile, ph, unpack=True)
+            s1 = np.full_like(mis, -np.inf)  # Never exclud
+        else:
+            sta, _, _, _, _, _, mis, s1, *_ = io.read_amplitudes(
+                infile, ph, unpack=True
+            )
+
+        # Direct exlusions using numpy
+
+        # Stations
+        iout = np.isin(sta, exclude_stations)
+        logger.info(
+            f"Excluded {(nout := sum(iout))} {ph}-observations from exclude file"
+        )
+
+        # Misfit
+        if max_mis is not None:
+            iout |= mis > max_mis
+            logger.info(
+                f"Excluded {sum(iout) - nout} more {ph}-observations due to high misfit"
+            )
+
+        # Sigma1
+        nout = sum(iout)
+        if max_s1 is not None:
+            iout |= s1 > max_s1
+            logger.info(
+                f"Excluded {sum(iout) - nout} more {ph}-observations due high sigma1"
+            )
+
+        iin = (~iout).nonzero()[0]  # Included amplitude indices
+
+        # Reduce the list using indices
+        amps = [amps[n] for n in iin]
+
+        # Only include observations for which we have takeoff angles, ...
+        amps = qc.clean_by_valid_takeoff_angle(amps, phd)
+
+        # ... within magnitude difference ...
+        amps = qc.clean_by_magnitude_difference(amps, evl, max_mag_diff)
+
+        # ... within inter-event distance ...
+        amps = qc.clean_by_event_distance(amps, evl, max_ev_dist)
+
+        # Let's not overwrite, but save for later use
+        if ph == "P":
+            pamps = amps.copy()
+        else:
+            samps = amps.copy()
+
+    # Make sure we have enough equations
+    pamps, samps = qc.clean_by_equation_count(pamps, samps, min_eq)
+
+    # Write to file
+    for ph, amps in zip("PS", [pamps, samps]):
+        outfile = core.file(
+            "amplitude_observation",
+            directory=directory,
+            phase=ph,
+            suffix=ampsuf + core.clean_amplitude_suffix,
+        )
+        io.save_amplitudes(outfile, amps)
+
+
 def main_linear_system(args=None):
 
     ls.logger.setLevel("WARNING")
@@ -830,6 +939,9 @@ Software for computing relative seismic moment tensors"""
     amp_p = subpars.add_parser(
         "amplitude", help="Measure relative amplitudes on aligned waveforms"
     )
+    qc_p = subpars.add_parser(
+        "qc", help="Apply quality control parameters to amplitude measurements"
+    )
     solve_p = subpars.add_parser(
         "solve", help="Compute moment tensors from amplitude measurements"
     )
@@ -837,6 +949,7 @@ Software for computing relative seismic moment tensors"""
     # Now set the functions to be called
     align_p.set_defaults(command=main_align)
     amp_p.set_defaults(command=main_amplitude)
+    qc_p.set_defaults(command=main_qc)
     solve_p.set_defaults(command=main_solve)
 
     # Global arguments
@@ -907,6 +1020,8 @@ def main(args=None):
 
     if parsed.mode == "amplitude" or parsed.mode == "align":
         kwargs = dict(directory=parent, iteration=n_align, overwrite=overwrite)
+    elif parsed.mode == "qc":
+        kwargs = dict(directory=parent)
 
     # The command to be executed is defined above for each of the subparsers
     parsed.command(config, **kwargs)
