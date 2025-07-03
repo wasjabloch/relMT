@@ -27,10 +27,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap
-from itertools import combinations
 import matplotlib.transforms as transforms
 from relmt import core, mt, amp, qc
 import logging
+
+plt.ion()
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -511,12 +512,19 @@ def amplitude_connections(
     # many triplets.
     connections = np.array([deg[n] for n in nodes])
 
-    # Make reference MTs larger and line thicker
-    node_sizes = [node_size if n not in reference_mts else node_size * 2 for n in nodes]
+    # Constant node sizes and line widhts
+    node_sizes = [node_size] * len(nodes)
+    linewidths = [node_linewidth] * len(nodes)
 
-    linewidths = [
-        node_linewidth if n not in reference_mts else node_linewidth * 2 for n in nodes
-    ]
+    # When given, make reference MTs larger and line thicker
+    if reference_mts is not None:
+        node_sizes = [
+            node_size if n not in reference_mts else node_size * 2 for n in nodes
+        ]
+        linewidths = [
+            node_linewidth if n not in reference_mts else node_linewidth * 2
+            for n in nodes
+        ]
 
     # Collapse to graph after counting connections for efficient plotting
     G = nx.Graph()
