@@ -30,6 +30,8 @@ import logging
 from relmt import core, signal, mt, utils, qc
 from scipy.stats import skew, kurtosis
 from scipy.linalg import svd
+from scipy.sparse import csr_array
+from scipy.sparse.csgraph import connected_components
 from typing import Iterable
 from collections import Counter
 
@@ -83,7 +85,7 @@ def clean_by_misfit(
     -------
     Cleaned list of amplitude observations
     """
-    return [amp for amp in amplitudes if amp.misfit <= max_misfit]
+    return [amp for amp in amplitudes if amp.misfit < max_misfit]
 
 
 def clean_by_station(
@@ -684,3 +686,82 @@ def index_high_value(
     """
     iin = values > threshold
     return _switch_return_bool_not(iin, return_not, return_bool)
+
+
+def connected_events(
+    reference_mts: list[int],
+    p_amplitudes: list[core.P_Amplitude_Ratio] | None = None,
+    s_amplitudes: list[core.S_Amplitude_Ratios] | None = None,
+) -> list[int]:
+    """Event connected to the reference MTs
+
+    Investigate the paired P- and triplet S-observations for connectivity. Only
+    return those events that are connected to at least one reference MT.
+
+    Parameters
+    ----------
+    reference_mts:
+        List of indices to the reference events
+    p_amplitudes:
+        List of P-amplitude observations
+    s_amplitudes:
+        List of S-amplitude observations
+
+    Returns
+    -------
+    Event indices of the connected events
+
+    Raises
+    ------
+    ValueError:
+        If any reference MT has no amplitude observation
+    RuntimeError:
+        If reference MTs are not connected with each other
+    """
+
+    # Collect unique connections
+    cons = set()
+    for amp in p_amplitudes:
+        cons.add(tuple(sorted((amp.event_a, amp.event_b))))
+
+    for amp in s_amplitudes:
+        cons.add(tuple(sorted((amp.event_a, amp.event_b))))
+        cons.add(tuple(sorted((amp.event_a, amp.event_c))))
+        cons.add(tuple(sorted((amp.event_b, amp.event_c))))
+
+    # Build a graph from the connections
+    rows, cols = zip(*sorted(cons))  # Arbitrary order
+    evs = sorted((set(rows).union(cols)))
+    nev = max(evs)  # The largest event present
+    data = [1] * len(rows)  # All edges count the same
+
+    # Check if all MTs are represented
+    iin = np.isin(reference_mts, evs)
+    if not all(iin):
+        msg = "These reference MTs have no amplitude measurement: "
+        msg += ", ".join(f"{reference_mts[i]}" for i in (~iin).nonzero()[0])
+        raise ValueError(msg)
+
+    # Connected components assumes a square matrix
+    graph = csr_array((data, (rows, cols)), (nev + 1, nev + 1))
+
+    # Event index -> cluster within graph
+    _, groups = connected_components(graph, False)
+
+    # Group indices of moment tensors
+    igs = [groups[imt] for imt in reference_mts]
+
+    # Check if all MTs are connected to each other
+    if len(set(igs)) > 1:
+        msg = (
+            "Not all reference MTs are connected with each other. Consider to "
+            "solve connected groups individually or to improve connectivity by "
+            "excluding fewer amplitude observations.\n"
+        )
+        msg += "MT groupings are: " + ", ".join(
+            f"MT {imt}: Group {ig}" for imt, ig in zip(reference_mts, igs)
+        )
+        raise RuntimeError(msg)
+
+    # Indices of connected events
+    return (groups == igs[0]).nonzero()[0].tolist()
