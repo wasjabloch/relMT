@@ -615,7 +615,7 @@ def main_amplitude(
 
 
 def main_qc(config: core.Config, directory: Path):
-    """Read amplitudes and construct the linear system
+    """Read amplitudes and discard according to criteria in config
 
     Before constructing the system, apply amplitude exlusion criteria and
     minumum number of equation constraints.
@@ -722,124 +722,110 @@ def main_qc(config: core.Config, directory: Path):
         io.save_amplitudes(outfile, amps)
 
 
-def main_linear_system(args=None):
+def main_solve(config: core.Config, directory: Path = Path()):
+    """Construct and validate linear system from amplitude measurement. Solve
+    for moment tensors."""
 
     ls.logger.setLevel("WARNING")
 
-    args = get_arguments(args)
-    suffix = "-" + args.suffix
-    conff = args.config
+    evf = directory / config["event_file"]
+    stf = directory / config["station_file"]
+    phf = directory / config["phase_file"]
+    refmtf = directory / config["reference_mt_file"]
 
-    conf = io.read_config(conff)
+    max_misfit = config["max_amplitude_misfit"]
+    min_misfit = config["min_amplitude_misfit"]
+    irefs = config["reference_mts"]
+    constraint = config["mt_constraint"]
+    refmt_weight = config["reference_weight"]
 
-    evf = conf["event_file"]
-    stf = conf["station_file"]
-    phf = conf["phase_file"]
-    refmtf = conf["reference_mt_file"]
+    nboot = config["bootstrap_samples"]
 
-    max_misfit = conf["max_amplitude_misfit"]
-    all_ref_mts = conf["reference_mts"]
-    constraint = conf["mt_constraint"]
-    refmt_weight = conf["reference_weight"]
+    # Avoid ovewriting reduced amplitude files.
+    if config["amplitude_suffix"] == config["result_suffix"]:
+        msg = "Naming conflict in configuration. Please supply a "
+        msg += "'result_suffix' that is different from 'amplitude_suffix'."
+        raise ValueError(msg)
+
+    insuf = config["amplitude_suffix"] + core.clean_amplitude_suffix
+    outsuf = config["result_suffix"]
 
     mt_elements = ls.mt_elements(constraint)
 
-    ref_id = "-".join([f"{iref}" for iref in all_ref_mts])
-
-    all_evl = io.read_event_table(evf)
-    all_phd = io.read_phase_table(phf)
+    evl = io.read_event_table(evf)
+    phd = io.read_phase_table(phf)
     stad = io.read_station_table(stf)
-    all_mtd = io.read_mt_table(refmtf)
-
-    outsuffix = suffix + "_iref_" + ref_id + f"_{constraint}"
+    mtd = io.read_mt_table(refmtf)
 
     # Read amplitudes from file
-    all_p_amplitudes = io.read_amplitudes(
-        core.file("amplitude_observation", phase="P", suffix=suffix),
+    p_amplitudes = io.read_amplitudes(
+        core.file(
+            "amplitude_observation", phase="P", suffix=insuf, directory=directory
+        ),
         "P",
     )
-    all_s_amplitudes = io.read_amplitudes(
-        core.file("amplitude_observation", phase="S", suffix=suffix),
+    s_amplitudes = io.read_amplitudes(
+        core.file(
+            "amplitude_observation", phase="S", suffix=insuf, directory=directory
+        ),
         "S",
     )
 
-    # Include only events in event list that are acutally good.
-    ab = np.array([(amp.event_a, amp.event_b) for amp in all_p_amplitudes])
-    abc = np.array(
-        [(amp.event_a, amp.event_b, amp.event_c) for amp in all_s_amplitudes]
-    )
-    inev = sorted(set(ab.flat).union(set(abc.flat)))
+    # Find the connected events, given moment tensors
+    inev = qc.connected_events(irefs, p_amplitudes, s_amplitudes)
 
-    np.savetxt(core.file("inev.txt"), inev, fmt="%.0f")
-
-    # Change all the indexing
-    evl = [all_evl[n] for n in inev]
-    ref_mts = [inev.index(n) for n in all_ref_mts]
-
-    phd = {
-        core.join_phaseid(
-            inev.index(core.split_phaseid(phid)[0]), *core.split_phaseid(phid)[1:]
-        ): pha
-        for phid, pha in all_phd.items()
-        if core.split_phaseid(phid)[0] in inev
-    }
-    p_amplitudes = [
-        core.P_Amplitude_Ratio(
-            am.station,
-            inev.index(am.event_a),
-            inev.index(am.event_b),
-            am.amp_ab,
-            am.misfit,
-        )
-        for am in all_p_amplitudes
-        if am.event_a in inev and am.event_b in inev
+    # Reduced set of amplitudes, containing only valid observations
+    pamp_subset = [
+        pamp
+        for pamp in p_amplitudes
+        if all(np.isin([pamp.event_a, pamp.event_b], inev))
     ]
-    s_amplitudes = [
-        core.S_Amplitude_Ratios(
-            am.station,
-            inev.index(am.event_a),
-            inev.index(am.event_b),
-            inev.index(am.event_c),
-            am.amp_abc,
-            am.amp_acb,
-            am.misfit,
-        )
-        for am in all_s_amplitudes
-        if am.event_a in inev and am.event_b in inev and am.event_c in inev
+
+    samp_subset = [
+        samp
+        for samp in s_amplitudes
+        if all(np.isin([samp.event_a, samp.event_b, samp.event_c], inev))
     ]
-    mtd = {inev.index(iev): mt for iev, mt in all_mtd.items() if iev in inev}
 
     # Build homogenos part of linear system
     Ah, bh = ls.homogenous_amplitude_equations(
-        p_amplitudes, s_amplitudes, stad, evl, phd, constraint
+        pamp_subset, samp_subset, inev, stad, evl, phd, constraint
     )
 
     # Normalization applied to columns
     ev_norm = ls.norm_event_median_amplitude(Ah, mt_elements)
     Ah *= ev_norm
 
+    # Weight applied by row
+    min_weight = 0.05
     mis_weights = np.vstack(
-        [ls.weight_misfit(amp, max_misfit, "P") for amp in p_amplitudes]
-        + [ls.weight_misfit(amp, max_misfit, "S") for amp in s_amplitudes]
+        [
+            ls.weight_misfit(amp, min_misfit, max_misfit, min_weight, "P")
+            for amp in pamp_subset
+        ]
+        + [
+            ls.weight_misfit(amp, min_misfit, max_misfit, min_weight, "S")
+            for amp in samp_subset
+        ]
     )
 
     amp_weights = np.vstack(
-        [1.0 for _ in p_amplitudes]
-        + [ls.weight_s_amplitude(amp) for amp in s_amplitudes]
+        [1.0 for _ in pamp_subset] + [ls.weight_s_amplitude(amp) for amp in samp_subset]
     )
 
+    eq_norm = ls.condition_homogenous_matrix_by_norm(Ah)
+
+    # Apply the weights only after measuring the norm
     Ah *= mis_weights * amp_weights
 
-    # Weight applied by row
-    eq_norm = ls.condition_homogenous_matrix_by_norm(Ah)
     Ah *= eq_norm
 
     # Build inhomogenous equations
-    Ai, bi = ls.reference_mt_equations(ref_mts, mtd, len(evl), constraint)
+    Ai, bi = ls.reference_mt_equations(irefs, mtd, len(evl), constraint)
 
     # Collect and apply weights
-    mean_moment = mt.mean_moment([mtd[iev] for iev in ref_mts])
-    refev_norm = ls.reference_mt_event_norm(ev_norm, ref_mts, mt_elements)
+    mean_moment = mt.mean_moment([mtd[iev] for iev in irefs])
+    refev_norm = ls.reference_mt_event_norm(ev_norm, irefs, mt_elements)
     Ai *= refmt_weight
     bi *= refmt_weight / mean_moment / refev_norm
 
@@ -849,47 +835,11 @@ def main_linear_system(args=None):
     A = coo_matrix(np.vstack((Ah, Ai))).tocsc()
     b = np.vstack((bh, bi))
 
-    # np.save(core.file("amplitude_matrix", directory=directory, suffix=outsuffix), A)
-    save_npz(core.file("amplitude_matrix", suffix=outsuffix), A)
-    np.save(core.file("amplitude_data_vector", suffix=outsuffix), b)
-    np.save(core.file("amplitude_scale", suffix=outsuffix), ev_scale)
+    # save_npz(core.file("amplitude_matrix", directory=directory, suffix=outsuf), A)
 
-
-def main_solve(args=None):
-
-    args = get_arguments(args)
-    suffix = "-" + args.suffix
-    conf = args.config
-
-    ref_mts = conf["reference_mts"]
-    constraint = conf["mt_constraint"]
-    nboot = conf["bootstrap_samples"]
-
-    mt_elements = ls.mt_elements(constraint)
-
-    ref_id = "-".join([f"{iref}" for iref in ref_mts])
-
-    outsuf = suffix + "_iref_" + ref_id + f"_{constraint}"
-
-    pamps = io.read_amplitudes(
-        core.file("amplitude_observation", phase="P", suffix=suffix), "P"
-    )
-    samps = io.read_amplitudes(
-        core.file("amplitude_observation", phase="S", suffix=suffix), "S"
-    )
-
-    n_p = len(pamps)
-    n_s = len(samps) * 2
-    n_ref = len(ref_mts)
-
-    # Load data
-    # A = np.load(
-    #    core.file("amplitude_matrix", directory=directory, suffix=outsuf),
-    #    allow_pickle=True,
-    # ).item()
-    A = load_npz(core.file("amplitude_matrix", suffix=outsuf))
-    b = np.load(core.file("amplitude_data_vector", suffix=outsuf))
-    ev_scale = np.load(core.file("amplitude_scale", suffix=outsuf))
+    n_p = len(pamp_subset)
+    n_s = len(samp_subset) * 2
+    n_ref = len(irefs)
 
     # Invert and save results
     m, residuals = ls.solve_lsmr(A, b, ev_scale)
@@ -897,21 +847,77 @@ def main_solve(args=None):
         residuals, n_p, n_ref, mt_elements
     )
 
-    np.savetxt(core.file("moment_residual", phase="P", suffix=outsuf), p_residuals)
-    np.savetxt(core.file("moment_residual", phase="S", suffix=outsuf), s_residuals)
-
-    try:
-        inev = np.loadtxt(core.file("inev.txt")).astype(int)
-    except FileNotFoundError:
-        inev = list(range(int(A.shape[1] // mt_elements)))
-
     relmts = {
         inev[i]: momt for i, momt in enumerate(mt.mt_tuples(m, constraint)) if any(momt)
     }
-    io.make_mt_table(relmts, core.file("relative_mt", suffix=outsuf))
+
+    # Compute synthetic amplitudes and posteori-residuals
+    Asyn, Bsyn, *_ = amp.synthetic(
+        relmts,
+        evl,
+        stad,
+        phd,
+        [(pamp.station, pamp.event_a, pamp.event_b) for pamp in pamp_subset],
+        [
+            (samp.station, samp.event_a, samp.event_b, samp.event_c)
+            for samp in samp_subset
+        ],
+        False,
+    )
+
+    Aobs = np.array([pamp.amp_ab for pamp in pamp_subset])
+    B1obs = np.array([samp.amp_abc for samp in samp_subset])
+    B2obs = np.array([samp.amp_acb for samp in samp_subset])
+
+    Ares = Aobs / Asyn
+    B1res = B1obs / Bsyn[:, 0]
+    B2res = B2obs / Bsyn[:, 1]
+
+    io.make_mt_table(
+        relmts, core.file("relative_mt", suffix=outsuf, directory=directory)
+    )
+
+    # Save reduced amplitude set to file. Use the output suffix.
+    io.save_amplitudes(
+        core.file("amplitude_summary", phase="P", suffix=outsuf, directory=directory),
+        pamp_subset,
+        [
+            p_residuals,
+            Ares,
+            mis_weights[:n_p].flat[:],
+            amp_weights[:n_p].flat[:],
+            eq_norm[:n_p].flat[:],
+        ],
+        ["Residual_AB", "Aab_Misprediction", "mis_weight", "amp_weight", "eq_norm"],
+    )
+
+    io.save_amplitudes(
+        core.file("amplitude_summary", phase="S", suffix=outsuf, directory=directory),
+        samp_subset,
+        [
+            s_residuals[:, 0],
+            s_residuals[:, 1],
+            B1res,
+            B2res,
+            mis_weights[n_p : n_p + n_s : 2].flat[:],
+            amp_weights[n_p : n_p + n_s : 2].flat[:],
+            eq_norm[n_p : n_p + n_s : 2].flat[:],
+            eq_norm[n_p + 1 : n_p + n_s : 2].flat[:],
+        ],
+        [
+            "Residual_ABC",
+            "Residual_ACB",
+            "ABC_Misprediction",
+            "ACB_Misprediction",
+            "mis_weight",
+            "amp_weight",
+            "eq_norm",
+            "eq_norm2",
+        ],
+    )
 
     # Bootstrap
-    if nboot:
+    if nboot > 0:
         m_boots = ls.bootstrap_lsmr(A, b, ev_scale, n_p, n_s, nboot, 0, 1)
 
         # Convert to MT dict
@@ -921,7 +927,10 @@ def main_solve(args=None):
                 bootmts[i].append(momt)
 
         # Make and save a
-        io.make_mt_table(bootmts, core.file("relative_mt", suffix=outsuf + "_boot"))
+        io.make_mt_table(
+            bootmts,
+            core.file("relative_mt", suffix=outsuf + "_boot", directory=directory),
+        )
 
 
 def get_arguments(args=None):
@@ -1018,10 +1027,9 @@ def main(args=None):
     overwrite = parsed.overwrite
     parent = conff.parent
 
+    kwargs = dict(directory=parent)
     if parsed.mode == "amplitude" or parsed.mode == "align":
-        kwargs = dict(directory=parent, iteration=n_align, overwrite=overwrite)
-    elif parsed.mode == "qc":
-        kwargs = dict(directory=parent)
+        kwargs.update(dict(iteration=n_align, overwrite=overwrite))
 
     # The command to be executed is defined above for each of the subparsers
     parsed.command(config, **kwargs)

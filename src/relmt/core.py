@@ -103,9 +103,9 @@ basenames_phase = {
         "Amplitude ratios and misfits for event pairs/triplets on a station",
         "amplitudes.txt",
     ),
-    "moment_residual": (
-        "Residual of the solution of the linear system Am.",
-        "moment_residual.txt",
+    "amplitude_summary": (
+        "Amplitude observation with posterior misfit measures",
+        "amplitude_summary.txt",
     ),
 }
 
@@ -195,15 +195,20 @@ def file(
     elif file_id in ["event", "station", "phase", "reference_mt"]:
         folder /= "data"
 
+    elif file_id in [
+        "relative_mt",
+        "bootstrap_mt",
+        "bootstrap_statistics",
+        "amplitude_summary",
+    ]:
+        folder /= "result"
+
     elif (
         file_id.startswith("amplitude_")
         or file_id.startswith("moment_")
         or file_id.startswith("bandpass")
     ):
         folder /= "amplitude"
-
-    elif file_id in ["relative_mt", "bootstrap_mt", "bootstrap_statistics"]:
-        folder /= "result"
 
     elif file_id.startswith("waveform_"):
         if n_align is None or n_align == 0:
