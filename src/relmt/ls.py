@@ -35,6 +35,15 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(core.logsh)
 
+# Machine epsilon
+EPS = np.finfo(float).eps
+
+
+def _null_to_eps(arr):
+    """Take values below machine precision to machine precision"""
+    arr[np.abs(arr) < EPS] = EPS
+    return arr
+
 
 def gamma(azimuth: float, plunge: float) -> np.ndarray:
     """
@@ -221,6 +230,7 @@ def distance_ratio(
 
 def p_equation(
     p_amplitude: core.P_Amplitude_Ratio,
+    in_events: list,
     station: core.Station,
     events: list[core.Event],
     phase_dictionary: dict[str, core.Phase],
@@ -236,6 +246,8 @@ def p_equation(
     ----------
     p_amplitude:
         One relative P amplitude observation
+    in_events:
+        Events part of the linear system
     station:
         Station on which the observation has been made
     events:
@@ -264,8 +276,11 @@ def p_equation(
     if abs(ampl) > 1:
         # Invert amplitude and switch indexing
         ampl = 1 / ampl
-        ievb = p_amplitude.event_a
         ieva = p_amplitude.event_b
+        ievb = p_amplitude.event_a
+
+    ia = in_events.index(ieva)
+    ib = in_events.index(ievb)
 
     ga = _gamma(ieva, station.name, "P")
     gb = _gamma(ievb, station.name, "P")
@@ -287,14 +302,24 @@ def p_equation(
     else:
         raise ValueError(f"'nmt must be '5' or '6', not: '{nmt}'")
 
-    line[nmt * ieva : nmt * ieva + nmt] = -gap
-    line[nmt * ievb : nmt * ievb + nmt] = gbp * ampl * rab
+    va = -gap
+    vb = gbp * ampl * rab
+
+    if np.any(np.abs([va, vb]) <= EPS):
+        msg = "Matrix value below machine precission for event combination "
+        msg += f"{ieva}, {ievb}. Returning all zeros."
+        logging.warning(msg)
+        return np.array(line)
+
+    line[nmt * ia : nmt * ia + nmt] = va
+    line[nmt * ib : nmt * ib + nmt] = vb
 
     return np.array(line)
 
 
 def s_equations(
     s_amplitude: core.S_Amplitude_Ratios,
+    in_events: list,
     station: core.Station,
     events: list[core.Event],
     phase_dictionary: dict[str, core.Phase],
@@ -311,6 +336,8 @@ def s_equations(
     ----------
     s_amplitude:
         One pair of relative S amplitude observations
+    in_events:
+        Events part of the linear system
     station:
         Station on which the observation has been made
     events:
@@ -342,13 +369,20 @@ def s_equations(
     ievb = s_amplitude.event_b
     ievc = s_amplitude.event_c
 
+    # Indices in the linear system
+    ia = in_events.index(ieva)
+    ib = in_events.index(ievb)
+    ic = in_events.index(ievc)
+
     ga = _gamma(ieva, station.name, "P")
     gb = _gamma(ievb, station.name, "P")
     gc = _gamma(ievc, station.name, "P")
 
     for iev, g in zip([ieva, ievb, ievc], [ga, gb, gc]):
         if not np.all(np.isfinite(g)):
-            logging.debug(f"Missing take-off angle in event {iev}. Retruning all zeros")
+            logging.warning(
+                f"Missing take-off angle in event {iev}. Retruning all zeros"
+            )
             return np.array([line1, line2])
 
     amp_abc = s_amplitude.amp_abc
@@ -373,49 +407,63 @@ def s_equations(
     # Now find set of directional coefficients that records most of the amplitude:
     # Choose the coefficients with the two highest norms
     if coefficient_indices is None:
-        i1, i2 = np.argsort(
-            np.linalg.norm(
-                (
-                    np.concatenate((gas[0], gbs[0], gcs[0])),
-                    np.concatenate((gas[1], gbs[1], gcs[1])),
-                    np.concatenate((gas[2], gbs[2], gcs[2])),
-                ),
-                axis=1,
-            ),
-            kind="stable",  # Keep order of equal elements, so tests succeed.
-        )[[1, 2]]
+        g0 = np.concatenate((gas[0], gbs[0], gcs[0]))
+        g1 = np.concatenate((gas[1], gbs[1], gcs[1]))
+        g2 = np.concatenate((gas[2], gbs[2], gcs[2]))
+
+        # But first check which elements are above machine precission
+        iis = np.nonzero(np.all(np.abs([g0, g1, g2]) > EPS, axis=1))[0]
+        if len(iis) == 2:
+            i1, i2 = iis
+        else:
+            # Keep order of equal elements, so tests succeed.
+            i1, i2 = np.argsort(np.linalg.norm((g0, g1, g2), axis=1), kind="stable")[
+                [1, 2]
+            ]
     else:
         i1 = coefficient_indices[0]
         i2 = coefficient_indices[1]
 
     logger.debug(f"Selected directional coefficients: {i1}, {i2}")
-    for i in [i1, i2]:
-        for gs, abc in zip([gas, gbs, gcs], "abc"):
-            logger.debug(
-                f"g{abc}{i}: [" + ", ".join(["{:3.1e}".format(v) for v in gs[i]]) + "]"
-            )
 
-    # For S waves, each event twriplet has two lines in the matrix
-    line1[nmt * ieva : nmt * ieva + nmt] = -gas[i1]
-    line1[nmt * ievb : nmt * ievb + nmt] = amp_abc * rab * gbs[i1]
-    line1[nmt * ievc : nmt * ievc + nmt] = amp_acb * rac * gcs[i1]
+    a1 = _null_to_eps(-gas[i1])
+    b1 = _null_to_eps(amp_abc * rab * gbs[i1])
+    c1 = _null_to_eps(amp_acb * rac * gcs[i1])
 
-    line2[nmt * ieva : nmt * ieva + nmt] = -gas[i2]
-    line2[nmt * ievb : nmt * ievb + nmt] = amp_abc * rab * gbs[i2]
-    line2[nmt * ievc : nmt * ievc + nmt] = amp_acb * rac * gcs[i2]
+    a2 = _null_to_eps(-gas[i2])
+    b2 = _null_to_eps(amp_abc * rab * gbs[i2])
+    c2 = _null_to_eps(amp_acb * rac * gcs[i2])
+
+    if np.any(np.abs([a1, b1, c1, a2, b2, c2]) < EPS):
+        msg = "Matrix value below machine precission for event combination "
+        msg += f"{ieva}, {ievb}, {ievc}. Returning all zeros."
+        logging.warning(msg)
+
+    # For S waves, each event triplet has two lines in the matrix
+    line1[nmt * ia : nmt * ia + nmt] = a1
+    line1[nmt * ib : nmt * ib + nmt] = b1
+    line1[nmt * ic : nmt * ic + nmt] = c1
+
+    line2[nmt * ia : nmt * ia + nmt] = a2
+    line2[nmt * ib : nmt * ib + nmt] = b2
+    line2[nmt * ic : nmt * ic + nmt] = c2
 
     return np.array([line1, line2])
 
 
 def weight_misfit(
     amplitude: core.S_Amplitude_Ratios | core.P_Amplitude_Ratio,
+    min_misfit: float,
     max_misfit: float,
+    min_weight: float,
     phase: str,
 ) -> np.ndarray:
-    """
-    Weights [0 ... 1] for each row of the amplitude matrix by misfit
+    """Weights [min_weight ... 1] for each row of the amplitude matrix by misfit
 
-    weight = max(0, maximum_misfit - amp.[ps]_misfit)
+    Maps misfit values above `max_misfit` to `min_weight` and below `min_misfit`
+    to unit weight.
+
+    weight = 1 - (mis - min_misfit) * (1 - min_weight) / (max_misfit - min_misfit)
 
     Note
     ----
@@ -427,8 +475,12 @@ def weight_misfit(
     ----------
     amplitude:
         One amplitude ratio
+    min_misfit:
+        Minimum misfit that receives unit weight
     max_misfit:
-        Maximum allowed misfit that receives non-zero weight
+        Maximum allowed misfit receives zero weight
+    min_weight:
+        Weight of the maximum misfit.
     phase:
         If 'S', return each weight twice to account for two equations per S wave
         observation
@@ -443,10 +495,15 @@ def weight_misfit(
         If 'phase' is not 'P' or 'S'
     """
 
+    def mis_fun(mis):
+        # Maps min_misfit -> 1.0, max_misfit -> min_weight
+        wght = 1 - (mis - min_misfit) * (1 - min_weight) / (max_misfit - min_misfit)
+        return max(min(wght, 1.0), min_weight)
+
     if phase.upper() == "P":
-        return np.array(max(0.0, max_misfit - amplitude.misfit))
+        return np.array(mis_fun(amplitude.misfit))
     elif phase.upper() == "S":
-        return np.array(2 * [max(0.0, max_misfit - amplitude.misfit)])[:, np.newaxis]
+        return np.array(2 * [mis_fun(amplitude.misfit)])[:, np.newaxis]
     else:
         raise ValueError("'phase' must be 'P' or 'S'")
 
@@ -454,7 +511,7 @@ def weight_misfit(
 def weight_s_amplitude(s_amplitudes: core.S_Amplitude_Ratios) -> np.ndarray:
     """Weights for each row of the amplitude matrix by S-wave amplitdue
 
-    Weight is the inverse of the larger amplitudte, but not more than 1.
+    Weight is the inverse of the larger amplitude, but not more than 1.
 
     weight = max(1, (1 / max(abs(ampl.amp_abc, ampl.amp_acb))))
 
@@ -477,6 +534,7 @@ def weight_s_amplitude(s_amplitudes: core.S_Amplitude_Ratios) -> np.ndarray:
 def homogenous_amplitude_equations(
     p_amplitudes: list[core.P_Amplitude_Ratio],
     s_amplitudes: list[core.S_Amplitude_Ratios],
+    in_events: list[int],
     station_dictionary: dict[str, core.Station],
     event_list: list[core.Event],
     phase_dictionary: dict[str, core.Phase],
@@ -493,6 +551,9 @@ def homogenous_amplitude_equations(
         P observations to include in the system
     s_amplitudes:
         S observations to include in the system
+    in_events:
+        Included events. Columns blocks of A and row blocks of b and m will
+        reference into this vector.
     station_dictionary:
         Lookup table for station coordinates
     event_list:
@@ -520,7 +581,7 @@ def homogenous_amplitude_equations(
     seq = 2 * len(s_amplitudes)  # S observations
     neq = peq + seq
 
-    nmod = nmt * len(event_list)  # Length of model vector
+    nmod = nmt * len(in_events)  # Length of model vector
 
     # Set up homogenous matrix and data vector
     Ah = np.zeros((neq, nmod))
@@ -531,7 +592,9 @@ def homogenous_amplitude_equations(
         station = station_dictionary[pamp.station]
 
         # Create one P observation
-        Ah[n, :] = p_equation(pamp, station, event_list, phase_dictionary, nmt)
+        Ah[n, :] = p_equation(
+            pamp, in_events, station, event_list, phase_dictionary, nmt
+        )
 
     # Populate then with S amplitdues
     for n, samp in enumerate(s_amplitudes):
@@ -539,7 +602,7 @@ def homogenous_amplitude_equations(
 
         # Create two S observations
         lines = s_equations(
-            samp, station, event_list, phase_dictionary, nmt, s_coefficients
+            samp, in_events, station, event_list, phase_dictionary, nmt, s_coefficients
         )
 
         row = peq + 2 * n
@@ -725,8 +788,7 @@ def condition_homogenous_matrix_by_norm(
 
     Returns
     -------
-    norms: :class:`numpy.ndarray`
-        ``(1, ev*nmt)`` column vector of equation normalization factors
+    ``(1, ev*nmt)`` column vector of equation normalization factors
     """
 
     if n_homogenous is None:
@@ -795,7 +857,7 @@ def norm_event_median_amplitude(
         amps = mat[:n_homogenous, nmt * iev : nmt * (iev + 1)]
 
         # Weight is inverse median of non-zero absolute amplitudes
-        norm = 1 / np.median(np.abs(amps[amps != 0]))
+        norm = 1 / np.median(np.abs(amps[amps != 0.0]))
 
         if ~np.isfinite(norm):
             logger.warning(
