@@ -297,6 +297,12 @@ def init(directory: str | Path | None = None):
         except FileExistsError:
             logger.debug(f"{directory / subdir} exists. Continuing.")
 
+    # Write default files
+    Config().to_file(file("config", directory=directory))
+    Header().to_file(file("waveform_header", directory=directory))
+    with open(file("exclude", directory=directory), "w") as fid:
+        yaml.safe_dump(exclude, fid)
+
 
 # Now fill actual file names and description into the doc
 file.__doc__ = file.__doc__.replace(

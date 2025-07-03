@@ -943,7 +943,7 @@ Software for computing relative seismic moment tensors"""
 
     subpars = parser.add_subparsers(dest="mode")
 
-    init_p = subpars.add_parser("init", help="Initialize directories and default files")
+    init_p = subpars.add_parser("init", help="Initialize default directories and files")
     align_p = subpars.add_parser("align", help="Align waveforms")
     amp_p = subpars.add_parser(
         "amplitude", help="Measure relative amplitudes on aligned waveforms"
@@ -956,6 +956,7 @@ Software for computing relative seismic moment tensors"""
     )
 
     # Now set the functions to be called
+    init_p.set_defaults(command=core.init)
     align_p.set_defaults(command=main_align)
     amp_p.set_defaults(command=main_amplitude)
     qc_p.set_defaults(command=main_qc)
@@ -979,6 +980,15 @@ Software for computing relative seismic moment tensors"""
 
     parser.add_argument(
         "-n", "--n_align", type=int, help="Alignment iteration", default=0
+    )
+
+    # Subparser arguments
+    init_p.add_argument(
+        "directory",
+        type=Path,
+        default=".",
+        nargs="?",
+        help="Name of the directory to initiate",
     )
 
     # Align sub arguments
@@ -1018,6 +1028,11 @@ Software for computing relative seismic moment tensors"""
 def main(args=None):
     # Subdirectory, e.g. A_Muji
     parsed = get_arguments(args)
+
+    if parsed.mode == "init":
+        parent = parsed.directory
+        parsed.command(parent)
+        return
 
     conff = parsed.config
     config = io.read_config(conff)
