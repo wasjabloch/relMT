@@ -466,10 +466,6 @@ def synthetic(
         Babc, Bacb, iord, s_sigmas[i, :] = pca_amplitude_3s(
             np.array([us_a, us_b, us_c]), order=order
         )
-        print(f"Triplet {s}, {a}, {b}, {c}: Babc = {Babc}, Bacb = {Bacb}")
-        print(f"ua: ", us_a)
-        print(f"ub: ", us_b)
-        print(f"uc: ", us_c)
 
         # Calculate the relative P amplitude
         s_ratios[i, 0] = Babc
