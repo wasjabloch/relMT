@@ -604,6 +604,9 @@ def save_results(filename: str | Path, arr: np.ndarray):
 def save_amplitudes(
     filename: str,
     table: list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios],
+    more_data: list[np.ndarray] = [],
+    more_names: list[str] = [""],
+    more_formats: list[str] | None = None,
 ):
     """Save relative amplitudes to file
 
@@ -613,7 +616,14 @@ def save_amplitudes(
         Name of the output file
     table:
         List of P- or S-amplitude ratios
+    more_data:
+        ``(len(table),)`` arrays holding additional data columns
+    more_names:
+        Corresponding variable names
+    more_formats:
+        Corresponding format specifiers
     """
+
     try:
         ncol = len(table[0])
     except IndexError:
@@ -621,20 +631,31 @@ def save_amplitudes(
         return
 
     if ncol == 9:
-        fmt = "{:10s} {:7d} {:7d} {:25.18e} {:7.5f} {:6.4f} {:6.4f} {:8.2e} {:8.2e}\n"
-        out = "#Station    EventA  EventB  Amplitude_AB             Misfit  "
-        out += "Sigma1 Sigma2 Highpass Lowpass\n"
+        fmt = "{:10s} {:7d} {:7d} {:20.13e} {:7.5f} {:6.4f} {:6.4f} {:8.2e} {:8.2e} "
+        out = "#Station    EventA  EventB  Amplitude_AB        Misfit  "
+        out += "Sigma1 Sigma2 Highpass Lowpass "
     elif ncol == 12:
-        fmt = "{:10s} {:7d} {:7d} {:7d} {:25.18e} {:25.18e} {:7.5f} "
-        fmt += "{:6.4f} {:6.4f} {:6.4f} {:8.2e} {:8.2e}\n"
-        out = "#Station    EventA  EventB  EventC  Amplitude_ABC             "
-        out += "Amplitude_ACB            Misfit  Sigma1 Sigma2 Sigma3 Highpass "
-        out += "Lowpass\n"
+        fmt = "{:10s} {:7d} {:7d} {:7d} {:20.13e} {:20.13e} {:7.5f} "
+        fmt += "{:6.4f} {:6.4f} {:6.4f} {:8.2e} {:8.2e} "
+        out = "#Station    EventA  EventB  EventC  Amplitude_ABC        "
+        out += "Amplitude_ACB       Misfit  Sigma1 Sigma2 Sigma3 Highpass "
+        out += "Lowpass "
     else:
         msg = f"Found {ncol} index columns, but only 9 or 11 are allowed."
         raise IndexError(msg)
 
-    out += "".join(fmt.format(*line) for line in table)
+    fmt += " ".join(["{:20.13e}"] * len(more_data))
+    fmt += "\n"
+
+    out += " ".join(more_names)
+    out += "\n"
+
+    # Make a stack and transform to iterate
+    if len(more_data) > 0:
+        more_arr = np.vstack(more_data).T
+        out += "".join(fmt.format(*line, *more) for line, more in zip(table, more_arr))
+    else:
+        out += "".join(fmt.format(*line) for line in table)
 
     with open(filename, "w") as fid:
         fid.write(out)
