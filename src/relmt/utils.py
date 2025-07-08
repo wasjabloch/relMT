@@ -470,16 +470,6 @@ def interpolate_phase_dict(
 
             tt = tdaiz[:, 0]
             d = tdaiz[:, 1]
-            logger.debug(
-                "Travel times are: "
-                + ", ".join(["{:.1e}".format(t) for t in tt])
-                + " sec"
-            )
-            logger.debug(
-                "Distances are: "
-                + ", ".join(["{:.1e}".format(dd) for dd in d])
-                + " meters"
-            )
 
             # Average path velocity
             v = np.average(d / tt)
