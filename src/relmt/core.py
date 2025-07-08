@@ -666,9 +666,9 @@ Constrain the moment tensor. 'none' or 'deviatoric'""",
     "amplitude_measure": (
         "str",
         """
-Method to meassure relative amplitudes. 'principal': Estimate relative amplitude
+Method to meassure relative amplitudes. 'indirect': Estimate relative amplitude
 as the ratio of principal seismogram contributions to each seismogram.
-'combination': Compare each event combination seperatly.""",
+'direct': Compare each event combination seperatly.""",
     ),
     "amplitude_filter": (
         "str",
@@ -819,7 +819,7 @@ class Config:
 
         # If not None, get type from _config_attr_comments
         for attr in self._valid_args:
-            if key == "stressdrop_range":
+            if key == "auto_lowpass_stressdrop_range":
                 value = [float(value[0]), float(value[1])]
             elif key == attr:
                 typ = __builtins__[self._valid_args[attr][0]]
