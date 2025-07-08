@@ -27,6 +27,7 @@ import numpy as np
 from numpy.linalg import LinAlgError
 from scipy.linalg import svd, norm, solve
 from relmt import core, signal, qc, mt, utils
+from multiprocessing import shared_memory
 import logging
 
 logger = logging.getLogger(__name__)
@@ -109,7 +110,10 @@ def p_misfit(mtx_ab: np.ndarray, Aab: float) -> float:
     Normalized reconstruction misfit
     """
 
-    return norm(mtx_ab[0, :] - Aab * mtx_ab[1, :]) / norm(mtx_ab[0, :])
+    try:
+        return norm(mtx_ab[0, :] - Aab * mtx_ab[1, :]) / norm(mtx_ab[0, :])
+    except ValueError:
+        return np.nan
 
 
 def pca_amplitude_3s(
@@ -280,9 +284,12 @@ def s_misfit(mtx_abc: np.ndarray, Babc: float, Bacb: float) -> float:
     Normalized reconstruction misfit
     """
 
-    return norm(Babc * mtx_abc[1, :] + Bacb * mtx_abc[2, :] - mtx_abc[0, :]) / norm(
-        mtx_abc[0, :]
-    )
+    try:
+        return norm(Babc * mtx_abc[1, :] + Bacb * mtx_abc[2, :] - mtx_abc[0, :]) / norm(
+            mtx_abc[0, :]
+        )
+    except ValueError:
+        return np.nan
 
 
 def order_by_ccsum(mtx_abc: np.ndarray) -> np.ndarray:
@@ -538,7 +545,7 @@ def principal_p_amplitudes(
     return p_amplitudes
 
 
-def paired_p_amplitudes(
+def paired_p_amplitude_copies(
     arr: np.ndarray,
     hdr: core.Header,
     highpass: float,
@@ -577,6 +584,86 @@ def paired_p_amplitudes(
     -------
     P amplitude ratio
     """
+
+    if realign:
+        mat = signal.subset_filter_align(
+            arr, [0, 1], highpass, lowpass, **hdr.kwargs(signal.subset_filter_align)
+        )
+
+    else:
+        arr_sub = signal.demean_filter_window(
+            arr,
+            hdr["sampling_rate"],
+            hdr["phase_start"],
+            hdr["phase_end"],
+            hdr["taper_length"],
+            highpass,
+            lowpass,
+        )
+
+        mat = utils.concat_components(arr_sub)
+
+    A, sigmas = pca_amplitude_2p(mat)
+    mis = p_misfit(mat, A)
+
+    return core.P_Amplitude_Ratio(
+        hdr["station"], a, b, A, mis, *sigmas, highpass, lowpass
+    )
+
+
+def paired_p_amplitudes(
+    ab: tuple[int, int],
+    mname: str,
+    shape: tuple[int, int, int],
+    dtype: type,
+    hdr: core.Header,
+    highpass: float,
+    lowpass: float,
+    a: int,
+    b: int,
+    realign: bool = False,
+):
+    """Compute relative P amplitude ratios for one event pair in arr
+
+    ..note:
+        The here implemented approach allows to filter each event pair
+        individually allowing for more flexibility than
+        :func:`principal_p_amplitudes` when comparing large differences in
+        magnitude
+
+    Parameters
+    ----------
+    ab:
+        Indices of waveforms in shared memory
+    mname:
+        Name of the array buffer in memory
+    shape:
+        Shape of the array in memory
+    dtype:
+        data type of the array in memory
+    hdr:
+        Header with metadata, including sampling rate, phase start and end,
+        taper length, and event information
+    highpass:
+        Highpass filter frequency in Hz
+    lowpass:
+        Lowpass filter frequency in Hz
+    a:
+        Number of event a
+    b:
+        Number of event b
+    realign:
+        Re-align seismograms after applying filter
+
+    Returns
+    -------
+    P amplitude ratio
+    """
+
+    # Access the shared memory
+    shm = shared_memory.SharedMemory(name=mname)
+    arr = np.ndarray(shape, dtype=dtype, buffer=shm.buf)[ab, :, :]
+    shm.close()
 
     if realign:
         mat = signal.subset_filter_align(
@@ -670,7 +757,7 @@ def principal_s_amplitudes(
     return s_amplitudes
 
 
-def triplet_s_amplitudes(
+def triplet_s_amplitude_copies(
     arr: np.ndarray,
     hdr: core.Header,
     highpass: float,
@@ -712,6 +799,98 @@ def triplet_s_amplitudes(
     -------
     S amplitude ratios
     """
+
+    if realign:
+        mat = signal.subset_filter_align(
+            arr, [0, 1, 2], highpass, lowpass, **hdr.kwargs(signal.subset_filter_align)
+        )
+    else:
+        arr_sub = signal.demean_filter_window(
+            arr,
+            hdr["sampling_rate"],
+            hdr["phase_start"],
+            hdr["phase_end"],
+            hdr["taper_length"],
+            highpass,
+            lowpass,
+        )
+
+        mat = utils.concat_components(arr_sub)
+
+    Babc, Bacb, iord, sigmas = pca_amplitude_3s(mat)
+
+    mis = s_misfit(mat[iord, :], Babc, Bacb)
+
+    return core.S_Amplitude_Ratios(
+        hdr["station"],
+        *np.array((a, b, c))[iord],
+        Babc,
+        Bacb,
+        mis,
+        *sigmas,
+        highpass,
+        lowpass,
+    )
+
+
+def triplet_s_amplitudes(
+    abc: tuple[int, int, int],
+    mname: str,
+    shape: tuple[int, int, int],
+    dtype: type,
+    hdr: core.Header,
+    highpass: float,
+    lowpass: float,
+    a: int,
+    b: int,
+    c: int,
+    realign: bool = False,
+) -> list[core.S_Amplitude_Ratios]:
+    """Compute relative S amplitude ratios for one event triplet in arr
+
+    Use
+
+    ..note:
+        The here implemented approach allows to filter each event pair
+        individually allowing for more flexibility than
+        :func:`principal_s_amplitudes` when comparing large differences in
+        magnitude
+
+    Parameters
+    ----------
+    abc:
+        Indices to events a, b, c
+    mname:
+        Name of the array buffer in memory
+    shape:
+        Shape of the array in memory
+    dtype:
+        data type of the array in memory
+    hdr:
+        Header with metadata, including sampling rate, phase start and end,
+        taper length, and event information
+    highpass:
+        Highpass filter frequency in Hz
+    lowpass:
+        Lowpass filter frequency in Hz
+    a:
+        Number of event a
+    b:
+        Number of event b
+    c:
+        Number of event c
+    realign:
+        Re-align seismograms after applying filter
+
+    Returns
+    -------
+    S amplitude ratios
+    """
+
+    # Access the shared memory
+    shm = shared_memory.SharedMemory(name=mname)
+    arr = np.ndarray(shape, dtype=dtype, buffer=shm.buf)[abc, :, :]
+    shm.close()
 
     if realign:
         mat = signal.subset_filter_align(
