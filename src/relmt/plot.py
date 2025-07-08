@@ -601,6 +601,67 @@ def amplitude_connections(
     return ax
 
 
+def mt_matrix(
+    mtd: dict[int, core.MT], highlight: list[int] = [], ax: Axes | None = None
+) -> Axes:
+    """Plot moment tensors into a square matrix
+
+    Parameters
+    ----------
+    mtd:
+        Dictionary holding the moment tensors
+    ax:
+        Plot into existing axes
+    highlight:
+        Highlight these moment tensors
+
+    Return
+    ------
+    Axes of the plot
+
+    .. note:
+        Requires pyrocko
+
+    """
+    from pyrocko import moment_tensor as pmt
+    from pyrocko.plot import beachball
+
+    nmts = len(mtd)
+    nrow = int(np.sqrt(nmts))
+    ncol = nmts // nrow
+
+    if ax is None:
+        _, ax = plt.subplots(1, 1, figsize=(nrow, ncol), layout="tight")
+
+    for nev, (iev, momt) in enumerate(mtd.items()):
+        thismt = pmt.MomentTensor(mt.mt_array(momt))
+
+        x = nev % nrow
+        y = nev // nrow
+
+        color = "xkcd:twilight blue"
+        if iev in highlight:
+            color = "xkcd:lipstick red"
+
+        beachball.plot_beachball_mpl(
+            thismt,
+            ax,
+            beachball_type="full",
+            size=40,
+            position=(x, y),
+            color_t=color,
+            linewidth=1.0,
+        )
+
+        ax.annotate(iev, (x, y), (-20, 20), textcoords="offset points")
+
+    ax.set_ylim([ncol + 1, -2])
+    ax.set_xlim([-1, nrow])
+    ax.axis("off")
+
+    return ax
+
+
 def bootstrap_matrix(
     moment_tensors: list[core.MT],
     plot_beachball: bool = False,
