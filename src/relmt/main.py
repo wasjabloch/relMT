@@ -27,12 +27,13 @@
 
 import logging
 from relmt import io, utils, align, core, signal, extra, amp, ls, mt, qc
-from scipy.sparse import coo_matrix, save_npz, load_npz
+from scipy.sparse import coo_matrix
 from pathlib import Path
 import yaml
 import numpy as np
 import sys
 import multiprocessing as mp
+from multiprocessing import shared_memory as sm
 from argparse import ArgumentParser
 
 logger = logging.getLogger(__name__)
@@ -40,31 +41,23 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(core.logsh)
 
 
-def main_align(args=None):
+def main_align(
+    config: core.Config, directory: Path, iteration: int, overwrite: bool = False
+):
     """
     Align waveform files and write results into next alignment directory
     """
 
-    args = get_arguments(args)
+    stf = directory / config["station_file"]
 
-    iteration = args.n_align
-    overwrite = args.overwrite
-    conff = args.config
-
-    conf = io.read_config(conff)
-
-    evf = conf["event_file"]
-    stf = conf["station_file"]
-
-    evl = io.read_event_table(evf)
     stas = io.read_station_table(stf)
-    excl = io.read_exclude_file(core.file("exclude"))
+    excl = io.read_exclude_file(core.file("exclude", directory=directory))
 
     # Exclude some observations
     stas = set(stas) - set(excl["station"])
     wvids = set(core.iterate_waveid(stas)) - set(excl["waveform"])
 
-    ncpu = conf["ncpu"]
+    ncpu = config["ncpu"]
 
     args = []
     for wvid in wvids:
@@ -115,11 +108,6 @@ def main_align(args=None):
         hdr["events"] = list(np.array(hdr["events"])[iin])
         arr = arr[iin, :, :]
 
-        # Let us set some values in case they are not there yet
-        if hdr["lowpass"] is None:
-            mmax = max([ev.mag for ev in evl])
-            hdr["lowpass"] = utils.corner_frequency(mmax, hdr["phase"], 5e7, 3500)
-
         args.append((arr, hdr, dest))
 
     if ncpu > 1:
@@ -130,21 +118,20 @@ def main_align(args=None):
             align.run(*arg)
 
 
-def main_exclude(args=None):
+def main_exclude(
+    config: core.Config,
+    iteration: int,
+    overwrite: bool,
+    directory: Path = Path("."),
+    donodata: bool = False,
+    dosnr: bool = False,
+    doecn: bool = False,
+):
     """Exclude observations from alignment procedure"""
-    args = get_arguments(args)
 
-    iteration = args.n_align
-    overwrite = args.overwrite
-    donodata = args.no_data
-    dosnr = args.snr
-    doecn = args.ecn
+    exf = core.file("exclude", directory=directory)
 
-    conf = io.read_config(args.config)
-
-    exf = core.file("exclude")
-
-    staf = conf["station_file"]
+    staf = directory / config["station_file"]
     stas = io.read_station_table(staf)
 
     try:
@@ -157,6 +144,7 @@ def main_exclude(args=None):
 
     stas = set(stas) - set(excl["station"])
 
+    # Collect new excludes in this dictionary
     excludes = {"no_data": [], "snr": [], "ecn": []}
 
     for wvid in core.iterate_waveid(stas):
@@ -187,16 +175,16 @@ def main_exclude(args=None):
             arr, **hdr.kwargs(signal.demean_filter_window)
         )
 
-        # Compute QC metrics
-        ec_score = qc.expansion_coefficient_norm(arr, pha)
-        snr = signal.signal_noise_ratio(arr, **hdr.kwargs(signal.signal_noise_ratio))
-
         isnr = np.full_like(ind, False)
         if hdr["min_signal_noise_ratio"] is not None:
+            snr = signal.signal_noise_ratio(
+                arr, **hdr.kwargs(signal.signal_noise_ratio)
+            )
             isnr = snr < hdr["min_signal_noise_ratio"]
 
         iecn = np.full_like(ind, False)
         if hdr["min_expansion_coefficient_norm"] is not None:
+            ec_score = qc.expansion_coefficient_norm(arr, pha)
             iecn = ec_score < hdr["min_expansion_coefficient_norm"]
 
         # Write the full phase ID to the exclude lists
@@ -204,18 +192,23 @@ def main_exclude(args=None):
         excludes["snr"] += [core.join_phaseid(iev, sta, pha) for iev in events[isnr]]
         excludes["ecn"] += [core.join_phaseid(iev, sta, pha) for iev in events[iecn]]
 
+    # Add the exludes already present, in case we don't want to overwrite
     if not overwrite:
         excludes["no_data"] += excl["phase_auto_nodata"]
         excludes["snr"] += excl["phase_auto_snr"]
         excludes["ecn"] += excl["phase_auto_ecn"]
 
+    # Write everything into the exclude dict
     if donodata:
+        logger.info(f"Excluding invalid data")
         excl["phase_auto_nodata"] = excludes["no_data"]
 
     if dosnr:
+        logger.info(f"Excluding SNR > {hdr['min_signal_noise_ratio']}")
         excl["phase_auto_snr"] = excludes["snr"]
 
     if doecn:
+        logger.info(f"Excluding ECN > {hdr['min_expansion_coefficient_norm']}")
         excl["phase_auto_ecn"] = excludes["ecn"]
 
     # Save it to file
@@ -462,6 +455,7 @@ def main_amplitude(
     # Collect the arguments to the amplitude function
     pargs = []
     sargs = []
+    shmd = {}
 
     if compare_method == "direct":
         for wvid in wvids:
@@ -478,6 +472,15 @@ def main_amplitude(
             xarr = arr[ievs, :, :]
             hdr["events"] = evns
 
+            # Make a shared array (Inspired by CatGPT 4o)
+            dtype = xarr.dtype
+            shape = xarr.shape
+            shmd[wvid] = sm.SharedMemory(create=True, size=xarr.nbytes)
+            shm = shmd[wvid]
+            sharr = np.ndarray(shape, dtype=dtype, buffer=shm.buf)
+            sharr[:] = xarr[:]  # Copy data into shared memory
+            mname = shm.name
+
             # Look up correct passband and collect the arguments
             if pha == "P":
                 for a, b, _, _ in core.iterate_event_pair(len(evns)):
@@ -490,8 +493,23 @@ def main_amplitude(
 
                     # Passband is within dynamic range
                     if hpas is not None:
+                        # Old: Copy the arrays
+                        # pargs.append(
+                        #    (xarr[[a, b], :], hdr, hpas, lpas, evns[a], evns[b])
+                        # )
+                        # New: Using shared memory
                         pargs.append(
-                            (xarr[[a, b], :], hdr, hpas, lpas, evns[a], evns[b])
+                            (
+                                (a, b),
+                                mname,
+                                shape,
+                                dtype,
+                                hdr,
+                                hpas,
+                                lpas,
+                                evns[a],
+                                evns[b],
+                            )
                         )
 
             if pha == "S":
@@ -504,9 +522,25 @@ def main_amplitude(
 
                     # Passband is within dynamic range
                     if hpas is not None:
+                        # Old: Copy the arrays
+                        # sargs.append(
+                        #    (
+                        #        xarr[[a, b, c], :],
+                        #        hdr,
+                        #        hpas,
+                        #        lpas,
+                        #        evns[a],
+                        #        evns[b],
+                        #        evns[c],
+                        #    )
+                        # )
+                        # New: Using shared memory
                         sargs.append(
                             (
-                                xarr[[a, b, c], :],
+                                (a, b, c),
+                                mname,
+                                shape,
+                                dtype,
                                 hdr,
                                 hpas,
                                 lpas,
@@ -517,6 +551,8 @@ def main_amplitude(
                         )
 
         # Argumets above pertain to these functions
+        p_amp_fun = amp.paired_p_amplitude_copies
+        s_amp_fun = amp.triplet_s_amplitude_copies
         p_amp_fun = amp.paired_p_amplitudes
         s_amp_fun = amp.triplet_s_amplitudes
 
@@ -612,6 +648,11 @@ def main_amplitude(
         ),
         abcB,
     )
+
+    # Let's release the shared memory
+    for shm in shmd.values():
+        shm.close()
+        shm.unlink()
 
 
 def main_qc(config: core.Config, directory: Path):
@@ -945,6 +986,9 @@ Software for computing relative seismic moment tensors"""
 
     init_p = subpars.add_parser("init", help="Initialize default directories and files")
     align_p = subpars.add_parser("align", help="Align waveforms")
+    exclude_p = subpars.add_parser(
+        "exclude", help="Exclude phase observations from alignment"
+    )
     amp_p = subpars.add_parser(
         "amplitude", help="Measure relative amplitudes on aligned waveforms"
     )
@@ -958,6 +1002,7 @@ Software for computing relative seismic moment tensors"""
     # Now set the functions to be called
     init_p.set_defaults(command=core.init)
     align_p.set_defaults(command=main_align)
+    exclude_p.set_defaults(command=main_exclude)
     amp_p.set_defaults(command=main_amplitude)
     qc_p.set_defaults(command=main_qc)
     solve_p.set_defaults(command=main_solve)
@@ -979,7 +1024,7 @@ Software for computing relative seismic moment tensors"""
     )
 
     parser.add_argument(
-        "-n", "--n_align", type=int, help="Alignment iteration", default=0
+        "-n", "--n_align", nargs="?", type=int, help="Alignment iteration", default=0
     )
 
     # Subparser arguments
@@ -991,14 +1036,14 @@ Software for computing relative seismic moment tensors"""
         help="Name of the directory to initiate",
     )
 
-    # Align sub arguments
-    align_p.add_argument(
+    # Sub arguments of the exlusion routine
+    exclude_p.add_argument(
         "--no-data",
         action="store_true",
         help="Exlude data with no data or data containing NaNs",
     )
 
-    align_p.add_argument(
+    exclude_p.add_argument(
         "--snr",
         action="store_true",
         help=(
@@ -1007,7 +1052,7 @@ Software for computing relative seismic moment tensors"""
         ),
     )
 
-    align_p.add_argument(
+    exclude_p.add_argument(
         "--ecn",
         action="store_true",
         help=(
@@ -1043,8 +1088,10 @@ def main(args=None):
     parent = conff.parent
 
     kwargs = dict(directory=parent)
-    if parsed.mode == "amplitude" or parsed.mode == "align":
+    if parsed.mode == "amplitude" or parsed.mode == "align" or parsed.mode == "exclude":
         kwargs.update(dict(iteration=n_align, overwrite=overwrite))
+    if parsed.mode == "exclude":
+        kwargs.update(dict(donodata=parsed.no_data, dosnr=parsed.snr, doecn=parsed.ecn))
 
     # The command to be executed is defined above for each of the subparsers
     parsed.command(config, **kwargs)
