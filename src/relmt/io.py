@@ -383,9 +383,13 @@ def read_event_table(
         If event indices in table are not consecutive
     """
     evids, north, east, depth, time, mag = np.loadtxt(
-        filename, usecols=(0, 1, 2, 3, 4, 5), unpack=True, dtype=float
+        filename,
+        usecols=(0, 1, 2, 3, 4, 5),
+        unpack=True,
+        dtype=float,
+        ndmin=2,
     )
-    name = np.loadtxt(filename, usecols=6, unpack=True, dtype=str)
+    name = np.loadtxt(filename, usecols=6, unpack=True, dtype=str, ndmin=1)
 
     if not np.all(evids == np.arange(len(evids))):
         raise IndexError("Input event list is not consecutive")
