@@ -219,7 +219,6 @@ def pca_align(
     phi_old = phi(s, ns)
 
     logger.info("Singular values are:")
-    logger.info(" ".join(["{:1.1e}".format(v) for v in s]))
     logger.info(f"Starting pca_align for {phase} Phase")
     logger.info("Objective Function: {:1.1e}".format(phi_old))
 
@@ -429,6 +428,10 @@ def run(
 
     # We are saving a numpy array, not matlab
     header["variable_name"] = None
+
+    # Fresh start with QC parameters
+    header["min_expansion_coefficient_norm"] = None
+    header["min_signal_noise_ratio"] = None
 
     # Write out header and array files
     arrf = core.file("waveform_array", *destination)
