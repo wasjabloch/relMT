@@ -1066,6 +1066,11 @@ Common high-pass filter corner of the waveform (Hertz)""",
         """
 Common low-pass filter corner of the waveform (Hertz)""",
     ),
+    "null_threshold": (
+        "float",
+        """
+Regard absolute amplitudes at and below this value as null""",
+    ),
     "min_signal_noise_ratio": (
         "float",
         """
@@ -1112,6 +1117,7 @@ class Header(Config):
         taper_length: float | None = None,
         highpass: float | None = None,
         lowpass: float | None = None,
+        null_threshold: float | None = None,
         min_signal_noise_ratio: float | None = None,
         min_expansion_coefficient_norm: float | None = None,
     ):

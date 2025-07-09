@@ -67,6 +67,7 @@ header = core.Header(
     taper_length=1.0,
     highpass=0.1,
     lowpass=10.0,
+    null_threshold=0.0,
     min_signal_noise_ratio=0.0,
     min_expansion_coefficient_norm=0.5,
 )
