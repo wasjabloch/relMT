@@ -180,7 +180,8 @@ def pca_amplitude_3s(
             Babc, Bacb = solve(A, bb)
 
         except LinAlgError as e:
-            msg = f"Met error in SVD: {e.__repr__()}. Returning NaN values."
+            msg = f"Met error in SVD: {e.__repr__()}. Do you have null data? "
+            msg += "Returning NaNs."
             logger.warning(msg)
             return np.nan, np.nan, iord, sigmas
 
