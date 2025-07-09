@@ -97,7 +97,9 @@ def main_align(
         )
 
         # Events that are non-zero and finite
-        inz = qc.index_nonzero_events(arr, return_bool=True)
+        inz = qc.index_nonzero_events(
+            arr, null_threshold=hdr["null_threshold"], return_bool=True
+        )
         iin &= inz
 
         # Any events left?
@@ -165,7 +167,9 @@ def main_exclude(
         events = np.array(hdr["events"])
 
         # Boolean indices of bad events
-        ind = qc.index_nonzero_events(arr, return_bool=True, return_not=True)
+        ind = qc.index_nonzero_events(
+            arr, null_threshold=hdr["null_threshold"], return_bool=True, return_not=True
+        )
 
         if all(ind):
             excl["waveform"] += [wvid]
@@ -369,8 +373,8 @@ def main_amplitude(
     compare_method = config["amplitude_measure"]  # direct or indirect
     filter_method = config["amplitude_filter"]  # auto or manual
 
-    ls.logger.setLevel("ERROR")
-    signal.logger.setLevel("ERROR")
+    ls.logger.setLevel("WARNING")
+    signal.logger.setLevel("WARNING")
     align.logger.setLevel("WARNING")
 
     exclude = io.read_exclude_file(core.file("exclude", directory=directory))
@@ -457,6 +461,7 @@ def main_amplitude(
     sargs = []
     shmd = {}
 
+    logger.info("Collecting observations. This may take a while...")
     if compare_method == "direct":
         for wvid in wvids:
             sta, pha = core.split_waveid(wvid)
@@ -551,12 +556,13 @@ def main_amplitude(
                         )
 
         # Argumets above pertain to these functions
-        p_amp_fun = amp.paired_p_amplitude_copies
-        s_amp_fun = amp.triplet_s_amplitude_copies
+        # p_amp_fun = amp.paired_p_amplitude_copies
+        # s_amp_fun = amp.triplet_s_amplitude_copies
         p_amp_fun = amp.paired_p_amplitudes
         s_amp_fun = amp.triplet_s_amplitudes
 
     elif compare_method == "indirect":
+        # TODO: implement shared memory
 
         for wvid in wvids:
             sta, pha = core.split_waveid(wvid)
@@ -597,6 +603,7 @@ def main_amplitude(
     else:
         raise ValueError(f"Unknown 'amplitude_measure': {compare_method}")
 
+    logger.info("Computing relative P-amplitudes...")
     # First process and save P ...
     if ncpu > 1:
         with mp.Pool(ncpu) as pool:
@@ -623,6 +630,7 @@ def main_amplitude(
         abA,
     )
 
+    logger.info("Computing relative S-amplitudes...")
     # ... later S
     if ncpu > 1:
         with mp.Pool(ncpu) as pool:
@@ -650,6 +658,7 @@ def main_amplitude(
     )
 
     # Let's release the shared memory
+    logger.debug("Releasing shared memory")
     for shm in shmd.values():
         shm.close()
         shm.unlink()
@@ -677,13 +686,6 @@ def main_qc(config: core.Config, directory: Path):
     evl = io.read_event_table(config["event_file"])
     phd = io.read_phase_table(config["phase_file"])
 
-    samps = io.read_amplitudes(
-        core.file(
-            "amplitude_observation", directory=directory, phase="S", suffix=ampsuf
-        ),
-        "S",
-    )
-
     for ph in "PS":
         infile = core.file(
             "amplitude_observation", directory=directory, phase=ph, suffix=ampsuf
@@ -699,10 +701,11 @@ def main_qc(config: core.Config, directory: Path):
 
         # Read the files again, this time unpack QCed values in arrays
         if ph == "P":
-            sta, _, _, _, mis, *_ = io.read_amplitudes(infile, ph, unpack=True)
+            sta, _, _, amp1, mis, *_ = io.read_amplitudes(infile, ph, unpack=True)
             s1 = np.full_like(mis, -np.inf)  # Never exclud
+            amp2 = np.zeros_like(amp1)  # No second amplitude
         else:
-            sta, _, _, _, _, _, mis, s1, *_ = io.read_amplitudes(
+            sta, _, _, _, amp1, amp2, mis, s1, *_ = io.read_amplitudes(
                 infile, ph, unpack=True
             )
 
@@ -714,9 +717,16 @@ def main_qc(config: core.Config, directory: Path):
             f"Excluded {(nout := sum(iout))} {ph}-observations from exclude file"
         )
 
+        # Valid amplitude
+        iout |= ~np.isfinite(amp1) | ~np.isfinite(amp2)
+        logger.info(
+            f"Excluded {sum(iout) - nout} more {ph}-observations due bad amplitude"
+        )
+
         # Misfit
+        nout = sum(iout)
         if max_mis is not None:
-            iout |= mis > max_mis
+            iout |= ~(mis < max_mis)  # Exclude also nans
             logger.info(
                 f"Excluded {sum(iout) - nout} more {ph}-observations due to high misfit"
             )
@@ -724,7 +734,7 @@ def main_qc(config: core.Config, directory: Path):
         # Sigma1
         nout = sum(iout)
         if max_s1 is not None:
-            iout |= s1 > max_s1
+            iout |= ~(s1 < max_s1)  # Exclude also nans
             logger.info(
                 f"Excluded {sum(iout) - nout} more {ph}-observations due high sigma1"
             )
@@ -767,7 +777,7 @@ def main_solve(config: core.Config, directory: Path = Path()):
     """Construct and validate linear system from amplitude measurement. Solve
     for moment tensors."""
 
-    ls.logger.setLevel("WARNING")
+    ls.logger.setLevel("INFO")
 
     evf = directory / config["event_file"]
     stf = directory / config["station_file"]
@@ -893,6 +903,7 @@ def main_solve(config: core.Config, directory: Path = Path()):
     }
 
     # Compute synthetic amplitudes and posteori-residuals
+    logger.info("Computing synthetic amplitudes and residuals")
     Asyn, Bsyn, *_ = amp.synthetic(
         relmts,
         evl,
