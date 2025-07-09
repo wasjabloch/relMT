@@ -599,15 +599,19 @@ def included_events(
             if key.startswith("phase_"):
                 exphids += exclude.get(key, [])
 
+    exevs = []
+    if exclude is not None:
+        exevs += exclude.get("event", [])
+
     # Excluded event IDs
-    evns = [
+    exevs += [
         core.split_phaseid(phid)[0]
         for phid in exphids
         if core.split_phaseid(phid)[1:] == (station, phase)
     ]
 
     # Boolean index of not-excluded (=included) events
-    ievs = np.array([False if evn in evns else True for evn in events])
+    ievs = np.array([False if evn in exevs else True for evn in events])
 
     # Included event names
     inevns = np.array(events)[ievs].astype(int)
@@ -627,14 +631,19 @@ def included_events(
 
 
 def index_nonzero_events(
-    array: np.ndarray, return_not: bool = False, return_bool: bool = False
+    array: np.ndarray,
+    null_threshold: float = 0.0,
+    return_not: bool = False,
+    return_bool: bool = False,
 ) -> np.ndarray:
-    """Return indices of events with non-zero data
+    """Return indices of events with non-zero and finite data
 
     Parameters
     ----------
     array:
         Waveform array to investigate
+    null_threshold:
+        Consider absolute value at or below as zero.
     return_not:
         Instead, return events with all zero-data
     return_bool:
@@ -647,13 +656,16 @@ def index_nonzero_events(
 
     # Any sample needs to be non-zero
     inz = np.any(array, axis=-1)
+    inz = np.max(abs(array), axis=-1) > null_threshold
 
     # All samples needs to be finite
     ifi = np.all(np.isfinite(array), axis=-1)
     iin = inz & ifi
 
+    # Irrespective of the shape of the array, return a 1D index
     while len(iin.shape) > 1:
-        inz = np.any(inz, axis=-1)
+        # We want all components to have data
+        inz = np.all(inz, axis=-1)
         ifi = np.all(ifi, axis=-1)
         iin = inz & ifi
 
