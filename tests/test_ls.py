@@ -161,6 +161,7 @@ def test_p_equation():
     ampl = core.P_Amplitude_Ratio("A", 0, 1, Aab, 0, 0.9, 0.1, 0.5, 20.0)
     sta = core.Station(0, 10, 0, "A")
     events = [core.Event(0, 0, 0, 0, 1, "0"), core.Event(0, 0, 0, 0, 2, "1")]
+    in_events = list(range(len(events)))
     phd = {"0_A_P": core.Phase(1, 90, 0), "1_A_P": core.Phase(1, 90, 0)}
 
     for mt_elements in [5, 6]:
@@ -169,7 +170,7 @@ def test_p_equation():
         expect[1] = -1  # -gamma(event 0)
         expect[mt_elements + 1] = Aab  # gamma(event 1) * Aab * r (=1)
 
-        line = ls.p_equation(ampl, sta, events, phd, mt_elements)
+        line = ls.p_equation(ampl, in_events, sta, events, phd, mt_elements)
         pytest.approx(line) == expect
 
     ampl = core.P_Amplitude_Ratio("A", 0, 1, 1 / Aab, 0, 0.9, 0.1, 0.5, 20.0)
@@ -179,7 +180,7 @@ def test_p_equation():
         expect[1] = Aab  # Positions of elements reversed
         expect[mt_elements + 1] = -1
 
-        line = ls.p_equation(ampl, sta, events, phd, mt_elements)
+        line = ls.p_equation(ampl, in_events, sta, events, phd, mt_elements)
         pytest.approx(line) == expect
 
 
@@ -196,6 +197,7 @@ def test_s_equations():
         core.Event(0, 0, 0, 0, 2, "1"),
         core.Event(0, 0, 0, 0, 2, "2"),
     ]
+    in_events = list(range(len(events)))
     phd = {
         "0_A_P": core.Phase(1, 90, 0),
         "1_A_P": core.Phase(1, 90, 0),
@@ -225,26 +227,26 @@ def test_s_equations():
         expect1[mt_elements + i1] = Babc  # gamma(event 1) * Aab * r (=1)
         expect1[mt_elements + i1] = Bacb  # gamma(event 1) * Aab * r (=1)
 
-        lines = ls.s_equations(ampl, sta, events, phd, mt_elements)
+        lines = ls.s_equations(ampl, in_events, sta, events, phd, mt_elements)
         pytest.approx(lines[0]) == expect0
         pytest.approx(lines[1]) == expect1
 
 
 def test_weight_misfit():
     amp = core.P_Amplitude_Ratio("A", 0, 1, 1e-3, 0.5, 0.9, 0.1, 0.5, 20.0)
-    assert pytest.approx(0.5) == ls.weight_misfit(amp, 1, "P")
-    assert pytest.approx(0.0) == ls.weight_misfit(amp, 0.1, "P")
-    assert pytest.approx(1.0) == ls.weight_misfit(amp, 1.5, "P")
+    assert pytest.approx(0.5) == ls.weight_misfit(amp, 0.0, 1.0, 0.0, "P")
+    assert pytest.approx(0.0) == ls.weight_misfit(amp, 0.0, 0.1, 0.0, "P")
+    assert pytest.approx(0.75) == ls.weight_misfit(amp, 0.0, 2.0, 0.0, "P")
 
     amp = core.S_Amplitude_Ratios(
         "A", 0, 1, 2, 1e-3, 2e-3, 0.5, 0.8, 0.1, 0.1, 0.5, 20.0
     )
-    assert pytest.approx([0.5, 0.5]) == ls.weight_misfit(amp, 1, "S")
-    assert pytest.approx([0.0, 0.0]) == ls.weight_misfit(amp, 0.1, "S")
-    assert pytest.approx([1.0, 1.0]) == ls.weight_misfit(amp, 1.5, "S")
+    assert pytest.approx([0.5, 0.5]) == ls.weight_misfit(amp, 0.0, 1.0, 0.0, "S")
+    assert pytest.approx([0.0, 0.0]) == ls.weight_misfit(amp, 0.0, 0.1, 0.0, "S")
+    assert pytest.approx([0.75, 0.75]) == ls.weight_misfit(amp, 0.0, 2.0, 0.0, "S")
 
     with pytest.raises(ValueError):
-        ls.weight_misfit(amp, 1, "X")
+        ls.weight_misfit(amp, 0.0, 1.0, 0.0, "X")
 
 
 def test_weight_s_amplitude():
@@ -286,6 +288,8 @@ def test_homogenous_amplitude_equations():
         "2_A_P": core.Phase(1, 90, 0),
     }
 
+    in_events = list(range(len(evl)))
+
     # Test deviatoric and full MT
     for constraint in ["deviatoric", "none"]:
         mt_elements = ls.mt_elements(constraint)
@@ -304,7 +308,7 @@ def test_homogenous_amplitude_equations():
 
         # Call the function
         A, b = ls.homogenous_amplitude_equations(
-            pamps, samps, stad, evl, phd, constraint
+            pamps, samps, in_events, stad, evl, phd, constraint
         )
 
         # Expected equations, left hand side
@@ -324,6 +328,7 @@ def test_homogenous_amplitude_equations():
         A, b = ls.homogenous_amplitude_equations(
             pamps,
             samps,
+            in_events,
             stad,
             evl,
             phd,
@@ -448,6 +453,7 @@ def test_solve_lsmr():
         dist = np.sqrt(epi_dist**2 + elev**2)
 
         evl, stad, phd = conftest.make_events_stations_phases(nev, nsta, epi_dist, elev)
+        in_events = list(range(len(evl)))
 
         M0 = [mt.moment_of_magnitude(ev.mag) for ev in evl]
 
@@ -512,7 +518,7 @@ def test_solve_lsmr():
         for iapply in iapply_line_norm:
             # Build homogenos part of linear system
             Ah, bh = ls.homogenous_amplitude_equations(
-                p_amplitudes, s_amplitudes, stad, evl, phd, constraint
+                p_amplitudes, s_amplitudes, in_events, stad, evl, phd, constraint
             )
 
             # Build inhomogenous equations
@@ -529,10 +535,18 @@ def test_solve_lsmr():
                 Ah *= eq_norm
 
             elif iapply == "misweight":
+                min_misfit = 0.0
                 max_misfit = 1.0
+                min_weight = 0.0
                 mis_weights = np.vstack(
-                    [ls.weight_misfit(amp, max_misfit, "P") for amp in p_amplitudes]
-                    + [ls.weight_misfit(amp, max_misfit, "S") for amp in s_amplitudes]
+                    [
+                        ls.weight_misfit(amp, min_misfit, max_misfit, min_weight, "P")
+                        for amp in p_amplitudes
+                    ]
+                    + [
+                        ls.weight_misfit(amp, min_misfit, max_misfit, min_weight, "S")
+                        for amp in s_amplitudes
+                    ]
                 )
                 Ah *= mis_weights
 

@@ -307,9 +307,8 @@ def p_equation(
 
     if np.any(np.abs([va, vb]) <= EPS):
         msg = "Matrix value below machine precission for event combination "
-        msg += f"{ieva}, {ievb}. Returning all zeros."
+        msg += f"{ieva}, {ievb}."
         logging.warning(msg)
-        return np.array(line)
 
     line[nmt * ia : nmt * ia + nmt] = va
     line[nmt * ib : nmt * ib + nmt] = vb
@@ -436,7 +435,7 @@ def s_equations(
 
     if np.any(np.abs([a1, b1, c1, a2, b2, c2]) < EPS):
         msg = "Matrix value below machine precission for event combination "
-        msg += f"{ieva}, {ievb}, {ievc}. Returning all zeros."
+        msg += f"{ieva}, {ievb}, {ievc}."
         logging.warning(msg)
 
     # For S waves, each event triplet has two lines in the matrix
