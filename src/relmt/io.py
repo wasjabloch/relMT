@@ -488,6 +488,7 @@ def read_waveform_array_header(
     n_align: int = 0,
     directory: str = "",
     matlab: bool = False,
+    defaults: bool = True,
 ) -> tuple[np.ndarray, core.Header]:
     """
     Read a waveform array and corresponding header file.
@@ -507,6 +508,9 @@ def read_waveform_array_header(
     matlab:
         Assume MATALB waveform files. Provide the name of the variable holding
         the waveform array in as header keyword `variable_name`.
+    defaults:
+        Attempt to pull in default vaules from a `default-hdr.yaml` file in the
+        same directory
 
     Returns
     -------
@@ -518,9 +522,8 @@ def read_waveform_array_header(
 
     dir = Path(directory)
 
-    wvf = dir / core.file("waveform_array", station, phase, n_align)
-    hdrf = dir / core.file("waveform_header", station, phase, n_align)
-    default_hdrf = dir / core.file("waveform_header", n_align=n_align)
+    wvf = core.file("waveform_array", station, phase, n_align, directory=dir)
+    hdrf = core.file("waveform_header", station, phase, n_align, directory=dir)
 
     loader = np.load
     if matlab:
@@ -535,10 +538,14 @@ def read_waveform_array_header(
         raise e
 
     # Read in default values from default config, if present
-    try:
-        hdr = read_header(hdrf, default_name=default_hdrf)
-    except FileNotFoundError:
-        logger.debug(f"Missing default config: {default_hdrf}")
+    if defaults:
+        default_hdrf = core.file("waveform_header", n_align=n_align, directory=dir)
+        try:
+            hdr = read_header(hdrf, default_name=default_hdrf)
+        except FileNotFoundError:
+            logger.debug(f"Missing default config: {default_hdrf}")
+            hdr = read_header(hdrf)
+    else:
         hdr = read_header(hdrf)
 
     if (vname := hdr["variable_name"]) is not None:
@@ -663,6 +670,76 @@ def save_amplitudes(
 
     with open(filename, "w") as fid:
         fid.write(out)
+
+
+def save_mt_result_summary(
+    event_list: list[core.Event],
+    mt_dict: dict[int, core.MT],
+    filename: str | Path,
+    geoconverter: Callable | None = None,
+):
+    """Combine moment tensor dictionary and event table and write out resut table"""
+    nlen = max(len(ev.name) for ev in event_list)
+    typs = np.dtype(
+        [
+            ("name", f"U{nlen}"),
+            ("north", float),
+            ("east", float),
+            ("depth", float),
+            ("time", float),
+            ("ml", float),
+            ("mw", float),
+            ("nn", float),
+            ("ee", float),
+            ("dd", float),
+            ("ne", float),
+            ("nd", float),
+            ("ed", float),
+        ]
+    )
+
+    if geoconverter is not None:
+        north, east, depth = geoconverter(north, east, depth)
+
+    evl = event_list
+    s = " "
+
+    np.savetxt(
+        filename,
+        np.array(
+            [
+                (
+                    evl[iev].name,
+                    evl[iev].north,
+                    evl[iev].east,
+                    evl[iev].depth,
+                    evl[iev].time,
+                    evl[iev].mag,
+                    mt.magnitude_of_moment(mt.moment_of_vector(momt)),
+                    *momt,
+                )
+                for iev, momt in mt_dict.items()
+            ],
+            dtype=typs,
+        ),
+        fmt="%20s %12.3f %12.3f %12.3f %12.6f %6.2f %6.2f %13.6e %13.6e "
+        "%13.6e %13.6e %13.6e %13.6e",
+        header=(
+            "Event               "
+            + "North       "
+            + "East         "
+            + "Depth        "
+            + "Time              "
+            + "Ml     "
+            + "Mw     "
+            + "nn            "
+            + "ee            "
+            + "dd            "
+            + "ne            "
+            + "nd            "
+            + "ed            "
+        ),
+    )
 
 
 def read_amplitudes(filename: str, phase: str, unpack: bool = False):
