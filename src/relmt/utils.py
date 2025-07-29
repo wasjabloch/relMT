@@ -258,7 +258,7 @@ def phase_dict_azimuth(
             # Assign original plunge when not nan and we are not overwriting
             core.Phase(ph.time, ph.azimuth, ph.plunge)
             if np.isfinite(ph.azimuth) and not overwrite
-            else core.Phase(ph.time, azis[nph], ph.plunge)
+            else core.Phase(ph.time, azis[nph][0], ph.plunge)
         )
         for nph, (phid, ph) in enumerate(phase_dict.items())
     }
