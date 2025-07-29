@@ -414,7 +414,7 @@ def run(
     )
 
     # Align using PCA
-    dt_pca, phi = pca_align(wvmat_cc, dphi=1e-6, **header.kwargs(pca_align))
+    dt_pca, phi = pca_align(wvmat_cc, dphi=1e-3, **header.kwargs(pca_align))
 
     io.save_results(core.file("pca_time_shift", *destination), dt_pca)
     io.save_results(core.file("pca_objective", *destination), phi)
