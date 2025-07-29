@@ -290,18 +290,34 @@ def init(directory: str | Path | None = None):
     else:
         directory = Path()
 
-    for subdir in ["data", "align1", "amplitude", "result"]:
+    for subdir in ["data", "align1", "align2", "amplitude", "result"]:
         try:
             os.mkdir(directory / subdir)
             logger.debug(f"Made directory: {directory / subdir}")
         except FileExistsError:
             logger.debug(f"{directory / subdir} exists. Continuing.")
 
-    # Write default files
-    Config().to_file(file("config", directory=directory))
-    Header().to_file(file("waveform_header", directory=directory))
-    with open(file("exclude", directory=directory), "w") as fid:
-        yaml.safe_dump(exclude, fid)
+    # Write the default files
+    hdrf = file("waveform_header", directory=directory)
+    conff = file("config", directory=directory)
+    exclf = file("exclude", directory=directory)
+
+    try:
+        Config().to_file(conff)
+    except FileExistsError:
+        logger.debug(f"{conff} exists. Continuing.")
+
+    try:
+        Header().to_file(hdrf)
+    except FileExistsError:
+        logger.debug(f"{hdrf} exists. Continuing.")
+
+    if not exclf.exists():
+        with open(exclf, "w") as fid:
+            yaml.safe_dump(exclude, fid)
+    else:
+        logger.debug(f"{exclf} exists. Continuing.")
+    logger.info(f"Working directory is complete: {directory}")
 
 
 # Now fill actual file names and description into the doc
