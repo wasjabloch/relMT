@@ -208,11 +208,11 @@ def main_exclude(
         excl["phase_auto_nodata"] = excludes["no_data"]
 
     if dosnr:
-        logger.info(f"Excluding SNR > {hdr['min_signal_noise_ratio']}")
+        logger.info(f"Excluding SNR < {hdr['min_signal_noise_ratio']}")
         excl["phase_auto_snr"] = excludes["snr"]
 
     if doecn:
-        logger.info(f"Excluding ECN > {hdr['min_expansion_coefficient_norm']}")
+        logger.info(f"Excluding ECN < {hdr['min_expansion_coefficient_norm']}")
         excl["phase_auto_ecn"] = excludes["ecn"]
 
     # Save it to file
@@ -355,7 +355,10 @@ def phase_passbands(
 
 
 def main_amplitude(
-    config: core.Config, directory: Path, iteration: int, overwrite: bool = False
+    config: core.Config,
+    directory: Path = Path(),
+    iteration: int = 0,
+    overwrite: bool = False,
 ):
     """
     Compute relative amplitudes using options in config. Assemble path directory
