@@ -77,7 +77,7 @@ def test_nonzero_events_3d():
     # Test if Non-zero events are detected
     shape = (3, 3, 512)
     arr = np.zeros(shape)
-    arr[1, 0, 500] = 1
+    arr[1, :, 500] = 1  # All components must be non-zero at least once.
     assert [1] == qc.index_nonzero_events(arr)
     assert all([False, True, False] == qc.index_nonzero_events(arr, return_bool=True))
     assert pytest.approx([0, 2]) == qc.index_nonzero_events(arr, return_not=True)

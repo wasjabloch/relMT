@@ -51,12 +51,12 @@ def test_config_init_floats():
 def test_config_init_lists():
     # Test if lists are handled correctly
     list_dict = {
-        key: []
+        key: [0, 1]
         for key, value in core._config_args_comments.items()
         if value[0] == "list"
     }
     config = core.Config(**list_dict)
-    assert all(config[key] == [] for key in list_dict)
+    assert all(config[key] == [0, 1] for key in list_dict)
 
 
 def test_config_init_type_error():
@@ -80,7 +80,7 @@ def test_config_to_from_file():
     }
     confdict.update(
         {
-            key: []
+            key: [0, 1]
             for key, value in core._config_args_comments.items()
             if value[0] == "list"
         }
