@@ -632,7 +632,7 @@ def included_events(
 
 def index_nonzero_events(
     array: np.ndarray,
-    null_threshold: float = 0.0,
+    null_threshold: float | None = None,
     return_not: bool = False,
     return_bool: bool = False,
 ) -> np.ndarray:
@@ -653,6 +653,9 @@ def index_nonzero_events(
     -------
     Indices where array is non-zero (or all-zero if `return_not=True`)
     """
+
+    if null_threshold is None:
+        null_threshold = 0.0
 
     # Any sample needs to be non-zero
     inz = np.any(array, axis=-1)
