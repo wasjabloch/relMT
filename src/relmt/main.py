@@ -166,30 +166,29 @@ def main_exclude(
 
         events = np.array(hdr["events"])
 
-        # Boolean indices of bad events
+        # Boolean indices of events with no data
         ind = qc.index_nonzero_events(
             arr, null_threshold=hdr["null_threshold"], return_bool=True, return_not=True
         )
+        logger.debug(f"{wvid}: {sum(ind)} traces with no data")
 
         if all(ind):
             excl["waveform"] += [wvid]
             continue
 
-        arr = signal.demean_filter_window(
-            arr, **hdr.kwargs(signal.demean_filter_window)
-        )
-
         isnr = np.full_like(ind, False)
-        if hdr["min_signal_noise_ratio"] is not None:
+        if (minsnr := hdr["min_signal_noise_ratio"]) is not None:
             snr = signal.signal_noise_ratio(
                 arr, **hdr.kwargs(signal.signal_noise_ratio)
             )
-            isnr = snr < hdr["min_signal_noise_ratio"]
+            isnr = snr < minsnr
+            logger.debug(f"{wvid}: {sum(isnr)} traces with SNR < {minsnr}")
 
         iecn = np.full_like(ind, False)
-        if hdr["min_expansion_coefficient_norm"] is not None:
+        if (minecn := hdr["min_expansion_coefficient_norm"]) is not None:
             ec_score = qc.expansion_coefficient_norm(arr, pha)
-            iecn = ec_score < hdr["min_expansion_coefficient_norm"]
+            iecn = ec_score < minecn
+            logger.debug(f"{wvid}: {sum(isnr)} traces with ECN < {minecn}")
 
         # Write the full phase ID to the exclude lists
         excludes["no_data"] += [core.join_phaseid(iev, sta, pha) for iev in events[ind]]
@@ -204,15 +203,15 @@ def main_exclude(
 
     # Write everything into the exclude dict
     if donodata:
-        logger.info(f"Excluding invalid data")
+        logger.info(f"Excluding {len(excludes['no_data'])} invalid traces")
         excl["phase_auto_nodata"] = excludes["no_data"]
 
     if dosnr:
-        logger.info(f"Excluding SNR < {hdr['min_signal_noise_ratio']}")
+        logger.info(f"Excluding {len(excludes['snr'])} traces with SNR < {minsnr}")
         excl["phase_auto_snr"] = excludes["snr"]
 
     if doecn:
-        logger.info(f"Excluding ECN < {hdr['min_expansion_coefficient_norm']}")
+        logger.info(f"Excluding {len(excludes['ecn'])} traces with ECN < {minecn}")
         excl["phase_auto_ecn"] = excludes["ecn"]
 
     # Save it to file
@@ -223,7 +222,7 @@ def main_exclude(
 def phase_passbands(
     arr: np.ndarray,
     hdr: core.Header,
-    evl: list[core.Event],
+    evd: dict[int, core.Event],
     exclude: core.Exclude | None = None,
     auto_lowpass_method: str | None = None,
     auto_lowpass_stressdrop_range: tuple[float, float] = [1.0e6, 1.0e6],
@@ -262,7 +261,7 @@ def phase_passbands(
     hdr:
         The header containing metadata about the waveform array, including
         phase phase start and end times, sampling rate, included events.
-    evl:
+    evd:
         The seismic event catalog.
     exclude:
         An optional exclude object with observations to be excluded from the
@@ -293,7 +292,7 @@ def phase_passbands(
     for iev, evn in zip(ievs, evns):
         print("{:02d} events to go   ".format(len(evns) - iev), end="\r")
 
-        ev = evl[evn]
+        ev = evd[evn]
 
         phase_arr = arr[iev, :, :]
 
@@ -389,7 +388,7 @@ def main_amplitude(
     wvids = set(core.iterate_waveid(stas)) - set(exclude["waveform"])
 
     # Read the events
-    event_list = io.read_event_table(evf)
+    event_dict = io.read_event_table(evf)
 
     pasbnds = {}
     if filter_method == "manual":
@@ -448,7 +447,7 @@ def main_amplitude(
                 pasbnds[wvid] = phase_passbands(
                     arr,
                     hdr,
-                    event_list,
+                    event_dict,
                     **config.kwargs(phase_passbands),
                     exclude=exclude,
                 )
@@ -686,7 +685,7 @@ def main_qc(config: core.Config, directory: Path):
 
     ampsuf = config["amplitude_suffix"]
 
-    evl = io.read_event_table(config["event_file"])
+    evd = io.read_event_table(config["event_file"])
     phd = io.read_phase_table(config["phase_file"])
 
     for ph in "PS":
@@ -751,10 +750,10 @@ def main_qc(config: core.Config, directory: Path):
         amps = qc.clean_by_valid_takeoff_angle(amps, phd)
 
         # ... within magnitude difference ...
-        amps = qc.clean_by_magnitude_difference(amps, evl, max_mag_diff)
+        amps = qc.clean_by_magnitude_difference(amps, evd, max_mag_diff)
 
         # ... within inter-event distance ...
-        amps = qc.clean_by_event_distance(amps, evl, max_ev_dist)
+        amps = qc.clean_by_event_distance(amps, evd, max_ev_dist)
 
         # Let's not overwrite, but save for later use
         if ph == "P":
@@ -806,7 +805,7 @@ def main_solve(config: core.Config, directory: Path = Path()):
 
     mt_elements = ls.mt_elements(constraint)
 
-    evl = io.read_event_table(evf)
+    evd = io.read_event_table(evf)
     phd = io.read_phase_table(phf)
     stad = io.read_station_table(stf)
     mtd = io.read_mt_table(refmtf)
@@ -843,7 +842,7 @@ def main_solve(config: core.Config, directory: Path = Path()):
 
     # Build homogenos part of linear system
     Ah, bh = ls.homogenous_amplitude_equations(
-        pamp_subset, samp_subset, inev, stad, evl, phd, constraint
+        pamp_subset, samp_subset, inev, stad, evd, phd, constraint
     )
 
     # Normalization applied to columns
@@ -875,7 +874,7 @@ def main_solve(config: core.Config, directory: Path = Path()):
     Ah *= eq_norm
 
     # Build inhomogenous equations
-    Ai, bi = ls.reference_mt_equations(irefs, mtd, len(evl), constraint)
+    Ai, bi = ls.reference_mt_equations(irefs, mtd, len(evd), constraint)
 
     # Collect and apply weights
     mean_moment = mt.mean_moment([mtd[iev] for iev in irefs])
@@ -909,7 +908,7 @@ def main_solve(config: core.Config, directory: Path = Path()):
     logger.info("Computing synthetic amplitudes and residuals")
     Asyn, Bsyn, *_ = amp.synthetic(
         relmts,
-        evl,
+        evd,
         stad,
         phd,
         [(pamp.station, pamp.event_a, pamp.event_b) for pamp in pamp_subset],
