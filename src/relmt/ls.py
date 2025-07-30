@@ -307,7 +307,7 @@ def p_equation(
 
     if np.any(np.abs([va, vb]) <= EPS):
         msg = "Matrix value below machine precission for event combination "
-        msg += f"{ieva}, {ievb}."
+        msg += f"{ieva}, {ievb} on station {station.name}"
         logging.warning(msg)
 
     line[nmt * ia : nmt * ia + nmt] = va
@@ -386,7 +386,6 @@ def s_equations(
 
     amp_abc = s_amplitude.amp_abc
     amp_acb = s_amplitude.amp_acb
-    logger.debug(f"Events: {ieva}, {ievb}, {ievc}. Babc: {amp_abc}, Bacb: {amp_acb}")
 
     rab = distance_ratio(event_dict[ieva], event_dict[ievb], station)
     rac = distance_ratio(event_dict[ieva], event_dict[ievc], station)
@@ -435,7 +434,7 @@ def s_equations(
 
     if np.any(np.abs([a1, b1, c1, a2, b2, c2]) < EPS):
         msg = "Matrix value below machine precission for event combination "
-        msg += f"{ieva}, {ievb}, {ievc}."
+        msg += f"{ieva}, {ievb}, {ievc} on station {station.name}"
         logging.warning(msg)
 
     # For S waves, each event triplet has two lines in the matrix
