@@ -38,14 +38,14 @@ logger.addHandler(core.logsh)
 
 
 def xyzarray(
-    table: dict[str, core.Station] | list[core.Event] | core.Event | core.Station,
+    table: dict[str, core.Station] | dict[int, core.Event] | core.Event | core.Station,
 ) -> np.ndarray:
     """Spatial coordinates as an array
 
     Parameters
     ----------
     table:
-        Event, event list, station, or station dictionary
+        Event, event dictionary, station, or station dictionary
 
     Returns
     -------
@@ -218,7 +218,7 @@ def fisher_average(ccarr: np.ndarray, axis: int = -1) -> np.ndarray:
 
 def phase_dict_azimuth(
     phase_dict: dict[str, core.Phase],
-    event_list: list[core.Event],
+    event_dict: dict[int, core.Event],
     station_dict: dict[str, core.Station],
     overwrite: bool = False,
 ) -> dict[str, core.Phase]:
@@ -229,7 +229,7 @@ def phase_dict_azimuth(
     ----------
     phase_dict:
         All seismic phases
-    event_list:
+    event_dict:
         The seismic event catalog
     station_dict:
         Station table
@@ -245,7 +245,7 @@ def phase_dict_azimuth(
         [
             (
                 angle.azimuth(
-                    *xyzarray(event_list[core.split_phaseid(phid)[0]])[:2],
+                    *xyzarray(event_dict[core.split_phaseid(phid)[0]])[:2],
                     *xyzarray(station_dict[core.split_phaseid(phid)[1]])[:2],
                 ),
             )
@@ -268,7 +268,7 @@ def phase_dict_azimuth(
 
 def phase_dict_hash_plunge(
     phase_dict: dict[str, core.Phase],
-    event_list: list[core.Event],
+    event_dict: dict[int, core.Event],
     station_dict: dict[str, core.Station],
     vmodel: np.ndarray,
     overwrite: bool = False,
@@ -285,7 +285,7 @@ def phase_dict_hash_plunge(
     ----------
     phase_dict:
         All seismic phases
-    event_list:
+    event_dict:
         The seismic event catalog
     station_dict:
         Station table
@@ -309,10 +309,10 @@ def phase_dict_hash_plunge(
                 cartesian_distance(
                     *xyzarray(station_dict[core.split_phaseid(phid)[1]])[:2],
                     0,
-                    *xyzarray(event_list[core.split_phaseid(phid)[0]])[:2],
+                    *xyzarray(event_dict[core.split_phaseid(phid)[0]])[:2],
                     0,
                 ),
-                event_list[core.split_phaseid(phid)[0]].depth,
+                event_dict[core.split_phaseid(phid)[0]].depth,
             )
             for phid in phase_dict
         ]
@@ -359,7 +359,7 @@ def phase_dict_hash_plunge(
 
 def interpolate_phase_dict(
     phase_dict: dict[str, core.Phase],
-    event_list: list[core.Event],
+    event_dict: dict[int, core.Event],
     station_dict: dict[str, core.Station],
     obs_min: int = 1,
 ) -> dict[str, core.Phase]:
@@ -376,7 +376,7 @@ def interpolate_phase_dict(
     ----------
     phase_dict:
         All seismic phases
-    event_list:
+    event_dict:
         The seismic event catalog
     station_dict:
         Station table
@@ -443,16 +443,16 @@ def interpolate_phase_dict(
                 [
                     (
                         phase_dict[pid][0]
-                        - event_list[event_index][3],  # arrival - origin time
+                        - event_dict[event_index][3],  # arrival - origin time
                         cartesian_distance(
-                            *sxyz, *event_list[event_index][:3]
+                            *sxyz, *event_dict[event_index][:3]
                         ),  # distance
                         phase_dict[pid].azimuth,
                         phase_dict[pid].plunge,
-                        event_list[event_index][2],  # event z-coordinate
+                        event_dict[event_index][2],  # event z-coordinate
                     )
                     for pid in phase_dict
-                    for event_index in range(len(event_list))
+                    for event_index in event_dict
                     if event_index == core.split_phaseid(pid)[0]  # event match
                     and st == core.split_phaseid(pid)[1]  # station match
                     and ph == core.split_phaseid(pid)[2]  # phase match
@@ -481,9 +481,9 @@ def interpolate_phase_dict(
             pluns, deps = tdaiz[np.isfinite(tdaiz[:, 3]), 3:5].T
 
             # Now look for missing events
-            for event_index in range(len(event_list)):
+            for event_index in event_dict:
                 thisphid = core.join_phaseid(event_index, st, ph)
-                ex, ey, ez, t0 = event_list[event_index][:4]
+                ex, ey, ez, t0 = event_dict[event_index][:4]
 
                 # Interpolate time, azimuth, incidence
                 td = cartesian_distance(ex, ey, ez, *sxyz)  # distance
@@ -785,7 +785,7 @@ def pc_index(mtx: np.ndarray, phase: str) -> np.ndarray:
         raise ValueError(f"Unknown phase: {phase}")
 
 
-def subset_list(event_list: list, indices: Iterable[int]) -> list:
+def subset_list(lst: list, indices: Iterable[int]) -> list:
     """
     Return subset of event dictionary
 
@@ -800,4 +800,5 @@ def subset_list(event_list: list, indices: Iterable[int]) -> list:
     -------
     Subset list
     """
-    return [event_list[i] for i in indices]
+    logger.warning("Do not use this function, but a list comprehension instead.")
+    return [lst[i] for i in indices]

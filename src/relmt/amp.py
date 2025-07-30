@@ -319,7 +319,7 @@ def order_by_ccsum(mtx_abc: np.ndarray) -> np.ndarray:
 
 def synthetic(
     moment_tensors: dict[int, core.MT],
-    event_list: list[core.Event],
+    event_dict: dict[int, core.Event],
     station_dictionary: dict[str, core.Station],
     phase_dictionary: dict[str, core.Phase],
     p_pairs: list[tuple[str, int, int]],
@@ -338,8 +338,8 @@ def synthetic(
     ----------
     moment_tensors:
         Dictionary of moment tensors indexed by event ID.
-    event_list:
-        List of events with locations
+    event_dict:
+        Dictionary of events with locations
     station_dictionary:
         Dictionary of stations with locations indexed by station name.
     phase_dictionary:
@@ -410,10 +410,10 @@ def synthetic(
             continue
 
         dist_a = utils.cartesian_distance(
-            *station_dictionary[s][:3], *event_list[a][:3]
+            *station_dictionary[s][:3], *event_dict[a][:3]
         )
         dist_b = utils.cartesian_distance(
-            *station_dictionary[s][:3], *event_list[b][:3]
+            *station_dictionary[s][:3], *event_dict[b][:3]
         )
 
         # Calculate the relative P amplitude
@@ -458,13 +458,13 @@ def synthetic(
             continue
 
         dist_a = utils.cartesian_distance(
-            *station_dictionary[s][:3], *event_list[a][:3]
+            *station_dictionary[s][:3], *event_dict[a][:3]
         )
         dist_b = utils.cartesian_distance(
-            *station_dictionary[s][:3], *event_list[b][:3]
+            *station_dictionary[s][:3], *event_dict[b][:3]
         )
         dist_c = utils.cartesian_distance(
-            *station_dictionary[s][:3], *event_list[c][:3]
+            *station_dictionary[s][:3], *event_dict[c][:3]
         )
 
         us_a = mt.s_radiation(mt_a, azi_a, plu_a, dist_a, rho, beta)

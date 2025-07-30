@@ -182,7 +182,7 @@ def read_yaml(filename: str) -> dict:
 
 
 def make_event_table(
-    event_list: list[core.Event], filename: Path | str | None = None
+    event_dict: dict[int, core.Event], filename: Path | str | None = None
 ) -> str:
     """
     Convert event dictionary to relMT compliant event table.
@@ -192,7 +192,7 @@ def make_event_table(
 
     Parameters
     ----------
-    event_list:
+    event_dict:
         Seismic event catalog
     filename:
         Write table to this file
@@ -210,7 +210,7 @@ def make_event_table(
 
     form = "{:>7d} {:>12.3f} {:>12.3f} {:>11.3f} {: 12.6f} {:>9.4f} {:>16s}\n"
 
-    for iev, (north, east, depth, time, mag, name) in enumerate(event_list):
+    for iev, (north, east, depth, time, mag, name) in event_dict.items():
         out += form.format(iev, north, east, depth, time, mag, name)
 
     if filename is not None:
@@ -350,7 +350,7 @@ def read_mt_table(
 def read_event_table(
     filename: str | Path, unpack=False
 ) -> (
-    list[core.Event]
+    dict[int, core.Event]
     | tuple[
         np.ndarray,
         np.ndarray,
@@ -371,16 +371,16 @@ def read_event_table(
 
     Returns
     -------
-    event_list: list, if `unpack=False`
+    event_dict: list, if `unpack=False`
         Seismic event catalog
 
-    north, east, depth, magnitude, name: :class:`numpy.ndarray` if `unpack=True`
+    evid, north, east, depth, magnitude, name: :class:`numpy.ndarray` if `unpack=True`
         Each parameter of the event catalog as an array
 
     Raises
     ------
     IndexError:
-        If event indices in table are not consecutive
+        If event indices in table are not unique
     """
     evids, north, east, depth, time, mag = np.loadtxt(
         filename,
@@ -391,16 +391,21 @@ def read_event_table(
     )
     name = np.loadtxt(filename, usecols=6, unpack=True, dtype=str, ndmin=1)
 
-    if not np.all(evids == np.arange(len(evids))):
-        raise IndexError("Input event list is not consecutive")
+    evids = evids.astype(int, copy=False)
+
+    if len(set(evids)) != len(evids):
+        uniq, cnt = np.unique(evids, return_counts=True)
+        msg = "Some event IDs are not unique: "
+        msg += ", ".join(f"{val}" for val in uniq[cnt > 1])
+        raise IndexError(msg)
 
     if unpack:
-        return north, east, depth, time, name
+        return evids, north, east, depth, time, name
 
-    return [
-        core.Event(no, e, d, t, m, na)
-        for no, e, d, t, m, na in zip(north, east, depth, time, mag, name)
-    ]
+    return {
+        evid: core.Event(no, e, d, t, m, na)
+        for evid, no, e, d, t, m, na in zip(evids, north, east, depth, time, mag, name)
+    }
 
 
 def make_phase_table(
@@ -673,13 +678,13 @@ def save_amplitudes(
 
 
 def save_mt_result_summary(
-    event_list: list[core.Event],
+    event_dict: dict[int, core.Event],
     mt_dict: dict[int, core.MT],
     filename: str | Path,
     geoconverter: Callable | None = None,
 ):
     """Combine moment tensor dictionary and event table and write out resut table"""
-    nlen = max(len(ev.name) for ev in event_list)
+    nlen = max(len(ev.name) for ev in event_dict.values())
     typs = np.dtype(
         [
             ("name", f"U{nlen}"),
@@ -701,20 +706,19 @@ def save_mt_result_summary(
     if geoconverter is not None:
         north, east, depth = geoconverter(north, east, depth)
 
-    evl = event_list
-    s = " "
+    evd = event_dict
 
     np.savetxt(
         filename,
         np.array(
             [
                 (
-                    evl[iev].name,
-                    evl[iev].north,
-                    evl[iev].east,
-                    evl[iev].depth,
-                    evl[iev].time,
-                    evl[iev].mag,
+                    evd[iev].name,
+                    evd[iev].north,
+                    evd[iev].east,
+                    evd[iev].depth,
+                    evd[iev].time,
+                    evd[iev].mag,
                     mt.magnitude_of_moment(mt.moment_of_vector(momt)),
                     *momt,
                 )
@@ -808,7 +812,7 @@ def read_amplitudes(filename: str, phase: str, unpack: bool = False):
 
 def make_gmt_meca_table(
     moment_tensors: list[core.MT] | dict[int, core.MT],
-    event_list: list[core.Event] | None = None,
+    event_dict: dict[int, core.Event] | None = None,
     geoconverter: Callable | None = None,
     filename: str | Path | None = None,
     **savetxt_kwargs: dict,
@@ -819,7 +823,7 @@ def make_gmt_meca_table(
     ----------
     moment_tensors:
         relMT moment tensors
-    event_list:
+    event_dict:
         The seismic event catalog from which to source location
     geoconverter:
         Function that accepts event north, east, depth coordinates and converts
@@ -845,8 +849,8 @@ def make_gmt_meca_table(
         momt = moment_tensors[imt]
 
         north, east, depth = (0.0, 0.0, 0.0)
-        if event_list is not None:
-            ev = event_list[imt]
+        if event_dict is not None:
+            ev = event_dict[imt]
             north, east, depth = ev.north, ev.east, ev.depth
 
         if geoconverter is not None:
@@ -942,7 +946,7 @@ def read_ext_event_table(
     timeconverter: Callable | None = None,
     nameconverter: Callable | None = None,
     loadtxt_kwargs: dict = {},
-) -> list[core.Event]:
+) -> dict[int, core.Event]:
     """
     Read an external event table into an event dictionary.
 
@@ -969,7 +973,7 @@ def read_ext_event_table(
 
     Returns
     -------
-    List of norting, easting, depth, time, magnitude, name
+    The seismic event catalog
 
     Raises
     ------
@@ -1008,17 +1012,19 @@ def read_ext_event_table(
     else:
         time = map(float, time)
 
-    return [
-        core.Event(no, e, d, t, m, na)
-        for no, e, d, t, m, na in zip(north, east, depth, time, mag, name)
-    ]
+    return {
+        evid: core.Event(no, e, d, t, m, na)
+        for evid, (no, e, d, t, m, na) in enumerate(
+            zip(north, east, depth, time, mag, name)
+        )
+    }
 
 
 def read_ext_mt_table(
     filename: str,
     nn_ee_dd_ne_nd_ed_indices: tuple[int, int, int, int, int, int],
     name_index: int | None = None,
-    event_list: list[core.Event] | None = None,
+    event_dict: dict[int, core.Event] | None = None,
     mtconverter: Callable | None = None,
     exponent_index: int | None = None,
     nameconverter: Callable | None = None,
@@ -1036,9 +1042,9 @@ def read_ext_mt_table(
         of the moment tensor
     name_index:
         Column indices of the event name. If None, do not attempt to match event
-        in 'event_list'
-    event_list:
-        List of core.Event tuples. When given, only moment tensors that have a
+        in 'event_dict'
+    event_dict:
+        Dictionary of core.Event tuples. When given, only moment tensors that have a
         matching event name are considered
     mtconverter:
         Function that takes six moment teonsor components (in the order given in
@@ -1118,8 +1124,8 @@ def read_ext_mt_table(
 
     # Populate dictionary only with known events
     mt_dict = {}
-    if event_list is not None and name_index is not None:
-        for n, ev in enumerate(event_list):
+    if event_dict is not None and name_index is not None:
+        for n, ev in event_dict.items():
             if ev.name in names:
                 # Find the MT with the event's name
                 i = np.nonzero(names == ev.name)[0][0]

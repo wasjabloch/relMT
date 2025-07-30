@@ -81,12 +81,12 @@ def test_save_read_exclude_file():
 
 def test_make_read_event_table():
     # Test if an event table is read correctly
-    evlist1 = [
-        core.Event(0.0, 0.0, 0.0, 0.0, 0.0, "Event0"),
-        core.Event(1.0, 1.0, 1.0, 1.0, 1.0, "Event1"),
-    ]
+    evd1 = {
+        0: core.Event(0.0, 0.0, 0.0, 0.0, 0.0, "Event0"),
+        1: core.Event(1.0, 1.0, 1.0, 1.0, 1.0, "Event1"),
+    }
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
-        tab = io.make_event_table(evlist1, fid.name)
+        tab = io.make_event_table(evd1, fid.name)
         fid.close()
         evlist2 = io.read_event_table(fid.name)
     os.remove(fid.name)
@@ -94,7 +94,7 @@ def test_make_read_event_table():
     assert "Event0" in tab
     assert "Event1" in tab
 
-    for ind, outd in zip(evlist1, evlist2):
+    for ind, outd in zip(evd1, evlist2):
         assert ind == outd
 
 
@@ -200,14 +200,14 @@ def mock_broken_event_table_file(tmp_path):
     file = tmp_path / "event_table.txt"
     data = "0 0.1 0.2 0.3 3000.4 4.5 event1\n"
     # The next line has a wrong index
-    data += "2 0.4 0.5 0.6 4000.5 5.0 event2"
+    data += "0 0.4 0.5 0.6 4000.5 5.0 event2"
     file.write_text(data)
     return file
 
 
 def test_read_event_table(mock_event_table_file):
     result = io.read_event_table(str(mock_event_table_file))
-    assert isinstance(result, list)
+    assert isinstance(result, dict)
     assert len(result) == 2
     assert isinstance(result[0], core.Event)
 
@@ -564,17 +564,17 @@ def test_make_gmt_meca_input():
     # Test dict input
     mtd = {i: momt for i, momt in enumerate(mtl)}
 
-    evl = [
-        core.Event(10, 20, 30, np.nan, 1, "Ev0"),
-        core.Event(100, 200, 300, np.nan, 2, "Ev1"),
-    ]
+    evd = {
+        0: core.Event(10, 20, 30, np.nan, 1, "Ev0"),
+        1: core.Event(100, 200, 300, np.nan, 2, "Ev1"),
+    }
 
     def geoconverter(n, e, d):
         return n * 1e-3, e * 1e-4, d * 1e-5
 
     with tempfile.NamedTemporaryFile("w") as fid:
-        tab1 = io.make_gmt_meca_table(mtl, evl, geoconverter, fid.name)
-        tab2 = io.make_gmt_meca_table(mtd, evl, geoconverter, fid.name)
+        tab1 = io.make_gmt_meca_table(mtl, evd, geoconverter, fid.name)
+        tab2 = io.make_gmt_meca_table(mtd, evd, geoconverter, fid.name)
 
     mtcomps0 = np.array(mt.ned2rtf(*mtl[0]))
     mtcomps1 = np.array(mt.ned2rtf(*mtl[1])) / 1e3
@@ -608,11 +608,11 @@ def test_read_ext_mt_table():
         ne = -mtf * fac
         return nn, ee, dd, ne, nd, ed
 
-    evl = [
-        core.Event(10, 20, 30, 40, 50, "2015-12-07"),  # In MT table
-        core.Event(11, 21, 31, 41, 51, "2016-01-18"),  # Not in MT table
-        core.Event(12, 22, 32, 42, 52, "2017-05-22"),  # In MT table
-    ]
+    evd = {
+        0: core.Event(10, 20, 30, 40, 50, "2015-12-07"),  # In MT table
+        1: core.Event(11, 21, 31, 41, 51, "2016-01-18"),  # Not in MT table
+        2: core.Event(12, 22, 32, 42, 52, "2017-05-22"),  # In MT table
+    }
 
     mt_dict = io.read_ext_mt_table(
         fn,
@@ -631,7 +631,7 @@ def test_read_ext_mt_table():
         fn,
         nn_ee_dd_ne_nd_ed_indices=(6, 7, 8, 9, 10, 11),
         name_index=0,  # Date
-        event_list=evl,
+        event_dict=evd,
         exponent_index=12,
         mtconverter=mt_converter,
         nameconverter=name_converter,

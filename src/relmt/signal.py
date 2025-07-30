@@ -455,7 +455,7 @@ def signal_noise_ratio(
 
     Returns
     -------
-    Signal noise ratio
+    Signal noise ratio in dB
     """
 
     def rms(arr):

@@ -111,7 +111,7 @@ def clean_by_station(
 
 def clean_by_event(
     amplitudes: list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios],
-    exclude_events: list[str],
+    exclude_events: list[int],
 ) -> list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios]:
     """
     Remove amplitude readings made for certain events
@@ -148,7 +148,7 @@ def clean_by_event(
 
 def clean_by_magnitude_difference(
     amplitudes: list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios],
-    event_list: list[core.Event],
+    event_dict: dict[int, core.Event],
     magnitude_difference: list[str] | None,
 ) -> list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios]:
     """
@@ -158,7 +158,7 @@ def clean_by_magnitude_difference(
     ----------
     amplitudes:
         List of amplitude observations
-    event_list:
+    event_dict:
         The seismic event catalog
     magnitude_difference:
         Maximum allowed difference in magnitude of participating events
@@ -176,7 +176,7 @@ def clean_by_magnitude_difference(
         return [
             amp
             for amp in amplitudes
-            if abs(event_list[amp[1]].mag - event_list[amp[2]].mag)
+            if abs(event_dict[amp[1]].mag - event_dict[amp[2]].mag)
             < magnitude_difference
         ]
     return [
@@ -184,11 +184,11 @@ def clean_by_magnitude_difference(
         for amp in amplitudes
         if all(
             [
-                abs(event_list[amp[1]].mag - event_list[amp[2]].mag)
+                abs(event_dict[amp[1]].mag - event_dict[amp[2]].mag)
                 < magnitude_difference,
-                abs(event_list[amp[1]].mag - event_list[amp[3]].mag)
+                abs(event_dict[amp[1]].mag - event_dict[amp[3]].mag)
                 < magnitude_difference,
-                abs(event_list[amp[2]].mag - event_list[amp[3]].mag)
+                abs(event_dict[amp[2]].mag - event_dict[amp[3]].mag)
                 < magnitude_difference,
             ]
         )
@@ -197,7 +197,7 @@ def clean_by_magnitude_difference(
 
 def clean_by_event_distance(
     amplitudes: list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios],
-    event_list: list[core.Event],
+    event_dict: dict[int, core.Event],
     event_distance: list[str] | None,
 ) -> list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios]:
     """Remove amplitude readings of distant event combinations
@@ -209,7 +209,7 @@ def clean_by_event_distance(
     ----------
     amplitudes:
         List of amplitude observations
-    event_list:
+    event_dict:
         The seismic event catalog
     event_distance:
         Maximum distance between events
@@ -224,7 +224,7 @@ def clean_by_event_distance(
 
     ip, _ = _ps_amplitudes(amplitudes)
 
-    xyz = utils.xyzarray(event_list)
+    xyz = utils.xyzarray(event_dict)
 
     if ip:
         ievs = np.array([(amp.event_a, amp.event_b) for amp in amplitudes])

@@ -232,7 +232,7 @@ def p_equation(
     p_amplitude: core.P_Amplitude_Ratio,
     in_events: list,
     station: core.Station,
-    events: list[core.Event],
+    event_dict: dict[int, core.Event],
     phase_dictionary: dict[str, core.Phase],
     nmt: int,
 ) -> np.ndarray:
@@ -250,7 +250,7 @@ def p_equation(
         Events part of the linear system
     station:
         Station on which the observation has been made
-    events:
+    event_dict:
         The full seismic event catalog
     phase_dictionary:
         All phase observations
@@ -285,14 +285,14 @@ def p_equation(
     ga = _gamma(ieva, station.name, "P")
     gb = _gamma(ievb, station.name, "P")
 
-    line = np.zeros(nmt * len(events))
+    line = np.zeros(nmt * len(event_dict))
 
     for iev, g in zip([ieva, ievb], [ga, gb]):
         if not np.all(np.isfinite(g)):
             logging.debug(f"Missing take-off angle in event {iev}. Retruning all zeros")
             return np.array(line)
 
-    rab = distance_ratio(events[ieva], events[ievb], station)
+    rab = distance_ratio(event_dict[ieva], event_dict[ievb], station)
     if nmt == 6:
         gap = directional_coefficient_general_p(ga)
         gbp = directional_coefficient_general_p(gb)
@@ -320,7 +320,7 @@ def s_equations(
     s_amplitude: core.S_Amplitude_Ratios,
     in_events: list,
     station: core.Station,
-    events: list[core.Event],
+    event_dict: dict[int, core.Event],
     phase_dictionary: dict[str, core.Phase],
     nmt: int,
     coefficient_indices: tuple[int, int] | None = None,
@@ -339,7 +339,7 @@ def s_equations(
         Events part of the linear system
     station:
         Station on which the observation has been made
-    events:
+    event_dict:
         The full seismic event catalog
     phase_dictionary:
         All phase observations
@@ -359,7 +359,7 @@ def s_equations(
         azi, inc = phase_dictionary[phid].azimuth, phase_dictionary[phid].plunge
         return gamma(azi, inc)
 
-    nev = len(events)
+    nev = len(event_dict)
 
     line1 = np.zeros((nmt * nev))
     line2 = np.zeros((nmt * nev))
@@ -388,8 +388,8 @@ def s_equations(
     amp_acb = s_amplitude.amp_acb
     logger.debug(f"Events: {ieva}, {ievb}, {ievc}. Babc: {amp_abc}, Bacb: {amp_acb}")
 
-    rab = distance_ratio(events[ieva], events[ievb], station)
-    rac = distance_ratio(events[ieva], events[ievc], station)
+    rab = distance_ratio(event_dict[ieva], event_dict[ievb], station)
+    rac = distance_ratio(event_dict[ieva], event_dict[ievc], station)
 
     # g[abc]s are 3-tuple. Only two are independent
     if nmt == 6:
@@ -535,7 +535,7 @@ def homogenous_amplitude_equations(
     s_amplitudes: list[core.S_Amplitude_Ratios],
     in_events: list[int],
     station_dictionary: dict[str, core.Station],
-    event_list: list[core.Event],
+    event_dict: dict[int, core.Event],
     phase_dictionary: dict[str, core.Phase],
     constraint: str,
     s_coefficients: tuple[int, int] | None = None,
@@ -555,7 +555,7 @@ def homogenous_amplitude_equations(
         reference into this vector.
     station_dictionary:
         Lookup table for station coordinates
-    event_list:
+    event_dict:
         The seismic event catalog
     phase_dictionary:
         Lookup table for ray take-off angles
@@ -568,9 +568,9 @@ def homogenous_amplitude_equations(
     Returns
     -------
     Ah: :class:`numpy.ndarray`
-        ``(p_amplitudes + 2 * s_amplitudes, event_list * mt_elements)`` left-hand side of the homogenous part of linear system
+        ``(p_amplitudes + 2 * s_amplitudes, event_dict * mt_elements)`` left-hand side of the homogenous part of linear system
     bh: :class:`numpy.ndarray`
-        ``(event_list * mt_elements, 1)`` zero column vector, right-hand side of the homogenous linear system
+        ``(event_dict * mt_elements, 1)`` zero column vector, right-hand side of the homogenous linear system
     """
 
     nmt = mt_elements(constraint)
@@ -592,7 +592,7 @@ def homogenous_amplitude_equations(
 
         # Create one P observation
         Ah[n, :] = p_equation(
-            pamp, in_events, station, event_list, phase_dictionary, nmt
+            pamp, in_events, station, event_dict, phase_dictionary, nmt
         )
 
     # Populate then with S amplitdues
@@ -601,7 +601,7 @@ def homogenous_amplitude_equations(
 
         # Create two S observations
         lines = s_equations(
-            samp, in_events, station, event_list, phase_dictionary, nmt, s_coefficients
+            samp, in_events, station, event_dict, phase_dictionary, nmt, s_coefficients
         )
 
         row = peq + 2 * n
