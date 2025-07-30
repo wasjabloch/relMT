@@ -186,6 +186,9 @@ def main_exclude(
 
         iecn = np.full_like(ind, False)
         if (minecn := hdr["min_expansion_coefficient_norm"]) is not None:
+            arr = signal.demean_filter_window(
+                arr, **hdr.kwargs(signal.demean_filter_window)
+            )
             ec_score = qc.expansion_coefficient_norm(arr, pha)
             iecn = ec_score < minecn
             logger.debug(f"{wvid}: {sum(isnr)} traces with ECN < {minecn}")
