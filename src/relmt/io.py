@@ -646,16 +646,17 @@ def save_amplitudes(
         logger.error("Table is empty. No data to be saved.")
         return
 
-    if ncol == 9:
-        fmt = "{:10s} {:7d} {:7d} {:20.13e} {:7.5f} {:6.4f} {:6.4f} {:8.2e} {:8.2e} "
+    if ncol == 10:
+        fmt = "{:10s} {:7d} {:7d} {:20.13e} {:7.5f} {:11.5f} {:6.4f} {:6.4f} "
+        fmt += "{:8.2e} {:8.2e} "
         out = "#Station    EventA  EventB  Amplitude_AB        Misfit  "
-        out += "Sigma1 Sigma2 Highpass Lowpass "
-    elif ncol == 12:
+        out += "Correlation Sigma1 Sigma2 Highpass Lowpass "
+    elif ncol == 13:
         fmt = "{:10s} {:7d} {:7d} {:7d} {:20.13e} {:20.13e} {:7.5f} "
-        fmt += "{:6.4f} {:6.4f} {:6.4f} {:8.2e} {:8.2e} "
+        fmt += "{:11.5f} {:6.4f} {:6.4f} {:6.4f} {:8.2e} {:8.2e} "
         out = "#Station    EventA  EventB  EventC  Amplitude_ABC        "
-        out += "Amplitude_ACB       Misfit  Sigma1 Sigma2 Sigma3 Highpass "
-        out += "Lowpass "
+        out += "Amplitude_ACB       Misfit  Correlation Sigma1 Sigma2 Sigma3 "
+        out += "Highpass Lowpass "
     else:
         msg = f"Found {ncol} index columns, but only 9 or 11 are allowed."
         raise IndexError(msg)
@@ -764,9 +765,11 @@ def read_amplitudes(filename: str, phase: str, unpack: bool = False):
     amplitudes: if `unpack=False`
         Lists of the :class:`relmt.core.P_Amplitude_Ratio` or
         :class:`relmt.core.S_Amplitude_Ratios`
-    station, a, b, amplitude, misfit: if `unpack=True` and `phase=P`
+    station, a, b, amplitude, misfit, correlation, sigma1, sigma2, higpass,
+    lowpass: if `unpack=True` and `phase=P`
         Arrays of the :class:`relmt.core.P_Amplitude_Ratio` attribute
-    station, a, b, c, amp_abc, amb_acb, misfit: if `unpack=True` and `phase=S`
+    station, a, b, c, amp_abc, amb_acb, misfit, correlation, sigma1, sigma2,
+    sigma3, higpass, lowpass: if `unpack=True` and `phase=S`
         Arrays of the :class:`relmt.core.S_Amplitude_Ratios` attributes
 
     Raises
@@ -777,7 +780,7 @@ def read_amplitudes(filename: str, phase: str, unpack: bool = False):
     stas = np.loadtxt(filename, usecols=0, dtype=str)
 
     if phase.upper() == "P":
-        X = np.loadtxt(filename, usecols=(1, 2, 3, 4, 5, 6, 7, 8), ndmin=2)
+        X = np.loadtxt(filename, usecols=(1, 2, 3, 4, 5, 6, 7, 8, 9), ndmin=2)
 
         if unpack:
             return stas, *X.T
@@ -792,7 +795,9 @@ def read_amplitudes(filename: str, phase: str, unpack: bool = False):
         ]
 
     elif phase.upper() == "S":
-        X = np.loadtxt(filename, usecols=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11), ndmin=2)
+        X = np.loadtxt(
+            filename, usecols=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), ndmin=2
+        )
 
         if unpack:
             return stas, *X.T

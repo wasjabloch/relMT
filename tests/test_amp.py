@@ -285,12 +285,31 @@ def test_p_misfit():
     assert result >= 0
 
 
+def test_p_reconstruction_correlation():
+    wva = signal.make_wavelet(512, 20)
+    wvb = -wva
+    mtx_ab = np.array([wva, wvb])
+    cc = amp.p_reconstruction_correlation(mtx_ab)
+    assert pytest.approx(cc) == -1
+
+
+def test_s_reconstruction_correlation():
+    wvb = signal.make_wavelet(512, 20)
+    wvc = signal.make_wavelet(512, 15)
+    Babc = 0.5
+    Bacb = -3.0
+    wva = wvb * Babc + wvc * Bacb
+    mtx_abc = np.array([wva, wvb, wvc])
+    cc = amp.s_reconstruction_correlation(mtx_abc, Babc, Bacb)
+    assert pytest.approx(cc) == 1
+
+
 def test_info_p():
 
     amplitudes = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.9, 0.1, 0.5, 20.0),
-        core.P_Amplitude_Ratio("STA1", 0, 2, 1.1, 1.5, 0.9, 0.1, 0.5, 20.0),
-        core.P_Amplitude_Ratio("STA1", 0, 3, 1.2, 1.5, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.33, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 0, 2, 1.1, 1.5, 0.34, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 0, 3, 1.2, 1.5, 0.35, 0.9, 0.1, 0.5, 20.0),
     ]
 
     amp.info(amplitudes, width=5)
@@ -300,13 +319,13 @@ def test_info_s():
 
     amplitudes = [
         core.S_Amplitude_Ratios(
-            "STA1", 0, 1, 2, 1.0, 1.0, 0.1, 0.8, 0.1, 0.1, 0.5, 20.0
+            "STA1", 0, 1, 2, 1.0, 1.0, 0.1, 0.33, 0.8, 0.1, 0.1, 0.5, 20.0
         ),
         core.S_Amplitude_Ratios(
-            "STA1", 0, 1, 3, 1.1, 1.1, 1.5, 0.8, 0.1, 0.1, 0.5, 20.0
+            "STA1", 0, 1, 3, 1.1, 1.1, 1.5, 0.34, 0.8, 0.1, 0.1, 0.5, 20.0
         ),
         core.S_Amplitude_Ratios(
-            "STA1", 0, 3, 4, 0.9, 0.9, 1.5, 0.8, 0.1, 0.1, 0.5, 20.0
+            "STA1", 0, 3, 4, 0.9, 0.9, 1.5, 0.35, 0.8, 0.1, 0.1, 0.5, 20.0
         ),
     ]
 

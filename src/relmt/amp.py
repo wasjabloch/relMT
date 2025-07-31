@@ -116,6 +116,48 @@ def p_misfit(mtx_ab: np.ndarray, Aab: float) -> float:
         return np.nan
 
 
+def p_reconstruction_correlation(mtx_ab: np.ndarray) -> float:
+    """Correlation coefficient of the P-wave reconstruction
+
+    Parameters
+    ----------
+    mtx_ab:
+        Waveform matrix of shape ``(2, samples)`` holding events `a` and `b`
+
+    Returns
+    -------
+    Normalized reconstruction misfit
+
+    Note
+    ----
+    The cross correlation coefficient is independent of the absolute amplitude,
+    so we do not require the relative amplitude Aab for P-waves
+    """
+    return signal.cc_coef(mtx_ab[0, :], mtx_ab[1, :])
+
+
+def s_reconstruction_correlation(
+    mtx_abc: np.ndarray, Babc: float, Bacb: float
+) -> float:
+    """Correlation coefficient of the S-wave reconstruction
+
+    Parameters
+    ----------
+    mtx_abc:
+        Waveform matrix of shape ``(3, samples)`` holding events `a`, `b` and `c`
+
+    Returns
+    -------
+    Correlation coefficient
+
+    Note
+    ----
+    For S-waves, the shape of the reconstucted waveform depends on the relative
+    linear scaling
+    """
+    return signal.cc_coef(mtx_abc[0, :], mtx_abc[1, :] * Babc + mtx_abc[2, :] * Bacb)
+
+
 def pca_amplitude_3s(
     mtx_abc: np.ndarray, order: bool = True
 ) -> tuple[float, float, np.ndarray]:
@@ -536,6 +578,7 @@ def principal_p_amplitudes(
             evns[b],
             As[n],
             p_misfit(mat[[a, b], :], As[n]),
+            p_reconstruction_correlation(mat[[a, b], :]),
             *sigmas,
             highpass,
             lowpass,
@@ -606,9 +649,10 @@ def paired_p_amplitude_copies(
 
     A, sigmas = pca_amplitude_2p(mat)
     mis = p_misfit(mat, A)
+    cc = p_reconstruction_correlation(mat)
 
     return core.P_Amplitude_Ratio(
-        hdr["station"], a, b, A, mis, *sigmas, highpass, lowpass
+        hdr["station"], a, b, A, mis, cc, *sigmas, highpass, lowpass
     )
 
 
@@ -686,9 +730,10 @@ def paired_p_amplitudes(
 
     A, sigmas = pca_amplitude_2p(mat)
     mis = p_misfit(mat, A)
+    cc = p_reconstruction_correlation(mat)
 
     return core.P_Amplitude_Ratio(
-        hdr["station"], a, b, A, mis, *sigmas, highpass, lowpass
+        hdr["station"], a, b, A, mis, cc, *sigmas, highpass, lowpass
     )
 
 
@@ -748,6 +793,9 @@ def principal_s_amplitudes(
             Bacbs[n],
             # Remember to re-order events also here
             s_misfit(mat[np.array([a, b, c])[isorts[n]], :], Babcs[n], Bacbs[n]),
+            s_reconstruction_correlation(
+                mat[np.array([a, b, c])[isorts[n]], :], Babcs[n], Bacbs[n]
+            ),
             *sigmas,  # sigma1, sigma2, sigma3
             highpass,
             lowpass,
@@ -821,6 +869,7 @@ def triplet_s_amplitude_copies(
     Babc, Bacb, iord, sigmas = pca_amplitude_3s(mat)
 
     mis = s_misfit(mat[iord, :], Babc, Bacb)
+    cc = s_reconstruction_correlation(mat[iord, :], Babc, Bacb)
 
     return core.S_Amplitude_Ratios(
         hdr["station"],
@@ -828,6 +877,7 @@ def triplet_s_amplitude_copies(
         Babc,
         Bacb,
         mis,
+        cc,
         *sigmas,
         highpass,
         lowpass,
@@ -913,6 +963,7 @@ def triplet_s_amplitudes(
     Babc, Bacb, iord, sigmas = pca_amplitude_3s(mat)
 
     mis = s_misfit(mat[iord, :], Babc, Bacb)
+    cc = s_reconstruction_correlation(mat[iord, :], Babc, Bacb)
 
     return core.S_Amplitude_Ratios(
         hdr["station"],
@@ -920,6 +971,7 @@ def triplet_s_amplitudes(
         Babc,
         Bacb,
         mis,
+        cc,
         *sigmas,
         highpass,
         lowpass,

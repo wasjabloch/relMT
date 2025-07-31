@@ -517,6 +517,7 @@ P_Amplitude_Ratio = namedtuple(
         "event_b",
         "amp_ab",
         "misfit",
+        "correlation",
         "sigma1",
         "sigma2",
         "highpass",
@@ -535,6 +536,8 @@ P_Amplitude_Ratio.__doc__ = """P-wave amplitude ratio observation
         Amplitude ratio
     misfit: float
         Reconstruction misfit
+    correlation: float
+        Correlation coefficient of the reconstruction
     sigma1, sigma2: float
         First and second singular value of the seismogram decomposition
     highpass, lowpass: float
@@ -551,6 +554,7 @@ S_Amplitude_Ratios = namedtuple(
         "amp_abc",
         "amp_acb",
         "misfit",
+        "correlation",
         "sigma1",
         "sigma2",
         "sigma3",
@@ -573,6 +577,8 @@ S_Amplitude_Ratios.__doc__ = """S-wave amplitude ratio observations
         Amplitude of event `c` in `a` assuming the third event is `b`
     misfit: float
         Reconstruction misfit
+    correlation: float
+        Correlation coefficient of the reconstruction
     sigma1, sigma2, sigma3: float
         First, second and third singular value of the seismogram decomposition
     highpass, lowpass: float
