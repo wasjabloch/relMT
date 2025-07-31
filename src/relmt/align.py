@@ -382,6 +382,10 @@ def run(
         **header.kwargs(mccc_align),
     )
 
+    if len(evpairs) < 1:
+        logger.warning(f"{header['station']}_{header['phase']}: Nothing to process.")
+        return
+
     if header["phase"] == "S":
         evpairs, dd, ccp = paired_s_lag_times(evpairs, dd, cc)
         cc = utils.fisher_average(cc)
