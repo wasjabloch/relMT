@@ -828,24 +828,24 @@ def main_solve(config: core.Config, directory: Path = Path()):
     )
 
     # Find the connected events, given moment tensors
-    inev = qc.connected_events(irefs, p_amplitudes, s_amplitudes)
+    incl_ev = qc.connected_events(irefs, p_amplitudes, s_amplitudes)
 
     # Reduced set of amplitudes, containing only valid observations
     pamp_subset = [
         pamp
         for pamp in p_amplitudes
-        if all(np.isin([pamp.event_a, pamp.event_b], inev))
+        if all(np.isin([pamp.event_a, pamp.event_b], incl_ev))
     ]
 
     samp_subset = [
         samp
         for samp in s_amplitudes
-        if all(np.isin([samp.event_a, samp.event_b, samp.event_c], inev))
+        if all(np.isin([samp.event_a, samp.event_b, samp.event_c], incl_ev))
     ]
 
     # Build homogenos part of linear system
     Ah, bh = ls.homogenous_amplitude_equations(
-        pamp_subset, samp_subset, inev, stad, evd, phd, constraint
+        pamp_subset, samp_subset, incl_ev, stad, evd, phd, constraint
     )
 
     # Normalization applied to columns
@@ -877,11 +877,15 @@ def main_solve(config: core.Config, directory: Path = Path()):
     Ah *= eq_norm
 
     # Build inhomogenous equations
-    Ai, bi = ls.reference_mt_equations(irefs, mtd, len(evd), constraint)
+    Ai, bi = ls.reference_mt_equations(irefs, mtd, incl_ev, constraint)
 
     # Collect and apply weights
     mean_moment = mt.mean_moment([mtd[iev] for iev in irefs])
-    refev_norm = ls.reference_mt_event_norm(ev_norm, irefs, mt_elements)
+
+    # Indices of reference events
+    incl_ref = [incl_ev.index(iref) for iref in irefs]
+
+    refev_norm = ls.reference_mt_event_norm(ev_norm, incl_ref, mt_elements)
     Ai *= refmt_weight
     bi *= refmt_weight / mean_moment / refev_norm
 
@@ -904,7 +908,9 @@ def main_solve(config: core.Config, directory: Path = Path()):
     )
 
     relmts = {
-        inev[i]: momt for i, momt in enumerate(mt.mt_tuples(m, constraint)) if any(momt)
+        incl_ev[i]: momt
+        for i, momt in enumerate(mt.mt_tuples(m, constraint))
+        if any(momt)
     }
 
     # Compute synthetic amplitudes and posteori-residuals
@@ -974,7 +980,7 @@ def main_solve(config: core.Config, directory: Path = Path()):
     )
 
     # Bootstrap
-    if nboot > 0:
+    if nboot is not None and nboot > 0:
         m_boots = ls.bootstrap_lsmr(A, b, ev_scale, n_p, n_s, nboot, 0, 1)
 
         # Convert to MT dict

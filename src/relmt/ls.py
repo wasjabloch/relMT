@@ -285,7 +285,7 @@ def p_equation(
     ga = _gamma(ieva, station.name, "P")
     gb = _gamma(ievb, station.name, "P")
 
-    line = np.zeros(nmt * len(event_dict))
+    line = np.zeros(nmt * len(in_events))
 
     for iev, g in zip([ieva, ievb], [ga, gb]):
         if not np.all(np.isfinite(g)):
@@ -359,7 +359,7 @@ def s_equations(
         azi, inc = phase_dictionary[phid].azimuth, phase_dictionary[phid].plunge
         return gamma(azi, inc)
 
-    nev = len(event_dict)
+    nev = len(in_events)
 
     line1 = np.zeros((nmt * nev))
     line2 = np.zeros((nmt * nev))
@@ -373,9 +373,9 @@ def s_equations(
     ib = in_events.index(ievb)
     ic = in_events.index(ievc)
 
-    ga = _gamma(ieva, station.name, "P")
-    gb = _gamma(ievb, station.name, "P")
-    gc = _gamma(ievc, station.name, "P")
+    ga = _gamma(ieva, station.name, "S")
+    gb = _gamma(ievb, station.name, "S")
+    gc = _gamma(ievc, station.name, "S")
 
     for iev, g in zip([ieva, ievb, ievc], [ga, gb, gc]):
         if not np.all(np.isfinite(g)):
@@ -645,7 +645,7 @@ def mt_elements(constraint: str) -> int:
 def reference_mt_equations(
     reference_events: list[int],
     refmt_dict: dict[int, core.MT],
-    number_events: int,
+    included_events: list[int],
     constraint: str,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -659,8 +659,8 @@ def reference_mt_equations(
         Indices to the reference events
     refmt_dict:
         Lookup table from event index to moment tensor
-    number_events:
-        Length of the seismic event catalog
+    included_events:
+        Event IDs that form the columns of the linear system
     constraint:
         Constraint to impose on the moment tensor
 
@@ -676,17 +676,22 @@ def reference_mt_equations(
     """
 
     nmt = mt_elements(constraint)
+    nev = len(included_events)
 
     nref = len(reference_events)
     bi = np.zeros((nmt * nref, 1))
-    Ai = np.zeros((nmt * nref, nmt * number_events))
-    for n, iev in enumerate(reference_events):
+    Ai = np.zeros((nmt * nref, nmt * nev))
+    for n, evid in enumerate(reference_events):
+
+        # On which column in the matrix lies the reference event
+        iev = included_events.index(evid)
+
         # Identity matrix for reference event
-        Ai[n * nmt : n * nmt + nmt, :] = _reference_mt_matrix(iev, number_events, nmt)
+        Ai[n * nmt : n * nmt + nmt, :] = _reference_mt_matrix(iev, nev, nmt)
 
         # Reference MT refomated into column vector
         bi[n * nmt : n * nmt + nmt] = _reference_mt_data_vector(
-            refmt_dict[iev],
+            refmt_dict[evid],
             constraint=constraint,
         )
 
@@ -696,7 +701,8 @@ def reference_mt_equations(
 def reference_mt_event_norm(
     ev_norm: np.ndarray, ref_mts: list[int], nmt: int
 ) -> np.ndarray:
-    """Pull event normalization factor for reference moment tensor out of matrix event normalization"""
+    """Pull event normalization factor for reference moment tensor out of matrix
+    event normalization"""
     indices = [iev * nmt + mt_element for iev in ref_mts for mt_element in range(nmt)]
     return ev_norm[indices][:, np.newaxis]
 
