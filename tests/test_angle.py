@@ -26,7 +26,7 @@ Test the the angle functions
 
 import pytest
 import numpy as np
-from relmt import angle, io
+from relmt import angle, io, core
 from scipy.interpolate import interpn
 from pathlib import Path
 
@@ -75,3 +75,33 @@ def test_plunge():
 
     result = angle.plunge(100, 0.0, 100, 0, 0, 0)
     assert np.isclose(result, -45.0)
+
+
+def test_azimuth_gap():
+    pamps = [
+        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.33, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA2", 0, 2, 1.1, 1.5, 0.34, 0.9, 0.1, 0.5, 20.0),
+    ]
+
+    samps = [
+        core.S_Amplitude_Ratios(
+            "STA3", 0, 1, 2, 1.0, 11.2, 0.1, 0.33, 0.9, 0.1, 0.0, 0.5, 20.0
+        ),
+        # Below an amplitude without observation
+        core.S_Amplitude_Ratios(
+            "STA4", 0, 1, 2, 1.0, 11.2, 0.1, 0.33, 0.9, 0.1, 0.0, 0.5, 20.0
+        ),
+    ]
+
+    phd = {
+        "0_STA1_P": core.Phase(0, 10, 0),
+        "0_STA2_P": core.Phase(0, 180, 0),
+        "0_STA3_S": core.Phase(0, 355, 0),
+    }
+
+    gaps = [175, 170, 15]
+
+    gapd = angle.azimuth_gap(phd, pamps, samps)
+    assert pytest.approx(gapd[0]) == gaps
+    assert 1 not in gapd
+    assert 2 not in gapd  # No azimuth info available

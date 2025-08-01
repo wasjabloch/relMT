@@ -34,7 +34,7 @@ this code.
 
 import numpy as np
 import logging
-from relmt import core
+from relmt import core, utils
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -381,3 +381,60 @@ def azimuth(
     """Azimuth (degree x -> y) from point (x1, y1) to (x2, y2)"""
     azi = (np.arctan2((y2 - y1), (x2 - x1)) * 180 / np.pi) % 360.0
     return azi
+
+
+def azimuth_gap(
+    phase_dict: dict[str, core.Phase],
+    p_amplitudes: list[core.P_Amplitude_Ratio],
+    s_amplitudes: list[core.S_Amplitude_Ratios],
+) -> dict[int, list[float]]:
+    """Azimuthal gap for each event
+
+    Parameters
+    ----------
+    phase_dict:
+        Dictionary of phases
+    p_amplitudes:
+        List of P-wave amplitude ratios
+    s_amplitudes:
+        List of S-wave amplitude ratios
+    Returns
+    -------
+    Mapping of event number to azimuthal gaps in descending order in degrees
+    """
+    ipev = utils.event_indices(p_amplitudes)
+    isev = utils.event_indices(s_amplitudes)
+
+    evns = set(ipev).union(isev)
+
+    # Mapping Phase ID -> azimuth
+    azis = {phid: phase.azimuth for phid, phase in phase_dict.items()}
+
+    # Mapping Event -> Wave IDs
+    wvobs = {
+        evn: set(
+            [(p_amplitudes[pev].station, "P") for pev in ipev[evn]]
+            + [(s_amplitudes[sev].station, "S") for sev in isev[evn]]
+        )
+        for evn in evns
+    }
+
+    gaps = {}
+    for evn in evns:
+        evazis = sorted(
+            [
+                azis[core.join_phaseid(evn, *sta_pha)]
+                for sta_pha in wvobs[evn]
+                if core.join_phaseid(evn, *sta_pha) in azis
+            ]
+        )
+
+        if len(evazis) < 1:
+            logger.debug(f"No azimuths for event {evn}")
+            continue
+
+        gaps[evn] = sorted(  # account for gap spanning 0 deg here --v
+            np.diff(sorted(set([azi for azi in evazis] + [evazis[0] + 360])))
+        )[::-1]
+
+    return gaps
