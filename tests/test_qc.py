@@ -282,3 +282,50 @@ def test_ps_amplitudes_s():
     ]
     ip, _ = qc._ps_amplitudes(samps)
     assert not ip
+
+
+def test_connected_events():
+    pamps = [
+        core.P_Amplitude_Ratio("STA1", 0, 1, *([0.0] * 7)),
+        core.P_Amplitude_Ratio("STA1", 0, 2, *([0.0] * 7)),
+    ]
+    samps = [
+        core.S_Amplitude_Ratios("STA1", 0, 1, 2, *([0.0] * 9)),
+    ]
+
+    # P and S are connected
+    cevs = qc.connected_events([0], pamps, samps)
+    assert cevs[0] == (2, 2)
+    assert cevs[1] == (1, 2)
+    assert cevs[2] == (1, 2)
+
+    # Only the P connections
+    cevs = qc.connected_events([0], pamps, None)
+    assert cevs[0] == (2, 0)
+    assert cevs[1] == (1, 0)
+    assert cevs[2] == (1, 0)
+
+    # Only the S connections
+    cevs = qc.connected_events([0], None, samps)
+    assert cevs[0] == (0, 2)
+    assert cevs[1] == (0, 2)
+    assert cevs[2] == (0, 2)
+
+    # An event thats not in the amplitude list
+    with pytest.raises(ValueError):
+        cevs = qc.connected_events([3], pamps, samps)
+
+    # No amplitudes at all
+    with pytest.raises(ValueError):
+        cevs = qc.connected_events([0], None, None)
+
+    # One seperate connection
+    pamps.append(core.P_Amplitude_Ratio("STA1", 5, 6, *([0.0] * 7)))
+    cevs = qc.connected_events([5], pamps, samps)
+    assert 0 not in cevs  # 0 is not connected
+    assert cevs[5] == (1, 0)
+    assert cevs[6] == (1, 0)
+
+    # The MTs are not connected with each other. Solve seperatly
+    with pytest.raises(RuntimeError):
+        cevs = qc.connected_events([0, 5], pamps, samps)

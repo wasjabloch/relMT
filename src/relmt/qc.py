@@ -707,7 +707,7 @@ def connected_events(
     reference_mts: list[int],
     p_amplitudes: list[core.P_Amplitude_Ratio] | None = None,
     s_amplitudes: list[core.S_Amplitude_Ratios] | None = None,
-) -> list[int]:
+) -> dict[int, tuple[int, int]]:
     """Event connected to the reference MTs
 
     Investigate the paired P- and triplet S-observations for connectivity. Only
@@ -724,7 +724,8 @@ def connected_events(
 
     Returns
     -------
-    Event indices of the connected events
+    Mapping of event indices of the connected events to number of P- and
+    S-connections
 
     Raises
     ------
@@ -735,14 +736,22 @@ def connected_events(
     """
 
     # Collect unique connections
-    cons = set()
-    for amp in p_amplitudes:
-        cons.add(tuple(sorted((amp.event_a, amp.event_b))))
+    pcons = set()
+    scons = set()
+    if p_amplitudes is not None:
+        for amp in p_amplitudes:
+            pcons.add(tuple(sorted((amp.event_a, amp.event_b))))
 
-    for amp in s_amplitudes:
-        cons.add(tuple(sorted((amp.event_a, amp.event_b))))
-        cons.add(tuple(sorted((amp.event_a, amp.event_c))))
-        cons.add(tuple(sorted((amp.event_b, amp.event_c))))
+    if s_amplitudes is not None:
+        for amp in s_amplitudes:
+            scons.add(tuple(sorted((amp.event_a, amp.event_b))))
+            scons.add(tuple(sorted((amp.event_a, amp.event_c))))
+            scons.add(tuple(sorted((amp.event_b, amp.event_c))))
+
+    cons = pcons.union(scons)
+
+    if len(cons) < 1:
+        raise ValueError("No connections")
 
     # Build a graph from the connections
     rows, cols = zip(*sorted(cons))  # Arbitrary order
@@ -778,5 +787,12 @@ def connected_events(
         )
         raise RuntimeError(msg)
 
-    # Indices of connected events
-    return (groups == igs[0]).nonzero()[0].tolist()
+    # If everything has worked, let's count the connections
+    pcount = Counter(np.array(list(pcons)).flat)
+    scount = Counter(np.array(list(scons)).flat)
+
+    connections = {
+        nev: (pcount[nev], scount[nev]) for nev in (groups == igs[0]).nonzero()[0]
+    }
+
+    return connections
