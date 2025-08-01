@@ -30,6 +30,7 @@ from datetime import datetime
 import logging
 from typing import Iterable
 from relmt import core, mt, signal, qc, angle
+from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -198,7 +199,11 @@ def event_indices(
         ).T
 
     evs = np.union1d(np.union1d(eva, evb), evc)
-    return {ev: ((eva == ev) | (evb == ev) | (evc == ev)).nonzero()[0] for ev in evs}
+    indices = defaultdict(
+        lambda: [],
+        {ev: ((eva == ev) | (evb == ev) | (evc == ev)).nonzero()[0] for ev in evs},
+    )
+    return indices
 
 
 def fisher_average(ccarr: np.ndarray, axis: int = -1) -> np.ndarray:
