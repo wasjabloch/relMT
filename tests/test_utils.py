@@ -308,6 +308,38 @@ def test_collect_takeoff():
     assert pytest.approx(ph) == ["P", "S"]
 
 
+def test_event_indices():
+    pamps = [
+        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.33, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 0, 2, 1.1, 1.5, 0.34, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", 0, 3, 1.2, 1.5, 0.35, 0.9, 0.1, 0.5, 20.0),
+    ]
+
+    indd = utils.event_indices(pamps)
+    assert indd[0] == pytest.approx([0, 1, 2])
+    assert indd[1] == pytest.approx([0])
+    assert indd[2] == pytest.approx([1])
+    assert indd[3] == pytest.approx([2])
+
+    samps = [
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 1, 2, 1.0, 11.2, 0.1, 0.33, 0.9, 0.1, 0.0, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 2, 3, 1.1, 11.2, 1.5, 0.34, 0.9, 0.1, 0.0, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA1", 0, 3, 4, 1.2, 11.2, 1.5, 0.35, 0.9, 0.1, 0.0, 0.5, 20.0
+        ),
+    ]
+
+    indd = utils.event_indices(samps)
+    assert indd[0] == pytest.approx([0, 1, 2])
+    assert indd[1] == pytest.approx([0])
+    assert indd[2] == pytest.approx([0, 1])
+    assert indd[3] == pytest.approx([1, 2])
+
+
 def test_reshape_ccvec():
     ns = 5
     ccin = 0.8

@@ -30,7 +30,6 @@ from datetime import datetime
 import logging
 from typing import Iterable
 from relmt import core, mt, signal, qc, angle
-import itertools
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -169,6 +168,37 @@ def reshape_ccvec(ccvec: np.ndarray, ns: int) -> np.ndarray:
         cc[j, i, k] = val
 
     return cc
+
+
+def event_indices(
+    amps: list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios],
+) -> dict[int, np.ndarray]:
+    """Index arrays of unique event numbers
+
+    For each event, find the constributing pair or triplet wise amplitude observations
+
+    Parameters
+    ----------
+    amps:
+        List of amplitude observations, either P or S
+
+    Returns
+    -------
+    Mapping from event number to observation indices
+    """
+
+    ip, _ = qc._ps_amplitudes(amps)
+
+    if ip:
+        eva, evb = np.array([(amp.event_a, amp.event_b) for amp in amps]).T
+        evc = eva
+    else:
+        eva, evb, evc = np.array(
+            [(amp.event_a, amp.event_b, amp.event_c) for amp in amps]
+        ).T
+
+    evs = np.union1d(np.union1d(eva, evb), evc)
+    return {ev: ((eva == ev) | (evb == ev) | (evc == ev)).nonzero()[0] for ev in evs}
 
 
 def fisher_average(ccarr: np.ndarray, axis: int = -1) -> np.ndarray:
