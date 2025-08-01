@@ -97,11 +97,10 @@ def test_azimuth_gap():
         "0_STA1_P": core.Phase(0, 10, 0),
         "0_STA2_P": core.Phase(0, 180, 0),
         "0_STA3_S": core.Phase(0, 355, 0),
+        "1_STA1_P": core.Phase(0, 10, 0),  # Just one obersvation
     }
 
-    gaps = [175, 170, 15]
-
     gapd = angle.azimuth_gap(phd, pamps, samps)
-    assert pytest.approx(gapd[0]) == gaps
-    assert 1 not in gapd
+    assert pytest.approx(gapd[0]) == [175, 170, 15]
+    assert pytest.approx(gapd[1]) == [360]
     assert 2 not in gapd  # No azimuth info available
