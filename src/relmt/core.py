@@ -70,6 +70,10 @@ basenames = {
         "Relative moment tensor elements",
         "relative_mt.txt",
     ),
+    "mt_summary": (
+        "Summary of moment tensor results",
+        "mt_summary.txt",
+    ),
     "bootstrap_mt": (
         "Relative moment tensors from bootstrap subsampling",
         "bootstrap_mts.txt",
@@ -198,6 +202,7 @@ def file(
     elif file_id in [
         "relative_mt",
         "bootstrap_mt",
+        "mt_summary",
         "bootstrap_statistics",
         "amplitude_summary",
     ]:
