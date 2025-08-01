@@ -31,7 +31,6 @@ import zoneinfo
 import tempfile
 import numpy as np
 import os
-import yaml
 from pathlib import Path
 
 
@@ -643,3 +642,22 @@ def test_read_ext_mt_table():
     assert tuple(mt_dict.keys()) == (0, 2)  # Events present in table
     assert mt_dict[0] == pytest.approx(mt0)
     assert mt_dict[2] == pytest.approx(mt1, rel=5e-2)
+
+
+def test_save_mt_result_summary():
+    evd = {
+        0: core.Event(*([0] * 5), "EV0"),
+        1: core.Event(*([0] * 5), "EV1"),
+    }
+    mtd = {
+        0: core.MT(*([1.0e9] * 6)),
+        1: core.MT(*([2.0e9] * 6)),
+    }
+
+    mis = corr = mom_rms = amp_rms = {0: 0.5}
+    gaps = links = {0: (1, 2)}
+
+    with tempfile.NamedTemporaryFile("w") as fid:
+        io.save_mt_result_summary(
+            fid.name, evd, mtd, gaps, links, mis, corr, mom_rms, amp_rms
+        )

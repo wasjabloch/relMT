@@ -203,12 +203,12 @@ def make_event_table(
     """
 
     # Header
-    out = "#Number     Northing      Easting       Depth         Origintime"
-    out += " Magnitude             Name\n"
+    out = "#Number     Northing      Easting       Depth"
+    out += "               Origintime Magnitude                 Name\n"
     out += "# (int)      (meter)      (meter)     (meter)          (seconds)"
     out += "       (-)            (str)\n"
 
-    form = "{:>7d} {:>12.3f} {:>12.3f} {:>11.3f} {: 12.6f} {:>9.4f} {:>16s}\n"
+    form = "{:>7d} {:>12.3f} {:>12.3f} {:>11.3f} {: 18.6f} {:>9.4f} {:>20s}\n"
 
     for iev, (north, east, depth, time, mag, name) in event_dict.items():
         out += form.format(iev, north, east, depth, time, mag, name)
@@ -679,71 +679,167 @@ def save_amplitudes(
 
 
 def save_mt_result_summary(
+    filename: str | Path,
     event_dict: dict[int, core.Event],
     mt_dict: dict[int, core.MT],
-    filename: str | Path,
-    geoconverter: Callable | None = None,
+    gaps: dict[int, np.ndarray] = {},
+    links: dict[int, tuple[int, int]] = {},
+    misfits: dict[int, float] = {},
+    correlations: dict[int, float] = {},
+    moment_rms: dict[int, float] = {},
+    amplitude_rms: dict[int, float] = {},
 ):
     """Combine moment tensor dictionary and event table and write out resut table"""
-    nlen = max(len(ev.name) for ev in event_dict.values())
-    typs = np.dtype(
-        [
-            ("name", f"U{nlen}"),
-            ("north", float),
-            ("east", float),
-            ("depth", float),
-            ("time", float),
-            ("ml", float),
-            ("mw", float),
-            ("nn", float),
-            ("ee", float),
-            ("dd", float),
-            ("ne", float),
-            ("nd", float),
-            ("ed", float),
-        ]
-    )
-
-    if geoconverter is not None:
-        north, east, depth = geoconverter(north, east, depth)
 
     evd = event_dict
 
-    np.savetxt(
-        filename,
+    # Event number and name
+    arrays = [np.array([evn for evn in mt_dict])]
+    arrays += [np.array([evd[evn].name for evn in mt_dict])]
+
+    # A priori floats
+    arrays += np.hsplit(
         np.array(
             [
                 (
-                    evd[iev].name,
-                    evd[iev].north,
-                    evd[iev].east,
-                    evd[iev].depth,
-                    evd[iev].time,
-                    evd[iev].mag,
+                    evd[evn].north,
+                    evd[evn].east,
+                    evd[evn].depth,
+                    evd[evn].time,
+                    evd[evn].mag,
+                    gaps.get(evn, [np.nan])[0],  # First and second azimuthal gap
+                    (
+                        gaps.get(evn, [np.nan])[1]
+                        if len(gaps.get(evn, [])) > 1
+                        else np.nan
+                    ),
+                    float(links.get(evn, [np.nan])[0]),  # P-links
+                    float(links.get(evn, [np.nan, np.nan])[1]),  # S-links
+                    misfits.get(evn, np.nan),
+                    correlations.get(evn, np.nan),
+                    moment_rms.get(evn, np.nan),
+                    amplitude_rms.get(evn, np.nan),
                     mt.magnitude_of_moment(mt.moment_of_vector(momt)),
                     *momt,
                 )
-                for iev, momt in mt_dict.items()
-            ],
-            dtype=typs,
+                for evn, momt in mt_dict.items()
+            ]
         ),
-        fmt="%20s %12.3f %12.3f %12.3f %12.6f %6.2f %6.2f %13.6e %13.6e "
-        "%13.6e %13.6e %13.6e %13.6e",
-        header=(
-            "Event               "
-            + "North       "
-            + "East         "
-            + "Depth        "
-            + "Time              "
-            + "Ml     "
-            + "Mw     "
-            + "nn            "
-            + "ee            "
-            + "dd            "
-            + "ne            "
-            + "nd            "
-            + "ed            "
-        ),
+        20,
+    )
+
+    headers = [
+        "#   Event",
+        "                Name",
+        "       North",
+        "        East",
+        "       Depth",
+        "              Time",
+        "    Ml",
+        "    Mw",
+        "Gap1",
+        "Gap2",
+        "  P-links",
+        "  S-links",
+        "  Misfit",
+        "Correlation",
+        "MomentRMS",
+        "AmplitudeRMS",
+        "           nn",
+        "           ee",
+        "           dd",
+        "           ne",
+        "           nd",
+        "           ed",
+    ]
+
+    fmts = (
+        "%9s %20s %12.3f %12.3f %12.3f %18.6f %6.2f %6.2f %4.0f %4.0f %9.0f "
+        "%9.0f %8.4f %11.5f %9.2e %12.2e %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e"
+    ).split()
+
+    write_formatted_table(arrays, fmts, headers, filename)
+
+
+def write_formatted_table(
+    arrays: list[np.ndarray],
+    formatters: list[str],
+    headers: list[str],
+    outfile: str,
+    delim=" ",
+):
+    """
+    Write a mixed-type table to a text file.
+
+    Parameters
+    ----------
+    arrays:
+        Each array is one column; all must have the same length and be of
+        `dtype` `int`, `float` or `str`-like
+    formatters:
+        A printf-style format specifier for each column, e.g. ['%s','%.2f','%04d'].
+    headers:
+        Column names, same length as arrays. Will be joined with `delim`
+    outfile:
+        Path to write, or an already-open file handle.
+    delim:
+        Field delimiter.
+    """
+
+    # Inspired by ChatGPT 4o-mini-high
+    # Sanity checks
+    ncols = len(arrays)
+    if not (len(formatters) == ncols == len(headers)):
+        msg = "'arrays', 'formatters' and 'headers' must all have the same length"
+        raise ValueError(msg)
+
+    # ensure all arrays are 1D and same length
+    lengths = [arr.shape[0] for arr in arrays]
+    if len({*lengths}) != 1:
+        raise ValueError("All arrays must have the same number of rows")
+    nrows = lengths[0]
+
+    # Create a structured array for output
+    dtype_fields = []
+    proc_cols = []
+
+    for idx, arr in enumerate(arrays):
+        fmt = formatters[idx]
+
+        # treat anything with '%s' or non-numeric dtype as “string” column
+        if fmt.endswith("s") or arr.dtype.kind in ("U", "S", "O"):
+            # convert all values to Python str
+            col_str = arr.astype(str)
+            # find max string length
+            maxlen = max(len(x) for x in col_str)
+            # Unicode string field of exactly maxlen characters
+            dtype_fields.append((f"f{idx}", f"<U{maxlen}"))
+            proc_cols.append(col_str)
+
+        else:
+            # numeric column: preserve or cast dtype
+            if arr.dtype.kind not in ("i", "f"):
+                arr = arr.astype(float)
+            dtype_fields.append((f"f{idx}", arr.dtype))
+            proc_cols.append(arr)
+
+    # build structured dtype
+    dtypes = np.dtype(dtype_fields)
+
+    # --- 3) Build a list of row-tuples ---
+    # note: list(...) so numpy.savetxt can infer shape
+    # TODO: is this really necessary? Appears like a massive bottle neck
+    rows = [tuple(col[i] for col in proc_cols) for i in range(nrows)]
+
+    # --- 4) Convert to structured array and write ---
+    structured_arr = np.array(rows, dtype=dtypes)
+    np.savetxt(
+        outfile,
+        structured_arr,
+        fmt=formatters,
+        delimiter=delim,
+        header=delim.join(headers),
+        comments="",  # no leading '#' on header
     )
 
 
