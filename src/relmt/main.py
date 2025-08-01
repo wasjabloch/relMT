@@ -26,7 +26,7 @@
 """Main relMT executables"""
 
 import logging
-from relmt import io, utils, align, core, signal, extra, amp, ls, mt, qc
+from relmt import io, utils, align, core, signal, extra, amp, ls, mt, qc, angle
 from scipy.sparse import coo_matrix
 from pathlib import Path
 import yaml
@@ -828,7 +828,8 @@ def main_solve(config: core.Config, directory: Path = Path()):
     )
 
     # Find the connected events, given moment tensors
-    incl_ev = qc.connected_events(irefs, p_amplitudes, s_amplitudes)
+    links = qc.connected_events(irefs, p_amplitudes, s_amplitudes)
+    incl_ev = list(links)  # Only event list, no connection count
 
     # Reduced set of amplitudes, containing only valid observations
     pamp_subset = [
@@ -903,6 +904,8 @@ def main_solve(config: core.Config, directory: Path = Path()):
 
     # Invert and save results
     m, residuals = ls.solve_lsmr(A, b, ev_scale)
+
+    # Moment residuals
     p_residuals, s_residuals, _ = ls.unpack_resiudals(
         residuals, n_p, n_ref, mt_elements
     )
@@ -912,6 +915,11 @@ def main_solve(config: core.Config, directory: Path = Path()):
         for i, momt in enumerate(mt.mt_tuples(m, constraint))
         if any(momt)
     }
+
+    # Save the results right away
+    io.make_mt_table(
+        relmts, core.file("relative_mt", suffix=outsuf, directory=directory)
+    )
 
     # Compute synthetic amplitudes and posteori-residuals
     logger.info("Computing synthetic amplitudes and residuals")
@@ -928,16 +936,66 @@ def main_solve(config: core.Config, directory: Path = Path()):
         False,
     )
 
+    # Amplitude oberservations
     Aobs = np.array([pamp.amp_ab for pamp in pamp_subset])
     B1obs = np.array([samp.amp_abc for samp in samp_subset])
     B2obs = np.array([samp.amp_acb for samp in samp_subset])
 
+    # Amplitude residuals
     Ares = Aobs / Asyn
     B1res = B1obs / Bsyn[:, 0]
     B2res = B2obs / Bsyn[:, 1]
 
-    io.make_mt_table(
-        relmts, core.file("relative_mt", suffix=outsuf, directory=directory)
+    # Indices in subsets of events
+    ievp = utils.event_indices(pamp_subset)
+    ievs = utils.event_indices(samp_subset)
+
+    # Moment RMS per event
+    mom_rmss = {
+        evn: (
+            np.sum(p_residuals[ievp[evn]] ** 2) + np.sum(s_residuals[ievs[evn], :] ** 2)
+        )
+        / (len(ievp[evn]) + 2 * len(ievs[evn]))
+        for evn in relmts
+    }
+
+    # amplitude RMS per event
+    amp_rmss = {
+        evn: (
+            np.sum(Ares[ievp[evn]] ** 2)
+            + np.sum(B1res[ievs[evn]] ** 2)
+            + np.sum(B2res[ievs[evn]] ** 2)
+        )
+        / (len(ievp[evn]) + 2 * len(ievs[evn]))
+        for evn in relmts
+    }
+
+    # Average misfits and correlation coefficients
+    misps, ccps = np.array([(amp.misfit, amp.correlation) for amp in pamp_subset]).T
+    misss, ccss = np.array([(amp.misfit, amp.correlation) for amp in samp_subset]).T
+
+    avmiss = {
+        evn: np.mean(np.concatenate((misps[ievp[evn]], misss[ievs[evn]])))
+        for evn in relmts
+    }
+
+    avccs = {
+        evn: utils.fisher_average(np.concatenate((ccps[ievp[evn]], ccss[ievs[evn]])))
+        for evn in relmts
+    }
+
+    gaps = angle.azimuth_gap(phd, pamp_subset, samp_subset)
+
+    io.save_mt_result_summary(
+        core.file("mt_summary", suffix=outsuf, directory=directory),
+        evd,
+        relmts,
+        gaps,
+        links,
+        avmiss,
+        avccs,
+        mom_rmss,
+        amp_rmss,
     )
 
     # Save reduced amplitude set to file. Use the output suffix.
