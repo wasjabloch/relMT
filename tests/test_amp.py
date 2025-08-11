@@ -165,7 +165,7 @@ def test_pca_amplitudes_s():
 
     assert sigma == pytest.approx([0.5, 0.5, 0.0], abs=0.1)
 
-    for n, (a, b, c, _, _, _) in enumerate(core.iterate_event_triplet(4)):
+    for n, (a, b, c) in enumerate(core.iterate_event_triplet(4)):
 
         # Let's apply the order
         isort = np.array([a, b, c])[iords[n]]
@@ -214,9 +214,8 @@ def test_synthetic():
         for k in range(j + 1, len(evl))
     ]
 
-    Aab, Babc, orders, psig, ssig = amp.synthetic(
-        mtd, evl, stad, phd, p_pairs, s_triplets
-    )
+    Aab, psig = amp.synthetic_p(mtd, evl, stad, phd, p_pairs)
+    Babc, orders, ssig = amp.synthetic_s(mtd, evl, stad, phd, s_triplets)
 
     assert np.isclose(psig, [1.0, 0.0]).all()
     assert np.isclose(ssig, [0.7, 0.3, 0.0], atol=0.2).all()
@@ -237,7 +236,7 @@ def test_synthetic():
         assert pytest.approx(Babc[n, 0] * ub + Babc[n, 1] * uc) == ua
 
     # Let's try not to reorder the S wavefroms for PCA
-    _, Babc, *_ = amp.synthetic(mtd, evl, stad, phd, p_pairs, s_triplets, order=False)
+    Babc, *_ = amp.synthetic_s(mtd, evl, stad, phd, s_triplets, keep_order=True)
 
     # Now check the S amplitudes
     for n, (s, a, b, c) in enumerate(s_triplets):
