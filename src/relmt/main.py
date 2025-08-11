@@ -127,6 +127,7 @@ def main_exclude(
     directory: Path = Path("."),
     donodata: bool = False,
     dosnr: bool = False,
+    docc: bool = False,
     doecn: bool = False,
 ):
     """Exclude observations from alignment procedure"""
@@ -147,7 +148,7 @@ def main_exclude(
     stas = set(stas) - set(excl["station"])
 
     # Collect new excludes in this dictionary
-    excludes = {"no_data": [], "snr": [], "ecn": []}
+    excludes = {"no_data": [], "snr": [], "cc": [], "ecn": []}
 
     for wvid in core.iterate_waveid(stas):
 
@@ -184,6 +185,17 @@ def main_exclude(
             isnr = snr < minsnr
             logger.debug(f"{wvid}: {sum(isnr)} traces with SNR < {minsnr}")
 
+        icc = np.full_like(ind, False)
+        if (mincc := hdr["min_correlation"]) is not None:
+            mat = utils.concat_components(
+                signal.demean_filter_window(
+                    arr, **hdr.kwargs(signal.demean_filter_window)
+                )
+            )
+            cc = signal.reconstruction_correlation_averages(mat, hdr["phase"])[2]
+            icc = cc < mincc
+            logger.debug(f"{wvid}: {sum(icc)} traces with CC < {mincc}")
+
         iecn = np.full_like(ind, False)
         if (minecn := hdr["min_expansion_coefficient_norm"]) is not None:
             arr = signal.demean_filter_window(
@@ -191,17 +203,19 @@ def main_exclude(
             )
             ec_score = qc.expansion_coefficient_norm(arr, pha)
             iecn = ec_score < minecn
-            logger.debug(f"{wvid}: {sum(isnr)} traces with ECN < {minecn}")
+            logger.debug(f"{wvid}: {sum(iecn)} traces with ECN < {minecn}")
 
         # Write the full phase ID to the exclude lists
         excludes["no_data"] += [core.join_phaseid(iev, sta, pha) for iev in events[ind]]
         excludes["snr"] += [core.join_phaseid(iev, sta, pha) for iev in events[isnr]]
+        excludes["cc"] += [core.join_phaseid(iev, sta, pha) for iev in events[icc]]
         excludes["ecn"] += [core.join_phaseid(iev, sta, pha) for iev in events[iecn]]
 
     # Add the exludes already present, in case we don't want to overwrite
     if not overwrite:
         excludes["no_data"] += excl["phase_auto_nodata"]
         excludes["snr"] += excl["phase_auto_snr"]
+        excludes["cc"] += excl["phase_auto_cc"]
         excludes["ecn"] += excl["phase_auto_ecn"]
 
     # Write everything into the exclude dict
@@ -212,6 +226,10 @@ def main_exclude(
     if dosnr:
         logger.info(f"Excluding {len(excludes['snr'])} traces with SNR < {minsnr}")
         excl["phase_auto_snr"] = excludes["snr"]
+
+    if docc:
+        logger.info(f"Excluding {len(excludes['cc'])} traces with CC < {mincc}")
+        excl["phase_auto_cc"] = excludes["cc"]
 
     if doecn:
         logger.info(f"Excluding {len(excludes['ecn'])} traces with ECN < {minecn}")
@@ -286,10 +304,10 @@ def phase_passbands(
     pha = hdr["phase"]
 
     # At least one period within window
-    fmin = 1 / (hdr["phase_end"] - hdr["phase_start"])
+    fmin = 1.0 / (hdr["phase_end"] - hdr["phase_start"])
 
     # One sample more than the Nyquist frequency
-    fnyq = (arr.shape[-1] - 1) / hdr["data_window"] / 2
+    fnyq = (arr.shape[-1] - 1.0) / hdr["data_window"] / 2
 
     bpd = {}
     for iev, evn in zip(ievs, evns):
@@ -479,6 +497,11 @@ def main_amplitude(
 
             # Make sure what's excluded is excluded
             ievs, evns = qc.included_events(exclude, **hdr.kwargs(qc.included_events))
+
+            if len(ievs) < 1:
+                logger.warning(f"No events included for {wvid}. Continuing.")
+                continue
+
             xarr = arr[ievs, :, :]
             hdr["events"] = evns
 
@@ -493,7 +516,7 @@ def main_amplitude(
 
             # Look up correct passband and collect the arguments
             if pha == "P":
-                for a, b, _, _ in core.iterate_event_pair(len(evns)):
+                for a, b in core.iterate_event_pair(len(evns)):
 
                     hpas, lpas = signal.choose_passband(
                         [pasbnds[wvid][evns[i]][0] for i in [a, b]],
@@ -523,7 +546,8 @@ def main_amplitude(
                         )
 
             if pha == "S":
-                for a, b, c, _, _, _ in core.iterate_event_triplet(len(evns), evns):
+
+                for a, b, c in core.iterate_event_triplet(len(evns)):
                     hpas, lpas = signal.choose_passband(
                         [pasbnds[wvid][evns[i]][0] for i in [a, b, c]],
                         [pasbnds[wvid][evns[i]][1] for i in [a, b, c]],
@@ -608,6 +632,7 @@ def main_amplitude(
     else:
         raise ValueError(f"Unknown 'amplitude_measure': {compare_method}")
 
+    logger.info(f"Collected {len(pargs)} P- and {len(sargs)} S-combinations")
     logger.info("Computing relative P-amplitudes...")
     # First process and save P ...
     if ncpu > 1:
@@ -688,6 +713,14 @@ def main_qc(config: core.Config, directory: Path):
 
     ampsuf = config["amplitude_suffix"]
 
+    exclude_phase = set(exclude["phase_manual"]).union(
+        exclude["phase_auto_nodata"]
+        + exclude["phase_auto_snr"]
+        + exclude["phase_auto_ecn"]
+    )
+
+    exclude_events = set(exclude["event"])
+
     evd = io.read_event_table(config["event_file"])
     phd = io.read_phase_table(config["phase_file"])
 
@@ -706,11 +739,14 @@ def main_qc(config: core.Config, directory: Path):
 
         # Read the files again, this time unpack QCed values in arrays
         if ph == "P":
-            sta, _, _, amp1, mis, *_ = io.read_amplitudes(infile, ph, unpack=True)
+            sta, eva, evb, amp1, mis, cc, *_ = io.read_amplitudes(
+                infile, ph, unpack=True
+            )
             s1 = np.full_like(mis, -np.inf)  # Never exclud
             amp2 = np.zeros_like(amp1)  # No second amplitude
+            evc = eva
         else:
-            sta, _, _, _, amp1, amp2, mis, s1, *_ = io.read_amplitudes(
+            sta, eva, evb, evc, amp1, amp2, mis, cc, s1, *_ = io.read_amplitudes(
                 infile, ph, unpack=True
             )
 
@@ -718,6 +754,22 @@ def main_qc(config: core.Config, directory: Path):
 
         # Stations
         iout = np.isin(sta, exclude_stations)
+
+        # Phases
+        iout |= [
+            np.any(
+                (
+                    core.join_phaseid(a, s, ph) in exclude_phase,
+                    core.join_phaseid(b, s, ph) in exclude_phase,
+                    core.join_phaseid(c, s, ph) in exclude_phase,
+                    a in exclude_events,
+                    b in exclude_events,
+                    c in exclude_events,
+                )
+            )
+            for a, b, c, s in zip(eva, evb, evc, sta)
+        ]
+
         logger.info(
             f"Excluded {(nout := sum(iout))} {ph}-observations from exclude file"
         )
@@ -778,7 +830,7 @@ def main_qc(config: core.Config, directory: Path):
         io.save_amplitudes(outfile, amps)
 
 
-def main_solve(config: core.Config, directory: Path = Path()):
+def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0):
     """Construct and validate linear system from amplitude measurement. Solve
     for moment tensors."""
 
@@ -804,6 +856,12 @@ def main_solve(config: core.Config, directory: Path = Path()):
         raise ValueError(msg)
 
     insuf = config["amplitude_suffix"] + core.clean_amplitude_suffix
+    synsuf = (
+        config["amplitude_suffix"]
+        + "-"
+        + config["result_suffix"]
+        + core.synthetic_amplitude_suffix
+    )
     outsuf = config["result_suffix"]
 
     mt_elements = ls.mt_elements(constraint)
@@ -820,6 +878,7 @@ def main_solve(config: core.Config, directory: Path = Path()):
         ),
         "P",
     )
+
     s_amplitudes = io.read_amplitudes(
         core.file(
             "amplitude_observation", phase="S", suffix=insuf, directory=directory
@@ -923,18 +982,113 @@ def main_solve(config: core.Config, directory: Path = Path()):
 
     # Compute synthetic amplitudes and posteori-residuals
     logger.info("Computing synthetic amplitudes and residuals")
-    Asyn, Bsyn, *_ = amp.synthetic(
+    p_pairs = [(pamp.station, pamp.event_a, pamp.event_b) for pamp in pamp_subset]
+    p_sta = set(p_pair[0] for p_pair in p_pairs)
+
+    Asyn, p_sigmas = amp.synthetic_p(relmts, evd, stad, phd, p_pairs)
+
+    s_triplets = [
+        (samp.station, samp.event_a, samp.event_b, samp.event_c) for samp in samp_subset
+    ]
+    s_sta = set(s_trip[0] for s_trip in s_triplets)
+
+    Bsyn, _, s_sigmas = amp.synthetic_s(
         relmts,
         evd,
         stad,
         phd,
-        [(pamp.station, pamp.event_a, pamp.event_b) for pamp in pamp_subset],
-        [
-            (samp.station, samp.event_a, samp.event_b, samp.event_c)
-            for samp in samp_subset
-        ],
+        s_triplets,
         False,
     )
+
+    # Load the waveforms to compute a posteori misfits and ccs
+    arrd = {}
+    hdrd = {}
+    for stas, pha in zip([p_sta, s_sta], "PS"):
+        for sta in stas:
+            wvid = core.join_waveid(sta, pha)
+            arrd[wvid], hdrd[wvid] = io.read_waveform_array_header(
+                sta, pha, iteration, directory
+            )
+
+    logger.info("Computing amplitude misfits and correlations...")
+
+    pamp_synthetic = [
+        core.P_Amplitude_Ratio(
+            pamp.station,
+            pamp.event_a,
+            pamp.event_b,
+            Aab,
+            amp.p_misfit(
+                mat := utils.concat_components(
+                    signal.demean_filter_window(
+                        arrd[core.join_waveid(pamp.station, "P")][
+                            [
+                                (hdr := hdrd[core.join_waveid(pamp.station, "P")])[
+                                    "events"
+                                ].index(pamp.event_a),
+                                hdr["events"].index(pamp.event_b),
+                            ]
+                        ],
+                        hdr["sampling_rate"],
+                        hdr["phase_start"],
+                        hdr["phase_end"],
+                        hdr["taper_length"],
+                        pamp.highpass,
+                        pamp.lowpass,
+                    )
+                ),
+                Aab,
+            ),
+            amp.p_reconstruction_correlation(mat),
+            p_sigma[0],
+            p_sigma[1],
+            pamp.highpass,
+            pamp.lowpass,
+        )
+        for pamp, Aab, p_sigma in zip(pamp_subset, Asyn, p_sigmas)
+    ]
+
+    samp_synthetic = [
+        core.S_Amplitude_Ratios(
+            samp.station,
+            samp.event_a,
+            samp.event_b,
+            samp.event_c,
+            B[0],
+            B[1],
+            amp.s_misfit(
+                mat := utils.concat_components(
+                    signal.demean_filter_window(
+                        arrd[core.join_waveid(samp.station, "S")][
+                            [
+                                (hdr := hdrd[core.join_waveid(samp.station, "S")])[
+                                    "events"
+                                ].index(samp.event_a),
+                                hdr["events"].index(samp.event_b),
+                                hdr["events"].index(samp.event_c),
+                            ]
+                        ],
+                        hdr["sampling_rate"],
+                        hdr["phase_start"],
+                        hdr["phase_end"],
+                        hdr["taper_length"],
+                        samp.highpass,
+                        samp.lowpass,
+                    )
+                ),
+                B[0],
+                B[1],
+            ),
+            amp.s_reconstruction_correlation(mat, B[0], B[1]),
+            s_sigma[0],
+            s_sigma[1],
+            s_sigma[2],
+            samp.highpass,
+            samp.lowpass,
+        )
+        for samp, B, s_sigma in zip(samp_subset, Bsyn, s_sigmas)
+    ]
 
     # Amplitude oberservations
     Aobs = np.array([pamp.amp_ab for pamp in pamp_subset])
@@ -945,6 +1099,8 @@ def main_solve(config: core.Config, directory: Path = Path()):
     Ares = Aobs / Asyn
     B1res = B1obs / Bsyn[:, 0]
     B2res = B2obs / Bsyn[:, 1]
+
+    logger.info("Collecting event statistics...")
 
     # Indices in subsets of events
     ievp = utils.event_indices(pamp_subset)
@@ -986,6 +1142,7 @@ def main_solve(config: core.Config, directory: Path = Path()):
 
     gaps = angle.azimuth_gap(phd, pamp_subset, samp_subset)
 
+    logger.info("Saving files.")
     io.save_mt_result_summary(
         core.file("mt_summary", suffix=outsuf, directory=directory),
         evd,
@@ -998,6 +1155,15 @@ def main_solve(config: core.Config, directory: Path = Path()):
         amp_rmss,
     )
 
+    for ph, amps in zip("PS", [pamp_synthetic, samp_synthetic]):
+        outfile = core.file(
+            "amplitude_observation",
+            directory=directory,
+            phase=ph,
+            suffix=synsuf,
+        )
+        io.save_amplitudes(outfile, amps)
+
     # Save reduced amplitude set to file. Use the output suffix.
     io.save_amplitudes(
         core.file("amplitude_summary", phase="P", suffix=outsuf, directory=directory),
@@ -1009,7 +1175,8 @@ def main_solve(config: core.Config, directory: Path = Path()):
             amp_weights[:n_p].flat[:],
             eq_norm[:n_p].flat[:],
         ],
-        ["Residual_AB", "Aab_Misprediction", "mis_weight", "amp_weight", "eq_norm"],
+        [" MomResidual", "AmpResidual", "MisfitWght", "AmplWght", "EquationNorm"],
+        ["{:11.3e}", "{:11.3e}", "{:10.5f}", "{:8.4f}", "{:7.4e}"],
     )
 
     io.save_amplitudes(
@@ -1026,14 +1193,24 @@ def main_solve(config: core.Config, directory: Path = Path()):
             eq_norm[n_p + 1 : n_p + n_s : 2].flat[:],
         ],
         [
-            "Residual_ABC",
-            "Residual_ACB",
-            "ABC_Misprediction",
-            "ACB_Misprediction",
-            "mis_weight",
-            "amp_weight",
-            "eq_norm",
-            "eq_norm2",
+            " MomResidual1",
+            "MomResidual2",
+            "AmpResidual1",
+            "AmpResidual2",
+            "MisfitWght",
+            "AmplWght",
+            "EquatNorm1",
+            "EquatNorm2",
+        ],
+        [
+            "{:12.3e}",
+            "{:12.3e}",
+            "{:12.3e}",
+            "{:12.3e}",
+            "{:10.5f}",
+            "{:8.4f}",
+            "{:7.4e}",
+            "{:7.4e}",
         ],
     )
 
@@ -1127,8 +1304,17 @@ Software for computing relative seismic moment tensors"""
         "--snr",
         action="store_true",
         help=(
-            "Exlude data with signal to noise ratio higher than "
-            "'min_signal_noise_ratio' in the configuration file"
+            "Exlude data with signal to noise ratio lower than "
+            "'min_signal_noise_ratio' in the station header file"
+        ),
+    )
+
+    exclude_p.add_argument(
+        "--cc",
+        action="store_true",
+        help=(
+            "Exlude data with correlation coefficient lower than "
+            "'min_correlation' in the station header file"
         ),
     )
 
@@ -1136,8 +1322,8 @@ Software for computing relative seismic moment tensors"""
         "--ecn",
         action="store_true",
         help=(
-            "Exlude data with expansion coefficient norm higher than "
-            "'min_expansion_coefficient_norm' in the configuration file"
+            "Exlude data with expansion coefficient norm lower than "
+            "'min_expansion_coefficient_norm' in the station header file"
         ),
     )
 
@@ -1168,10 +1354,19 @@ def main(args=None):
     parent = conff.parent
 
     kwargs = dict(directory=parent)
+    if parsed.mode == "solve":
+        kwargs.update(dict(iteration=n_align))
     if parsed.mode == "amplitude" or parsed.mode == "align" or parsed.mode == "exclude":
         kwargs.update(dict(iteration=n_align, overwrite=overwrite))
     if parsed.mode == "exclude":
-        kwargs.update(dict(donodata=parsed.no_data, dosnr=parsed.snr, doecn=parsed.ecn))
+        kwargs.update(
+            dict(
+                donodata=parsed.no_data,
+                dosnr=parsed.snr,
+                docc=parsed.cc,
+                doecn=parsed.ecn,
+            )
+        )
 
     # The command to be executed is defined above for each of the subparsers
     parsed.command(config, **kwargs)
