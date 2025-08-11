@@ -661,7 +661,10 @@ def save_amplitudes(
         msg = f"Found {ncol} index columns, but only 9 or 11 are allowed."
         raise IndexError(msg)
 
-    fmt += " ".join(["{:20.13e}"] * len(more_data))
+    if more_formats is not None:
+        fmt += " ".join(more_formats)
+    else:
+        fmt += " ".join(["{:20.13e}"] * len(more_data))
     fmt += "\n"
 
     out += " ".join(more_names)
@@ -695,6 +698,8 @@ def save_mt_result_summary(
 
     # Event number and name
     arrays = [np.array([evn for evn in mt_dict])]
+    arrays += np.hsplit(np.array([momt for momt in mt_dict.values()]), 6)
+
     arrays += [np.array([evd[evn].name for evn in mt_dict])]
 
     # A priori floats
@@ -707,6 +712,7 @@ def save_mt_result_summary(
                     evd[evn].depth,
                     evd[evn].time,
                     evd[evn].mag,
+                    mt.magnitude_of_moment(mt.moment_of_vector(momt)),
                     gaps.get(evn, [np.nan])[0],  # First and second azimuthal gap
                     (
                         gaps.get(evn, [np.nan])[1]
@@ -719,24 +725,28 @@ def save_mt_result_summary(
                     correlations.get(evn, np.nan),
                     moment_rms.get(evn, np.nan),
                     amplitude_rms.get(evn, np.nan),
-                    mt.magnitude_of_moment(mt.moment_of_vector(momt)),
-                    *momt,
                 )
                 for evn, momt in mt_dict.items()
             ]
         ),
-        20,
+        14,
     )
 
     headers = [
         "#   Event",
+        "           nn",
+        "           ee",
+        "           dd",
+        "           ne",
+        "           nd",
+        "           ed",
         "                Name",
         "       North",
         "        East",
         "       Depth",
         "              Time",
-        "    Ml",
-        "    Mw",
+        "  Ml",
+        "  Mw",
         "Gap1",
         "Gap2",
         "  P-links",
@@ -745,17 +755,11 @@ def save_mt_result_summary(
         "Correlation",
         "MomentRMS",
         "AmplitudeRMS",
-        "           nn",
-        "           ee",
-        "           dd",
-        "           ne",
-        "           nd",
-        "           ed",
     ]
 
     fmts = (
-        "%9s %20s %12.3f %12.3f %12.3f %18.6f %6.2f %6.2f %4.0f %4.0f %9.0f "
-        "%9.0f %8.4f %11.5f %9.2e %12.2e %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e"
+        "%9s %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e %20s %12.3f %12.3f %12.3f "
+        "%18.6f %4.2f %4.2f %4.0f %4.0f %9.0f %9.0f %8.4f %11.5f %9.2e %12.2e"
     ).split()
 
     write_formatted_table(arrays, fmts, headers, filename)
@@ -876,34 +880,34 @@ def read_amplitudes(filename: str, phase: str, unpack: bool = False):
     stas = np.loadtxt(filename, usecols=0, dtype=str)
 
     if phase.upper() == "P":
-        X = np.loadtxt(filename, usecols=(1, 2, 3, 4, 5, 6, 7, 8, 9), ndmin=2)
+        events = np.loadtxt(filename, usecols=(1, 2), dtype=int, ndmin=2)
+        X = np.loadtxt(filename, usecols=(3, 4, 5, 6, 7, 8, 9), ndmin=2)
 
         if unpack:
-            return stas, *X.T
+            return stas, *events.T, *X.T
 
         return [
             core.P_Amplitude_Ratio(sta, ia, ib, *floats)
             for sta, ia, ib, floats in zip(
                 stas,
-                *X[:, :2].T.astype(int),
-                X[:, 2:],
+                *events.T,
+                X,
             )
         ]
 
     elif phase.upper() == "S":
-        X = np.loadtxt(
-            filename, usecols=(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), ndmin=2
-        )
+        events = np.loadtxt(filename, usecols=(1, 2, 3), dtype=int, ndmin=2)
+        X = np.loadtxt(filename, usecols=(4, 5, 6, 7, 8, 9, 10, 11, 12), ndmin=2)
 
         if unpack:
-            return stas, *X.T
+            return stas, *events.T, *X.T
 
         return [
             core.S_Amplitude_Ratios(sta, ia, ib, ic, *floats)
             for sta, ia, ib, ic, floats in zip(
                 stas,
-                *X[:, :3].T.astype(int),
-                X[:, 3:],
+                *events.T,
+                X,
             )
         ]
 
