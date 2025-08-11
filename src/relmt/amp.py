@@ -81,7 +81,7 @@ def pca_amplitudes_p(mtx: np.ndarray) -> np.ndarray:
 
     _, ss, Vh = svd(mtx.T / np.max(abs(mtx)), full_matrices=False)
 
-    aa, bb, _, _ = np.array(list(core.iterate_event_pair(mtx.shape[0]))).T
+    aa, bb = np.array(list(core.iterate_event_pair(mtx.shape[0]))).T
 
     Aabs = Vh[0, aa] / Vh[0, bb]
 
@@ -258,7 +258,7 @@ def pca_amplitudes_s(
     # Expansion coefficients
     ecs = np.diag(ss) @ Vh
 
-    aa, bb, cc, *_ = np.array(list(core.iterate_event_triplet(mtx.shape[0]))).T
+    aa, bb, cc = np.array(list(core.iterate_event_triplet(mtx.shape[0]))).T
 
     nn = len(aa)
 
@@ -359,14 +359,12 @@ def order_by_ccsum(mtx_abc: np.ndarray) -> np.ndarray:
     return iord
 
 
-def synthetic(
+def synthetic_p(
     moment_tensors: dict[int, core.MT],
     event_dict: dict[int, core.Event],
     station_dictionary: dict[str, core.Station],
     phase_dictionary: dict[str, core.Phase],
     p_pairs: list[tuple[str, int, int]],
-    s_triplets: list[tuple[str, int, int, int]],
-    order: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Generate synthetic relative amplitude meassurements.
@@ -389,42 +387,22 @@ def synthetic(
     p_pairs:
         List of tuples of the form `(station, event_a, event_b)` for P-wave
         relative amplitude pairs.
-    s_triplets:
-        List of tuples of the form `(station, event_a, event_b, event_c)` for
-        S-wave relative amplitude triplets.
-    order:
-        If True, order the waveforms by pairwise summed cross-correlation
-        coefficients before computing the relative S amplitudes. If False, use
-        the order of the input matrix. In any case, the applied order will be
-        returned in the `orders` variable.
 
     Returns
     -------
     p_ratios:
         ``(len(p_pairs),)`` arrays of synthetic P- ...
-    s_ratios:
-        ``(len(s_triplets, 2)`` ... and S-relative amplitude measurements.
-    orders:
-        ``(len(s_triplets, 3)`` array of indices that order the S waveforms
-        according to greatest differences in waveforms.
     p_sigmas:
         ``(len(p_pairs), 2)`` First two singular values of the P-amplitude
-        decomposition
-    s_sigmas
-        ``(len(s_triplets), 3)`` first three singular values of the S-amplitude
         decomposition
     """
 
     rho = 3600
     alpha = 6000
-    beta = 4500  # Dummy density and velocity cancel out upon devision
 
     # Create empty array to hold synthetic amplitudes
     p_ratios = np.full(len(p_pairs), np.nan)
-    s_ratios = np.full((len(s_triplets), 2), np.nan)
-    orders = np.full((len(s_triplets), 3), [0, 1, 2], dtype=int)
     p_sigmas = np.full((len(p_pairs), 2), np.nan)
-    s_sigmas = np.full((len(s_triplets), 3), np.nan)
 
     # First compute the P amplitude ratios
     for i, (s, a, b) in enumerate(p_pairs):
@@ -458,15 +436,69 @@ def synthetic(
             *station_dictionary[s][:3], *event_dict[b][:3]
         )
 
+        u1 = mt.p_radiation(mt_a, azi_a, plu_a, dist_a, rho, alpha)
+        u2 = mt.p_radiation(mt_b, azi_b, plu_b, dist_b, rho, alpha)
+
         # Calculate the relative P amplitude
-        p_ratios[i], p_sigmas[i, :] = pca_amplitude_2p(
-            np.array(
-                [
-                    mt.p_radiation(mt_a, azi_a, plu_a, dist_a, rho, alpha),
-                    mt.p_radiation(mt_b, azi_b, plu_b, dist_b, rho, alpha),
-                ]
-            )
-        )
+        p_ratios[i], p_sigmas[i, :] = pca_amplitude_2p(np.array([u1, u2]))
+
+    return p_ratios, p_sigmas
+
+
+def synthetic_s(
+    moment_tensors: dict[int, core.MT],
+    event_dict: dict[int, core.Event],
+    station_dictionary: dict[str, core.Station],
+    phase_dictionary: dict[str, core.Phase],
+    s_triplets: list[tuple[str, int, int, int]],
+    keep_order: bool = False,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Generate synthetic relative amplitude meassurements.
+
+    Either compute all possible event combinations from the supplied phase
+    dictionary and mment tensors, or supply explicit `p_pairs` and `s_tripltes`
+    (e.g. from existing :class:`core.P_Amplitude_Ratio` and
+    :class:`core.S_Amplitude_Ratios` objects).
+
+    Parameters
+    ----------
+    moment_tensors:
+        Dictionary of moment tensors indexed by event ID.
+    event_dict:
+        Dictionary of events with locations
+    station_dictionary:
+        Dictionary of stations with locations indexed by station name.
+    phase_dictionary:
+        Dictionary of phases with take-off angles indexed by phase name.
+    s_triplets:
+        List of tuples of the form `(station, event_a, event_b, event_c)` for
+        S-wave relative amplitude triplets.
+    keep_order:
+        If False, order the waveforms by pairwise summed cross-correlation
+        coefficients before computing the relative S amplitudes. If True, use
+        the order of the input triplets. In any case, the applied order will be
+        returned in the `orders` variable.
+
+    Returns
+    -------
+    s_ratios:
+        ``(len(s_triplets, 2)`` ... and S-relative amplitude measurements.
+    orders:
+        ``(len(s_triplets, 3)`` array of indices that order the S waveforms
+        according to greatest differences in waveforms.
+    s_sigmas
+        ``(len(s_triplets), 3)`` first three singular values of the S-amplitude
+        decomposition
+    """
+
+    rho = 3600
+    beta = 4500  # Dummy density and velocity cancel out upon devision
+
+    # Create empty array to hold synthetic amplitudes
+    s_ratios = np.full((len(s_triplets), 2), np.nan)
+    orders = np.full((len(s_triplets), 3), [0, 1, 2], dtype=int)
+    s_sigmas = np.full((len(s_triplets), 3), np.nan)
 
     # ... then the S amplitude ratios
     for i, (s, a, b, c) in enumerate(s_triplets):
@@ -514,7 +546,7 @@ def synthetic(
         us_c = mt.s_radiation(mt_c, azi_c, plu_c, dist_c, rho, beta)
 
         Babc, Bacb, iord, s_sigmas[i, :] = pca_amplitude_3s(
-            np.array([us_a, us_b, us_c]), order=order
+            np.array([us_a, us_b, us_c]), order=not keep_order
         )
 
         # Calculate the relative P amplitude
@@ -522,7 +554,7 @@ def synthetic(
         s_ratios[i, 1] = Bacb
         orders[i, :] = iord
 
-    return p_ratios, s_ratios, orders, p_sigmas, s_sigmas
+    return s_ratios, orders, s_sigmas
 
 
 def principal_p_amplitudes(
@@ -583,7 +615,7 @@ def principal_p_amplitudes(
             highpass,
             lowpass,
         )
-        for n, (a, b, _, _) in enumerate(core.iterate_event_pair(len(evns)))
+        for n, (a, b) in enumerate(core.iterate_event_pair(len(evns)))
     ]
 
     return p_amplitudes
@@ -800,7 +832,7 @@ def principal_s_amplitudes(
             highpass,
             lowpass,
         )
-        for n, (a, b, c, _, _, _) in enumerate(core.iterate_event_triplet(len(evns)))
+        for n, (a, b, c) in enumerate(core.iterate_event_triplet(len(evns)))
     ]
 
     return s_amplitudes
