@@ -971,10 +971,11 @@ subroutine ccorf3(gmat,nt,cc3)
 ! Compute reconstruction coefficients.
     cc3=0
     do ii = 1,3
-       ij=modulo(ii,3)+1
-       ik=modulo(ii+1,3)+1
+       ij=modulo(ii,3)+1  ! 2, 3, 1
+       ik=modulo(ii+1,3)+1  ! 3, 1, 2
        disc=reshape((/ v2(ik), -v2(ij), -v1(ik), v1(ij) /), shape(disc))
        dvec=(/ v1(ii), v2(ii) /)
+       ! division by zero possible with synthetic data
        coff=matmul(disc,dvec)/(v1(ij)*v2(ik)-v1(ik)*v2(ij))
        gmatp=coff(1)*gmat(:,ij)+coff(2)*gmat(:,ik)
 ! Exploit fact that norm2(gmat(,i)) is 1
