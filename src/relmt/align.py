@@ -287,6 +287,7 @@ def paired_s_lag_times(
     evpairs: np.ndarray,
     dd: np.ndarray,
     cc: np.ndarray,
+    dd_res: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Pairwise from triplet-wise lag times
 
@@ -301,6 +302,8 @@ def paired_s_lag_times(
         Corresponding pairwise differential arrival times
     cc:
         ``(events, events, events)`` Cross correlation matrix
+    dd_res:
+        Residuals of the alignment
 
     Returns
     -------
@@ -310,6 +313,8 @@ def paired_s_lag_times(
         Corresponding median differential arrival times
     cc: :class:`numpy.ndarray`
         Corresponding average cross correlation coefficient
+    rms: :class:`numpy.ndarray`
+        RMS residuals of the pairwise differential arrival times
     """
 
     # All event indices
@@ -317,6 +322,7 @@ def paired_s_lag_times(
 
     # Strip last zero that constrained the linear system to solve for time shifts
     dd1 = dd[:-1]
+    dd_res1 = dd_res[:-1]
 
     if (
         (nev * (nev - 1) * (nev - 2) / 3 != evpairs.shape[0])
@@ -332,6 +338,7 @@ def paired_s_lag_times(
     )
     ddm = np.zeros(ev_pair.shape[0], dtype=float)
     ccm = np.zeros_like(ddm)
+    rms = np.zeros_like(ddm)
 
     # Third implicit differential time of the triplets
     implicit_dd = dd1[1::2] - dd1[0::2]
@@ -344,10 +351,13 @@ def paired_s_lag_times(
 
         # Choose a best time and weight from the set
         # TODO: is there a better meassure? Choose a best CC from the set?
+        # TODO: Look at the residuals?
         ddm[n] = np.median(all_dds)
         ccm[n] = utils.fisher_average(cc[ab[0], ab[1], :])
+        if (nin := np.sum(iin)) > 0:
+            rms[n] = np.sqrt(np.sum(dd_res1[iin] ** 2) / nin)
 
-    return ev_pair, ddm, ccm
+    return ev_pair, ddm, ccm, rms
 
 
 def run(
@@ -375,7 +385,7 @@ def run(
     maxshift = header["phase_end"] - header["phase_start"]
 
     # Align using MCCC
-    dt_cc, cc, dd, _, evpairs = mccc_align(
+    dt_cc, cc, dd, dd_res, evpairs = mccc_align(
         pwv,
         verbose=True,
         maxshift=maxshift,
@@ -387,10 +397,11 @@ def run(
         return
 
     if header["phase"] == "S":
-        evpairs, dd, ccp = paired_s_lag_times(evpairs, dd, cc)
+        evpairs, dd, ccp, dd_res = paired_s_lag_times(evpairs, dd, cc, dd_res)
         cc = utils.fisher_average(cc)
     else:
         dd = dd[:-1]
+        dd_res = dd_res[:-1]
         ccp = np.array(
             [
                 cc[i, j]
@@ -399,15 +410,26 @@ def run(
             ]
         )
 
+    # Sum residuals for each event
+    nev = len(header["events"])
+    rms = np.zeros(nev)
+    for iev in range(nev):
+        iin = np.any(evpairs == iev, axis=-1)
+        rms[iev] = np.sqrt(np.sum(dd_res[iin] ** 2) / np.sum(iin))
+
     # Look up actual event indices and format before saving
     evpairs = np.vectorize(header["events"].__getitem__)(evpairs)
     evdd = np.char.mod(
-        ["% 9.0f", "% 9.0f", "%6.3f", "%13.6e"],
-        np.hstack((evpairs, ccp[:, np.newaxis], dd[:, np.newaxis])),
+        ["% 9.0f", "% 9.0f", "%6.3f", "%13.6e", "%13.2e"],
+        np.hstack(
+            (evpairs, ccp[:, np.newaxis], dd[:, np.newaxis], dd_res[:, np.newaxis])
+        ),
     )
 
     np.savetxt(core.file("mccc_lag_times", *destination), evdd, fmt="%s")
-    io.save_results(core.file("mccc_time_shift", *destination), dt_cc)
+    io.save_results(
+        core.file("mccc_time_shift", *destination), np.vstack((dt_cc, rms)).T
+    )
     io.save_results(core.file("cc_matrix", *destination), cc)
 
     arr_cc = signal.shift_3d(wvarr, -dt_cc, **header.kwargs(signal.shift_3d))
