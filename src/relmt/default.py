@@ -69,5 +69,6 @@ header = core.Header(
     lowpass=10.0,
     null_threshold=0.0,
     min_signal_noise_ratio=0.0,
+    min_correlation=0.5,
     min_expansion_coefficient_norm=0.5,
 )
