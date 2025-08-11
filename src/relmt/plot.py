@@ -26,7 +26,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
-from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.colors import LinearSegmentedColormap, Normalize
 import matplotlib.transforms as transforms
 from relmt import core, mt, amp, qc
 import logging
@@ -589,7 +589,7 @@ def amplitude_connections(
 
     sm = plt.cm.ScalarMappable(
         cmap=cmap,
-        norm=plt.Normalize(vmin=vmin, vmax=vmax),
+        norm=Normalize(vmin=vmin, vmax=vmax),
     )
     sm.set_array([])
     cbar = plt.colorbar(sm, ax=ax)
@@ -602,7 +602,13 @@ def amplitude_connections(
 
 
 def mt_matrix(
-    mtd: dict[int, core.MT], highlight: list[int] = [], ax: Axes | None = None
+    mtd: dict[int, core.MT],
+    highlight: list[int] = [],
+    names: dict[int, str] = {},
+    values: dict[int, float] = {},
+    valuename: str = "Value",
+    cmap=plt.cm.cividis,
+    ax: Axes | None = None,
 ) -> Axes:
     """Plot moment tensors into a square matrix
 
@@ -626,9 +632,16 @@ def mt_matrix(
     from pyrocko import moment_tensor as pmt
     from pyrocko.plot import beachball
 
+    highlightc = "xkcd:lipstick red"
+
     nmts = len(mtd)
     nrow = int(np.sqrt(nmts))
     ncol = nmts // nrow
+
+    if values:
+        vmin, vmax = np.min(list(values.values())), np.max(list(values.values()))
+        norm = Normalize(vmin=vmin, vmax=vmax)
+        colors = {evn: cmap(norm(val)) for evn, val in values.items()}
 
     if ax is None:
         _, ax = plt.subplots(1, 1, figsize=(nrow, ncol), layout="tight")
@@ -639,9 +652,16 @@ def mt_matrix(
         x = nev % nrow
         y = nev // nrow
 
-        color = "xkcd:twilight blue"
+        fc = "xkcd:twilight blue"
+        ec = "black"
+
         if iev in highlight:
-            color = "xkcd:lipstick red"
+            fc = highlightc
+
+        if values:
+            if iev in highlight:
+                ec = highlightc
+            fc = colors.get(iev, fc)
 
         beachball.plot_beachball_mpl(
             thismt,
@@ -649,15 +669,25 @@ def mt_matrix(
             beachball_type="full",
             size=40,
             position=(x, y),
-            color_t=color,
+            color_t=fc,
+            edgecolor=ec,
             linewidth=1.0,
         )
 
-        ax.annotate(iev, (x, y), (-20, 20), textcoords="offset points")
+        ax.annotate(names.get(iev, iev), (x, y), (-20, 20), textcoords="offset points")
 
     ax.set_ylim([ncol + 1, -2])
     ax.set_xlim([-1, nrow])
     ax.axis("off")
+
+    if values:
+        sm = plt.cm.ScalarMappable(
+            cmap=cmap,
+            norm=Normalize(vmin=vmin, vmax=vmax),
+        )
+        sm.set_array([])
+        cbar = plt.colorbar(sm, ax=ax, shrink=0.3, fraction=0.05, pad=0.01)
+        cbar.set_label(valuename)
 
     return ax
 
