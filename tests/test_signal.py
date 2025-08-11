@@ -63,6 +63,24 @@ def test_shift_shift_3d():
     assert expc == pytest.approx(out)
 
 
+def test_reconstruction_correlation_averages():
+    # Test if a wavelet correlates with itself
+    n = 512
+    mat = np.array([signal.make_wavelet(n, 5, "sin", 30, 0, 0)] * 3)
+
+    cijk, cij, ci, c = signal.reconstruction_correlation_averages(mat, "P")
+    assert np.all(np.isnan(cijk))
+    assert pytest.approx(cij) == 1.0
+    assert pytest.approx(ci) == 1.0
+    assert pytest.approx(c) == 1.0
+
+    cijk, cij, ci, c = signal.reconstruction_correlation_averages(mat, "S")
+    assert pytest.approx(cijk) == 1.0
+    assert pytest.approx(cij) == 1.0
+    assert pytest.approx(ci) == 1.0
+    assert pytest.approx(c) == 1.0
+
+
 # def test_xcorrc1():
 #    # Test if a wavelet correlates with itself
 #    n = 512
