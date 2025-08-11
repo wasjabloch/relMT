@@ -332,7 +332,7 @@ def test_iterate_waveid():
 
 def test_iterate_event_pair():
     pairs = list(core.iterate_event_pair(3))
-    assert pytest.approx(pairs) == [(0, 1, 0, 1), (0, 2, 0, 2), (1, 2, 1, 2)]
+    assert pytest.approx(pairs) == [(0, 1), (0, 2), (1, 2)]
 
     pairs = list(core.iterate_event_pair(3, event_list=[0, 2]))
     assert pytest.approx(pairs) == [(0, 2, 0, 1)]
@@ -341,10 +341,10 @@ def test_iterate_event_pair():
 def test_iterate_event_triplet():
     triplets = list(core.iterate_event_triplet(4))
     assert pytest.approx(triplets) == [
-        (0, 1, 2, 0, 1, 2),
-        (0, 1, 3, 0, 1, 3),
-        (0, 2, 3, 0, 2, 3),
-        (1, 2, 3, 1, 2, 3),
+        (0, 1, 2),
+        (0, 1, 3),
+        (0, 2, 3),
+        (1, 2, 3),
     ]
 
     triplets = list(core.iterate_event_triplet(4, event_list=[0, 1, 3]))
