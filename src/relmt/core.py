@@ -138,6 +138,7 @@ basenames_phase_station = {
 
 # Suffix to add to cleaned amplitude observations
 clean_amplitude_suffix = "-qced"
+synthetic_amplitude_suffix = "-synthetic"
 
 
 def file(
@@ -394,21 +395,23 @@ def iterate_event_pair(nev: int, event_list: list[int] | range | None = None):
     ------
     a, b: int
         Combinations of a and b
-    ia, ib: int
+    ia, ib: int if `event_list` is not `None`
         Indices of a and b in `event_list`
     """
 
     if event_list is None:
-        event_list = range(nev)
-
-    for a in range(nev - 1):
-        for b in range(a + 1, nev):
-            try:
-                ia = event_list.index(a)
-                ib = event_list.index(b)
-                yield (a, b, ia, ib)
-            except ValueError:
-                continue
+        for a in range(nev - 1):
+            for b in range(a + 1, nev):
+                yield (a, b)
+    else:
+        for a in range(nev - 1):
+            for b in range(a + 1, nev):
+                try:
+                    ia = event_list.index(a)
+                    ib = event_list.index(b)
+                    yield (a, b, ia, ib)
+                except ValueError:
+                    continue
 
 
 def iterate_event_triplet(nev: int, event_list: list[int] | range | None = None):
@@ -418,7 +421,7 @@ def iterate_event_triplet(nev: int, event_list: list[int] | range | None = None)
     Parameters
     ----------
     nev:
-        Total number of events  (= highest event index)
+        Total number of events
     event_list:
         Reduced set of events to iterate (Default: range(nev))
 
@@ -426,24 +429,28 @@ def iterate_event_triplet(nev: int, event_list: list[int] | range | None = None)
     ------
     a, b, c: int
         Indices of combinations of a, b, and c
-    ia, ib, ic: int
+    ia, ib, ic: int if `event_list` is not `None`
         Indices of a, b and c in `event_list`
 
     """
 
     if event_list is None:
-        event_list = range(nev)
+        for a in range(nev - 2):
+            for b in range(a + 1, nev - 1):
+                for c in range(b + 1, nev):
+                    yield (a, b, c)
 
-    for a in range(nev - 2):
-        for b in range(a + 1, nev - 1):
-            for c in range(b + 1, nev):
-                try:
-                    ia = event_list.index(a)
-                    ib = event_list.index(b)
-                    ic = event_list.index(c)
-                    yield (a, b, c, ia, ib, ic)
-                except ValueError:
-                    continue
+    else:
+        for a in range(nev - 2):
+            for b in range(a + 1, nev - 1):
+                for c in range(b + 1, nev):
+                    try:
+                        ia = event_list.index(a)
+                        ib = event_list.index(b)
+                        ic = event_list.index(c)
+                        yield (a, b, c, ia, ib, ic)
+                    except ValueError:
+                        continue
 
 
 def ijk_ccvec(ns: int) -> Generator[tuple[int, int, int]]:
@@ -609,17 +616,17 @@ class Exclude(TypedDict, total=True):
     """Phase observation given as Phase ID (e.g. ``0_STA_P``) of one event on
     one station to exclude from waveform alignment"""
 
-    auto_nodata: list[str]
-    """Phase observation to exclude due to absent or corrupt data. Overwritten
-    when invoking ``relmt-exclude``"""
+    phase_auto_nodata: list[str]
+    """Phase observation to exclude due to absent or corrupt data."""
 
-    auto_snr: list[str]
-    """Phase observation to exclude due to low signal-to-noise ratio.
-    Overwritten when invoking ``relmt-exclude``"""
+    phase_auto_snr: list[str]
+    """Phase observation to exclude due to low signal-to-noise ratio."""
 
-    auto_ecn: list[str]
-    """Phase observation to exclude due to low expansion coefficient norm.
-    Overwritten when invoking ``relmt-exclude``"""
+    phase_auto_cc: list[str]
+    """Phase observation to exclude due to correlation coefficient."""
+
+    phase_auto_ecn: list[str]
+    """Phase observation to exclude due to low expansion coefficient norm."""
 
 
 # The one exclude dictionary we are going to use.
@@ -630,6 +637,7 @@ exclude = Exclude(
     phase_manual=[],
     phase_auto_nodata=[],
     phase_auto_snr=[],
+    phase_auto_cc=[],
     phase_auto_ecn=[],
 )
 
@@ -1101,13 +1109,19 @@ Regard absolute amplitudes at and below this value as null""",
     "min_signal_noise_ratio": (
         "float",
         """
-Minimum signal-to-noise ratio (dB) of signals""",
+Minimum allowed signal-to-noise ratio (dB) of signals for event exclusion""",
+    ),
+    "min_correlation": (
+        "float",
+        """
+Minimum allowed absolute averaged correlation coefficient of a waveform for
+event exclusion""",
     ),
     "min_expansion_coefficient_norm": (
         "float",
         """
-Minimum norm of the principal component expansion coefficients contributing to
-the waveform reconstruction""",
+Minimum allowed norm of the principal component expansion coefficients
+contributing to the waveform reconstruction for event exclusion""",
     ),
 }
 
@@ -1146,6 +1160,7 @@ class Header(Config):
         lowpass: float | None = None,
         null_threshold: float | None = None,
         min_signal_noise_ratio: float | None = None,
+        min_correlation: float | None = None,
         min_expansion_coefficient_norm: float | None = None,
     ):
         for key, value in locals().items():
