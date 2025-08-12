@@ -798,7 +798,7 @@ def connected_events(
     return connections
 
 
-def phases_above_misfit(
+def events_phases_above_misfit(
     amplitudes: list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios],
     misfit: float,
 ) -> Counter[str, int]:
@@ -812,19 +812,24 @@ def phases_above_misfit(
         Maximum misfit to consider
     Returns
     -------
-    Counter with phase names as keys and number of observations as values
+    events:
+        Counter with events as keys and number of bad observations as values
+    phases:
+        Counter with phase names as keys and number of bad observations as values
     """
 
     phases = Counter()
+    events = Counter()
 
     for amp in amplitudes:
         if amp.misfit > misfit:
             if isinstance(amp, core.P_Amplitude_Ratio):
-                phases[core.join_phaseid(amp.event_a, amp.station, "P")] += 1
-                phases[core.join_phaseid(amp.event_b, amp.station, "P")] += 1
+                for iev in [amp.event_a, amp.event_b]:
+                    phases[core.join_phaseid(iev, amp.station, "P")] += 1
+                    events[iev] += 1
             elif isinstance(amp, core.S_Amplitude_Ratios):
-                phases[core.join_phaseid(amp.event_a, amp.station, "S")] += 1
-                phases[core.join_phaseid(amp.event_b, amp.station, "S")] += 1
-                phases[core.join_phaseid(amp.event_c, amp.station, "S")] += 1
+                for iev in [amp.event_a, amp.event_b, amp.event_c]:
+                    phases[core.join_phaseid(iev, amp.station, "S")] += 1
+                    events[iev] += 1
 
-    return phases
+    return events, phases
