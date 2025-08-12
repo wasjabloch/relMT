@@ -40,6 +40,7 @@ config = core.Config(
     reference_weight=1000.0,
     min_amplitude_misfit=0.1,
     max_amplitude_misfit=0.8,
+    min_amplitude_weight=0.05,
     max_s_sigma1=0.95,
     amplitude_measure="indirect",
     amplitude_filter="auto",

@@ -843,6 +843,7 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
 
     max_misfit = config["max_amplitude_misfit"]
     min_misfit = config["min_amplitude_misfit"]
+    min_weight = config["min_amplitude_weight"]
     irefs = config["reference_mts"]
     constraint = config["mt_constraint"]
     refmt_weight = config["reference_weight"]
@@ -913,7 +914,6 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
     Ah *= ev_norm
 
     # Weight applied by row
-    min_weight = 0.05
     mis_weights = np.vstack(
         [
             ls.weight_misfit(amp, min_misfit, max_misfit, min_weight, "P")

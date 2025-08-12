@@ -742,13 +742,18 @@ measurement""",
         "float",
         """
 Minimum misfit to assign a full weight of 1. Weights are scaled lineraly from
-`min_amplitude mistfit` = 1 to `max_amplitude_misfit` = 0"
+`min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`"
 """,
     ),
     "max_amplitude_misfit": (
         "float",
         """
 Maximum misfit allowed for amplitude reconstruction""",
+    ),
+    "min_amplitude_weight": (
+        "float",
+        """
+Weight assigned to the maxumum amplitude misfit""",
     ),
     "max_s_sigma1": (
         "float",
@@ -825,6 +830,7 @@ class Config:
         min_dynamic_range: float | None = None,
         min_amplitude_misfit: float | None = None,
         max_amplitude_misfit: float | None = None,
+        min_amplitude_weight: float | None = None,
         max_s_sigma1: float | None = None,
         max_magnitude_difference: float | None = None,
         max_event_distance: float | None = None,
