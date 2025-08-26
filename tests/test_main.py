@@ -100,8 +100,10 @@ def test_main_amplitdue(synthetic_aligned_waveforms):
     s_triplets = [(amp.station, amp.event_a, amp.event_b, amp.event_c) for amp in samps]
 
     # Create synthetic data in the same order
-    p_syn, s_syn, order, p_sig, s_sig = amp.synthetic(
-        mtd, evl, std, phd, p_pairs, s_triplets, order=False
+    p_syn, p_sig = amp.synthetic_p(mtd, evl, std, phd, p_pairs)
+
+    s_syn, order, s_sig = amp.synthetic_s(
+        mtd, evl, std, phd, s_triplets, keep_order=True
     )
 
     # S-wave degenerecy may as well occurr in the synthetic data.
