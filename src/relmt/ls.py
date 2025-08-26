@@ -26,9 +26,10 @@
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse.linalg import lsmr
-from scipy.sparse import spmatrix
+from scipy.sparse import spmatrix, coo_matrix
 from relmt import utils, core
 from relmt import mt as relmtmt
+import multiprocessing as mp
 import logging
 
 logger = logging.getLogger(__name__)
@@ -235,7 +236,8 @@ def p_equation(
     event_dict: dict[int, core.Event],
     phase_dictionary: dict[str, core.Phase],
     nmt: int,
-) -> np.ndarray:
+    return_sparse: bool = False,
+) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
     """
     Equation with P wave constraint on the liniear system
 
@@ -256,10 +258,17 @@ def p_equation(
         All phase observations
     nmt:
         Number of moment tensor elements
+    return_sparse:
+        Return values data and column indices compatible with
+        :class:`scipy.sparse.coo_matrix`
 
     Returns
     -------
-    ``(1, events * nmt)`` line of the left hand side of the linear system
+        ``(1, events * nmt)`` line of the left hand side of the linear system if
+    return_sparse = False
+
+        Tuple of ``(2 * nmt,)`` column indices and ``(2 * nmt,)`` values of the
+    sparse matrix if return_sparse = True
     """
 
     def _gamma(ev, sta, pha):
@@ -285,12 +294,11 @@ def p_equation(
     ga = _gamma(ieva, station.name, "P")
     gb = _gamma(ievb, station.name, "P")
 
-    line = np.zeros(nmt * len(in_events))
-
     for iev, g in zip([ieva, ievb], [ga, gb]):
         if not np.all(np.isfinite(g)):
-            logging.debug(f"Missing take-off angle in event {iev}. Retruning all zeros")
-            return np.array(line)
+            msg = "Missing take-off angle for phase: "
+            msg += f"{core.join_phaseid(iev, p_amplitude.station, 'P')}."
+            raise ValueError(msg)
 
     rab = distance_ratio(event_dict[ieva], event_dict[ievb], station)
     if nmt == 6:
@@ -305,13 +313,23 @@ def p_equation(
     va = -gap
     vb = gbp * ampl * rab
 
-    if np.any(np.abs([va, vb]) <= EPS):
+    if np.any(_null_to_eps(np.abs([va, vb])) <= EPS):
         msg = "Matrix value below machine precission for event combination "
         msg += f"{ieva}, {ievb} on station {station.name}"
         logging.warning(msg)
 
-    line[nmt * ia : nmt * ia + nmt] = va
-    line[nmt * ib : nmt * ib + nmt] = vb
+    if return_sparse:
+        colis = np.concatenate(
+            (range(nmt * ia, nmt * ia + nmt), range(nmt * ib, nmt * ib + nmt))
+        )
+        valus = np.concatenate((va, vb))
+        return colis, valus
+
+    # Reutrn a line of a dense matrix. Elevate intended zeros to EPS, so
+    # they are not removed when constructing the sparse matrix later
+    line = np.zeros(nmt * len(in_events))
+    line[nmt * ia : nmt * ia + nmt] = _null_to_eps(va)
+    line[nmt * ib : nmt * ib + nmt] = _null_to_eps(vb)
 
     return np.array(line)
 
@@ -324,7 +342,8 @@ def s_equations(
     phase_dictionary: dict[str, core.Phase],
     nmt: int,
     coefficient_indices: tuple[int, int] | None = None,
-) -> np.ndarray:
+    return_sparse: bool = False,
+) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
     """
     Two equations with S-wave constraints on the linear system
 
@@ -348,10 +367,22 @@ def s_equations(
     coefficient_indices:
         Select two indices (0, 1, or 2) of directional coefficients to use. If
         `None`, chose those with the largest norm
+    return_sparse:
+        Return values data and column indices compatible with :class:`scipy.sparse.coo_matrix`
 
     Returns
     -------
-    ``(2, events * nmt)`` lines of the left hand side of the linear system
+
+
+
+    Returns
+    -------
+        ``(2, events * nmt)`` lines of the left hand side of the linear system if
+    return_sparse = False, or
+
+        Tuple of ``(6 * nmt,)`` column indices and ``(6 * nmt,)`` values of the
+    sparse matrix if return_sparse = True. The first set of 3*nmt indices and
+    values corresponds to one line, the second set to the next
     """
 
     def _gamma(ev, sta, pha):
@@ -424,27 +455,38 @@ def s_equations(
 
     logger.debug(f"Selected directional coefficients: {i1}, {i2}")
 
-    a1 = _null_to_eps(-gas[i1])
-    b1 = _null_to_eps(amp_abc * rab * gbs[i1])
-    c1 = _null_to_eps(amp_acb * rac * gcs[i1])
+    a1 = -gas[i1]
+    b1 = amp_abc * rab * gbs[i1]
+    c1 = amp_acb * rac * gcs[i1]
 
-    a2 = _null_to_eps(-gas[i2])
-    b2 = _null_to_eps(amp_abc * rab * gbs[i2])
-    c2 = _null_to_eps(amp_acb * rac * gcs[i2])
+    a2 = -gas[i2]
+    b2 = amp_abc * rab * gbs[i2]
+    c2 = amp_acb * rac * gcs[i2]
 
-    if np.any(np.abs([a1, b1, c1, a2, b2, c2]) < EPS):
+    if np.any(_null_to_eps(np.abs([a1, b1, c1, a2, b2, c2])) < EPS):
         msg = "Matrix value below machine precission for event combination "
         msg += f"{ieva}, {ievb}, {ievc} on station {station.name}"
         logging.warning(msg)
 
     # For S waves, each event triplet has two lines in the matrix
-    line1[nmt * ia : nmt * ia + nmt] = a1
-    line1[nmt * ib : nmt * ib + nmt] = b1
-    line1[nmt * ic : nmt * ic + nmt] = c1
+    if return_sparse:
+        ias = range(nmt * ia, nmt * ia + nmt)
+        ibs = range(nmt * ib, nmt * ib + nmt)
+        ics = range(nmt * ic, nmt * ic + nmt)
+        colis = np.concatenate((ias, ibs, ics, ias, ibs, ics))
+        valus = np.concatenate((a1, b1, c1, a2, b2, c2))
+        return colis, valus
 
-    line2[nmt * ia : nmt * ia + nmt] = a2
-    line2[nmt * ib : nmt * ib + nmt] = b2
-    line2[nmt * ic : nmt * ic + nmt] = c2
+    # Return lines of a dense matrix. Elevate intended zeros to EPS, so
+    # they are not removed when constructing the sparse matrix later
+
+    line1[nmt * ia : nmt * ia + nmt] = _null_to_eps(a1)
+    line1[nmt * ib : nmt * ib + nmt] = _null_to_eps(b1)
+    line1[nmt * ic : nmt * ic + nmt] = _null_to_eps(c1)
+
+    line2[nmt * ia : nmt * ia + nmt] = _null_to_eps(a2)
+    line2[nmt * ib : nmt * ib + nmt] = _null_to_eps(b2)
+    line2[nmt * ic : nmt * ic + nmt] = _null_to_eps(c2)
 
     return np.array([line1, line2])
 
@@ -605,6 +647,112 @@ def homogenous_amplitude_equations(
 
         row = peq + 2 * n
         Ah[[row, row + 1], :] = lines
+
+    return Ah, bh
+
+
+def homogenous_amplitude_equations_sparse(
+    p_amplitudes: list[core.P_Amplitude_Ratio],
+    s_amplitudes: list[core.S_Amplitude_Ratios],
+    in_events: list[int],
+    station_dictionary: dict[str, core.Station],
+    event_dict: dict[int, core.Event],
+    phase_dictionary: dict[str, core.Phase],
+    constraint: str,
+    s_coefficients: tuple[int, int] | None = None,
+    ncpu: int = 1,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Homogenous part of the linear system Am = b
+
+    This functions writes the matrices directly in
+    :class:`scipy.sparse.coo_matrix` format
+
+    Parameters
+    ----------
+    p_amplitudes:
+        P observations to include in the system
+    s_amplitudes:
+        S observations to include in the system
+    in_events:
+        Included events. Columns blocks of A and row blocks of b and m will
+        reference into this vector.
+    station_dictionary:
+        Lookup table for station coordinates
+    event_dict:
+        The seismic event catalog
+    phase_dictionary:
+        Lookup table for ray take-off angles
+    constraint:
+        Constraint on the moment tensor solution
+    s_coefficients:
+        Indices (0, 1, or 2) of S-wave directional coefficients to use. If
+        `None`, chose those with the largest norm
+    ncpu:
+        Number of parallel processes
+
+    Returns
+    -------
+    Ah: :class:`scipy.sparse.coo_matrix`
+        ``(p_amplitudes + 2 * s_amplitudes, event_dict * mt_elements)`` left-hand side of the homogenous part of linear system
+    bh: :class:`numpy.ndarray`
+        ``(event_dict * mt_elements, 1)`` zero column vector, right-hand side of the homogenous linear system
+    """
+
+    nmt = mt_elements(constraint)
+
+    # Number of equations
+    peq = len(p_amplitudes)  # P observations
+    seq = 2 * len(s_amplitudes)  # S observations
+    neq = peq + seq
+
+    bh = np.zeros((neq, 1))
+
+    # Collect P-arguments ...
+    pargs = []
+    for pamp in p_amplitudes:
+        station = station_dictionary[pamp.station]
+
+        # Only pass subset dicts to avoid huge memory overhead
+        this_evd = {evn: event_dict[evn] for evn in [pamp.event_a, pamp.event_b]}
+        this_phd = {
+            (phid := core.join_phaseid(evn, station.name, "P")): phase_dictionary[phid]
+            for evn in [pamp.event_a, pamp.event_b]
+        }
+
+        pargs.append((pamp, in_events, station, this_evd, this_phd, nmt, True))
+
+    # And S-arguments
+    sargs = []
+    for samp in s_amplitudes:
+        station = station_dictionary[pamp.station]
+
+        # Only pass subset dicts to avoid huge memory overhead
+        this_evd = {
+            evn: event_dict[evn] for evn in [samp.event_a, samp.event_b, samp.event_c]
+        }
+        this_phd = {
+            (phid := core.join_phaseid(evn, station.name, "S")): phase_dictionary[phid]
+            for evn in [samp.event_a, samp.event_b, samp.event_c]
+        }
+
+        sargs.append(
+            (samp, in_events, station, this_evd, this_phd, nmt, s_coefficients, True)
+        )
+
+    with mp.Pool(ncpu) as pool:
+        pcolval = pool.starmap(p_equation, pargs)
+
+    with mp.Pool(ncpu) as pool:
+        scolval = pool.starmap(s_equations, sargs)
+
+    vals = np.concatenate([line[1] for line in pcolval + scolval])
+    cols = np.concatenate([line[0] for line in pcolval + scolval])
+    rows = np.concatenate(
+        [[p] * (2 * nmt) for p in range(peq)]
+        + [[s] * (3 * nmt) + [s + 1] * (3 * nmt) for s in range(0, seq, 2)]
+    )
+
+    Ah = coo_matrix((vals, (rows, cols)))
 
     return Ah, bh
 

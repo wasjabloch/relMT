@@ -160,27 +160,35 @@ def test_p_equation():
     Aab = 1e-3
     ampl = core.P_Amplitude_Ratio("A", 0, 1, Aab, 0, 0.9, 0.9, 0.1, 0.5, 20.0)
     sta = core.Station(0, 10, 0, "A")
-    events = [core.Event(0, 0, 0, 0, 1, "0"), core.Event(0, 0, 0, 0, 2, "1")]
-    in_events = list(range(len(events)))
+    event_dict = {0: core.Event(0, 0, 0, 0, 1, "0"), 1: core.Event(0, 0, 0, 0, 2, "1")}
+    in_events = list(range(len(event_dict)))
     phd = {"0_A_P": core.Phase(1, 90, 0), "1_A_P": core.Phase(1, 90, 0)}
 
     for mt_elements in [5, 6]:
 
-        expect = np.zeros(len(events) * mt_elements)
+        expect = np.zeros(len(event_dict) * mt_elements)
         expect[1] = -1  # -gamma(event 0)
         expect[mt_elements + 1] = Aab  # gamma(event 1) * Aab * r (=1)
 
-        line = ls.p_equation(ampl, in_events, sta, events, phd, mt_elements)
+        exp_cols = np.array(range(len(event_dict) * mt_elements))
+
+        line = ls.p_equation(ampl, in_events, sta, event_dict, phd, mt_elements)
         pytest.approx(line) == expect
+
+        cols, vals = ls.p_equation(
+            ampl, in_events, sta, event_dict, phd, mt_elements, return_sparse=True
+        )
+        pytest.approx(cols) == exp_cols
+        pytest.approx(vals) == expect
 
     ampl = core.P_Amplitude_Ratio("A", 0, 1, 1 / Aab, 0, 0.9, 0.9, 0.1, 0.5, 20.0)
     for mt_elements in [5, 6]:
 
-        expect = np.zeros(len(events) * mt_elements)
+        expect = np.zeros(len(event_dict) * mt_elements)
         expect[1] = Aab  # Positions of elements reversed
         expect[mt_elements + 1] = -1
 
-        line = ls.p_equation(ampl, in_events, sta, events, phd, mt_elements)
+        line = ls.p_equation(ampl, in_events, sta, event_dict, phd, mt_elements)
         pytest.approx(line) == expect
 
 
@@ -192,16 +200,16 @@ def test_s_equations():
         "A", 0, 1, 2, Babc, Bacb, 0, 0.8, 0.9, 0.1, 0.1, 0.5, 20.0
     )
     sta = core.Station(0, 10, 0, "A")
-    events = [
-        core.Event(0, 0, 0, 0, 1, "0"),
-        core.Event(0, 0, 0, 0, 2, "1"),
-        core.Event(0, 0, 0, 0, 2, "2"),
-    ]
-    in_events = list(range(len(events)))
+    event_dict = {
+        0: core.Event(0, 0, 0, 0, 1, "0"),
+        1: core.Event(0, 0, 0, 0, 2, "1"),
+        2: core.Event(0, 0, 0, 0, 2, "2"),
+    }
+    in_events = list(range(len(event_dict)))
     phd = {
-        "0_A_P": core.Phase(1, 90, 0),
-        "1_A_P": core.Phase(1, 90, 0),
-        "2_A_P": core.Phase(1, 90, 0),
+        "0_A_S": core.Phase(1, 90, 0),
+        "1_A_S": core.Phase(1, 90, 0),
+        "2_A_S": core.Phase(1, 90, 0),
     }
 
     for mt_elements in [5, 6]:
@@ -217,19 +225,28 @@ def test_s_equations():
 
         # OBS! For ray along y gs2 is all 0
 
-        expect0 = np.zeros(len(events) * mt_elements)
+        expect0 = np.zeros(len(event_dict) * mt_elements)
         expect0[i0] = -1  # -gamma(event 0)
         expect0[mt_elements + i0] = Babc  # gamma(event 1) * Babc * r (=1)
         expect0[2 * mt_elements + i0] = Bacb  # gamma(event 2) * Bacb * r (=1)
 
-        expect1 = np.zeros(len(events) * mt_elements)
+        expect1 = np.zeros(len(event_dict) * mt_elements)
         expect1[i1] = -1  # -gamma(event 0)
         expect1[mt_elements + i1] = Babc  # gamma(event 1) * Aab * r (=1)
         expect1[mt_elements + i1] = Bacb  # gamma(event 1) * Aab * r (=1)
 
-        lines = ls.s_equations(ampl, in_events, sta, events, phd, mt_elements)
+        exp_cols = np.array(list(range(len(event_dict) * mt_elements)) * 2)
+        exp_vals = np.concatenate((expect0, expect1))
+
+        lines = ls.s_equations(ampl, in_events, sta, event_dict, phd, mt_elements)
         pytest.approx(lines[0]) == expect0
         pytest.approx(lines[1]) == expect1
+
+        cols, vals = ls.s_equations(
+            ampl, in_events, sta, event_dict, phd, mt_elements, return_sparse=True
+        )
+        pytest.approx(cols) == exp_cols
+        pytest.approx(vals) == exp_vals
 
 
 def test_weight_misfit():
@@ -288,6 +305,9 @@ def test_homogenous_amplitude_equations():
         "0_A_P": core.Phase(1, 90, 0),
         "1_A_P": core.Phase(1, 90, 0),
         "2_A_P": core.Phase(1, 90, 0),
+        "0_A_S": core.Phase(1, 90, 0),
+        "1_A_S": core.Phase(1, 90, 0),
+        "2_A_S": core.Phase(1, 90, 0),
     }
 
     in_events = list(range(len(evl)))
@@ -326,6 +346,13 @@ def test_homogenous_amplitude_equations():
         # Expected equations, right hand side
         assert pytest.approx(b) == np.zeros(len(evl))[:, np.newaxis]
 
+        # Try if the sparse output is the same
+        A_coo, _ = ls.homogenous_amplitude_equations_sparse(
+            pamps, samps, in_events, stad, evl, phd, constraint
+        )
+
+        pytest.approx(A_coo) == coo_matrix(A)
+
         # Try setting the coefficients
         A, b = ls.homogenous_amplitude_equations(
             pamps,
@@ -352,9 +379,10 @@ def test_reference_mt_equations():
     nev = 2
     ref_evs = [0]
     refmt_dict = {0: refmt}
+    inev = list(range(nev))
 
     for const, mt_elements in zip(["none", "deviatoric"], [6, 5]):
-        A, b = ls.reference_mt_equations(ref_evs, refmt_dict, nev, const)
+        A, b = ls.reference_mt_equations(ref_evs, refmt_dict, inev, const)
 
         assert pytest.approx(A[:, :mt_elements]) == np.eye(mt_elements)
 
@@ -454,10 +482,10 @@ def test_solve_lsmr():
         elev = -10e3  # 10 km elevation
         dist = np.sqrt(epi_dist**2 + elev**2)
 
-        evl, stad, phd = conftest.make_events_stations_phases(nev, nsta, epi_dist, elev)
-        in_events = list(range(len(evl)))
+        evd, stad, phd = conftest.make_events_stations_phases(nev, nsta, epi_dist, elev)
+        in_events = list(range(len(evd)))
 
-        M0 = [mt.moment_of_magnitude(ev.mag) for ev in evl]
+        M0 = [mt.moment_of_magnitude(ev.mag) for ev in evd.values()]
 
         # Moment tensors in tuple notation
         mtd = {
@@ -522,11 +550,11 @@ def test_solve_lsmr():
         for iapply in iapply_line_norm:
             # Build homogenos part of linear system
             Ah, bh = ls.homogenous_amplitude_equations(
-                p_amplitudes, s_amplitudes, in_events, stad, evl, phd, constraint
+                p_amplitudes, s_amplitudes, in_events, stad, evd, phd, constraint
             )
 
             # Build inhomogenous equations
-            Ai, bi = ls.reference_mt_equations(ref_mts, mtd, len(evl), constraint)
+            Ai, bi = ls.reference_mt_equations(ref_mts, mtd, in_events, constraint)
 
             # Collect and apply weights ...
             # ... of the homogenous system
