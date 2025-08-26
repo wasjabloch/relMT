@@ -50,8 +50,8 @@ def mt_reverse_dip30_north_m0(magnitude):
 
 def event_circle(number: int = 8, distance: float = 0.0, depth: float = 0.0):
     # 8 events in a circle, at distance from origin
-    return [
-        core.Event(
+    return {
+        n: core.Event(
             distance * np.sin(n * 2 * np.pi / number),
             distance * np.cos(n * 2 * np.pi / number),
             depth,
@@ -60,7 +60,7 @@ def event_circle(number: int = 8, distance: float = 0.0, depth: float = 0.0):
             str(n),
         )
         for n in range(number)
-    ]
+    }
 
 
 def station_circle(number: int = 8, distance: float = 1000.0, depth: float = 0.0):
@@ -82,7 +82,7 @@ def phases(stations, events, vp=6000, vs=4000):
 
     phd = {}
     for ista in stations:
-        for iev, ev in enumerate(events):
+        for iev, ev in events.items():
             sta = stations[ista]
             for ph in phs:
                 phid = core.join_phaseid(iev, ista, ph)
@@ -101,10 +101,10 @@ def phases(stations, events, vp=6000, vs=4000):
 
 @pytest.fixture
 def synthetic_aligned_waveforms(tmp_path):
-    def _create(mt_dict, event_list, station_dict, phase_dict, noise_level=0.0):
+    def _create(mt_dict, event_dict, station_dict, phase_dict, noise_level=0.0):
         # Create the waveform arrays
         arrd = {
-            wvid: rng.normal(size=(len(event_list), 3, 512), scale=noise_level)
+            wvid: rng.normal(size=(len(event_dict), 3, 512), scale=noise_level)
             for wvid in core.iterate_waveid(station_dict)
         }
 
@@ -115,7 +115,7 @@ def synthetic_aligned_waveforms(tmp_path):
                 phase=pha,
                 components="NEZ",
                 sampling_rate=100,
-                events=list(range(len(event_list))),
+                events=list(range(len(event_dict))),
                 data_window=5.12,
                 phase_start=0,
                 phase_end=2,
@@ -134,9 +134,9 @@ def synthetic_aligned_waveforms(tmp_path):
             azi = phase_dict[phid].azimuth
             plu = phase_dict[phid].plunge
             dist = utils.cartesian_distance(
-                event_list[iev].north,
-                event_list[iev].east,
-                event_list[iev].depth,
+                event_dict[iev].north,
+                event_dict[iev].east,
+                event_dict[iev].depth,
                 station_dict[sta].north,
                 station_dict[sta].east,
                 station_dict[sta].depth,
@@ -169,7 +169,7 @@ def synthetic_aligned_waveforms(tmp_path):
         datadir = tmp_path / "data"
         datadir.mkdir()
 
-        io.make_event_table(event_list, core.file("event", directory=tmp_path))
+        io.make_event_table(event_dict, core.file("event", directory=tmp_path))
         io.make_station_table(station_dict, core.file("station", directory=tmp_path))
         io.save_yaml(core.file("exclude", directory=tmp_path), core.exclude)
 
@@ -230,7 +230,9 @@ def make_events_stations_phases(nev: int, nsta: int, epi_dist: float, elev: floa
     }
 
     # All events co-located at the origin
-    evl = [core.Event(0, 0, 0, 0, 1, iev) for iev in range(nev)]  # Event coordinates
+    evd = {
+        iev: core.Event(0, 0, 0, 0, 1, iev) for iev in range(nev)
+    }  # Event coordinates
 
     phd = {
         core.join_phaseid(iev, st, ph): core.Phase(0, stazi[st], stplu)
@@ -239,7 +241,7 @@ def make_events_stations_phases(nev: int, nsta: int, epi_dist: float, elev: floa
         for ph in "PS"
     }
 
-    return evl, stad, phd
+    return evd, stad, phd
 
 
 def make_radiation(phd, mtd, dist):
