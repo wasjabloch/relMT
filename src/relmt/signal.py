@@ -41,8 +41,13 @@ def _gauss(n: int, sig: float, de: float):
 
 
 def dB(ratio: float | np.ndarray) -> float | np.ndarray:
-    """Return ratio in decibel"""
+    """Ratio expressed in decibel"""
     return 10 * np.log10(ratio)
+
+
+def fraction(db: float | np.ndarray) -> float | np.ndarray:
+    """Ratio in decibel expressed as fraction"""
+    return 10 ** (db / 10)
 
 
 def make_wavelet(
