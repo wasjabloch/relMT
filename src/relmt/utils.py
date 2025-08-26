@@ -200,10 +200,20 @@ def event_indices(
 
     evs = np.union1d(np.union1d(eva, evb), evc)
     indices = defaultdict(
-        lambda: [],
+        list,
         {ev: ((eva == ev) | (evb == ev) | (evc == ev)).nonzero()[0] for ev in evs},
     )
     return indices
+
+
+def signed_log(x):
+    """Signed log transform: sign(x) * log(1 + |x|)"""
+    return np.sign(x) * np.log1p(np.abs(x))
+
+
+def signed_log_inverse(y):
+    """Inverse of the signed log transform: sign(x) * log(1 + |x|)"""
+    return np.sign(y) * (np.expm1(np.abs(y)))
 
 
 def fisher_average(ccarr: np.ndarray, axis: int = -1) -> np.ndarray:
