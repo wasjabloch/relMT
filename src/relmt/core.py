@@ -778,6 +778,11 @@ Maximum distance (m) between two events to include measurement in linear system 
         """
 Minimum number of equations required to constrain one moment tensor""",
     ),
+    "max_gap": (
+        "float",
+        """
+Maximum azimuthal gap allowed for one moment tensor""",
+    ),
     "bootstrap_samples": (
         "int",
         """
@@ -835,6 +840,7 @@ class Config:
         max_magnitude_difference: float | None = None,
         max_event_distance: float | None = None,
         min_equations: int | None = None,
+        max_gap: float | None = None,
         bootstrap_samples: int | None = None,
         ncpu: int | None = None,
     ):

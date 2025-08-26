@@ -49,6 +49,7 @@ config = core.Config(
     auto_bandpass_snr_target=0.0,
     min_dynamic_range=2.0,
     min_equations=8,
+    max_gap=300,
     max_magnitude_difference=float("inf"),
     max_event_distance=float("inf"),
     bootstrap_samples=100,
