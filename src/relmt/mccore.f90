@@ -697,6 +697,9 @@ integer :: ix,jx,ll,mm,nl,kk
             call correlate(scomp(:,ix),scomp(:,jx),sccij,nt)
             sij=sccij(ijn)
             eobj=(1-sij*sij)
+            ! TODO:
+            ! Introduce a penalty for anticorrelation
+            ! eobj=(1-sij*sij) + p * (1-sij)
 
 ! Find EOBJ function minimum location
             kk=minloc(eobj,dim=1)
