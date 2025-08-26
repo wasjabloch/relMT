@@ -496,7 +496,7 @@ def optimal_bandpass(
     phase_end: float,
     fmin: float | None = None,
     fmax: float | None = None,
-    min_snr: float = 1,
+    min_snr: float = 0,
 ) -> tuple[float, float]:
     """
     Find bandpass that with a signal-to-noise ratio above threshold
@@ -508,7 +508,7 @@ def optimal_bandpass(
     fmin, fmax:
         Minimum, maximum frequency to consider
     min_snr:
-        Minimum signal to noise ratio to include
+        Minimum signal to noise ratio (dB) to include
 
     Returns
     -------
@@ -522,6 +522,9 @@ def optimal_bandpass(
 
     # Get signal and nois windows
     isig, _ = signal.indices_signal(sampling_rate, phase_start, phase_end, data_window)
+
+    # Convert dB to fraction
+    min_snr = signal.fraction(min_snr)
 
     # Force noise spectrum same size as frequence spectrum
     if wvarr.ndim == 1:
