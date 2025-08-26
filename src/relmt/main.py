@@ -178,7 +178,7 @@ def main_exclude(
             continue
 
         isnr = np.full_like(ind, False)
-        if (minsnr := hdr["min_signal_noise_ratio"]) is not None:
+        if (minsnr := hdr["min_signal_noise_ratio"]) is not None and dosnr:
             snr = signal.signal_noise_ratio(
                 arr, **hdr.kwargs(signal.signal_noise_ratio)
             )
@@ -186,7 +186,7 @@ def main_exclude(
             logger.debug(f"{wvid}: {sum(isnr)} traces with SNR < {minsnr}")
 
         icc = np.full_like(ind, False)
-        if (mincc := hdr["min_correlation"]) is not None:
+        if (mincc := hdr["min_correlation"]) is not None and docc:
             mat = utils.concat_components(
                 signal.demean_filter_window(
                     arr, **hdr.kwargs(signal.demean_filter_window)
@@ -197,7 +197,7 @@ def main_exclude(
             logger.debug(f"{wvid}: {sum(icc)} traces with CC < {mincc}")
 
         iecn = np.full_like(ind, False)
-        if (minecn := hdr["min_expansion_coefficient_norm"]) is not None:
+        if (minecn := hdr["min_expansion_coefficient_norm"]) is not None and doecn:
             arr = signal.demean_filter_window(
                 arr, **hdr.kwargs(signal.demean_filter_window)
             )
@@ -304,7 +304,7 @@ def phase_passbands(
     pha = hdr["phase"]
 
     # At least one period within window
-    fmin = 1.0 / (hdr["phase_end"] - hdr["phase_start"])
+    fwin = 1.0 / (hdr["phase_end"] - hdr["phase_start"])
 
     # One sample more than the Nyquist frequency
     fnyq = (arr.shape[-1] - 1.0) / hdr["data_window"] / 2
@@ -354,19 +354,19 @@ def phase_passbands(
         else:
             raise ValueError(f"Unknown lowpass method: {auto_lowpass_method}")
 
-        # Now try to optimize the SNR
-        if auto_bandpass_snr_target is not None:
+        # No SNR optimization, use the corner frequency
+        hpas = min(fwin, fnyq)
+        lpas = min(fc, fnyq)
+
+        if auto_bandpass_snr_target is not None and hpas < lpas:
+            # Try to optimize bandpass within range
             hpas, lpas = extra.optimal_bandpass(
                 phase_arr,
-                fmin=min(fmin, fnyq),
-                fmax=min(fc, fnyq),
+                fmin=hpas,
+                fmax=lpas,
                 min_snr=auto_bandpass_snr_target,
                 **hdr.kwargs(extra.optimal_bandpass),
             )
-        else:
-            # No SNR optimization, use the corner frequency
-            hpas = min(fmin, fnyq)
-            lpas = min(fc, fnyq)
 
         # Return the filter corners
         bpd[evn] = [float(hpas), float(lpas)]
@@ -542,6 +542,7 @@ def main_amplitude(
                                 lpas,
                                 evns[a],
                                 evns[b],
+                                True,
                             )
                         )
 
@@ -581,6 +582,7 @@ def main_amplitude(
                                 evns[a],
                                 evns[b],
                                 evns[c],
+                                True,
                             )
                         )
 
@@ -701,11 +703,13 @@ def main_qc(config: core.Config, directory: Path):
     minumum number of equation constraints.
     """
 
+    # A-priori meassures
     max_mis = config["max_amplitude_misfit"]
     max_mag_diff = config["max_magnitude_difference"]
     max_s1 = config["max_s_sigma1"]
     max_ev_dist = config["max_event_distance"]
     min_eq = config["min_equations"]
+    max_gap = config["max_gap"]
 
     exclude = io.read_yaml(core.file("exclude", directory=directory))
 
@@ -817,7 +821,10 @@ def main_qc(config: core.Config, directory: Path):
             samps = amps.copy()
 
     # Make sure we have enough equations
-    pamps, samps = qc.clean_by_equation_count(pamps, samps, min_eq)
+    pamps, samps = qc.clean_by_equation_count_gap(pamps, samps, phd, min_eq, max_gap)
+
+    if len(pamps) + len(samps) == 0:
+        raise RuntimeError("No observations left. Relax your QC criteria.")
 
     # Write to file
     for ph, amps in zip("PS", [pamps, samps]):
@@ -847,23 +854,13 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
     irefs = config["reference_mts"]
     constraint = config["mt_constraint"]
     refmt_weight = config["reference_weight"]
+    ncpu = config["ncpu"]
 
     nboot = config["bootstrap_samples"]
 
-    # Avoid ovewriting reduced amplitude files.
-    if config["amplitude_suffix"] == config["result_suffix"]:
-        msg = "Naming conflict in configuration. Please supply a "
-        msg += "'result_suffix' that is different from 'amplitude_suffix'."
-        raise ValueError(msg)
-
     insuf = config["amplitude_suffix"] + core.clean_amplitude_suffix
-    synsuf = (
-        config["amplitude_suffix"]
-        + "-"
-        + config["result_suffix"]
-        + core.synthetic_amplitude_suffix
-    )
-    outsuf = config["result_suffix"]
+    outsuf = config["amplitude_suffix"] + config["result_suffix"]
+    synsuf = outsuf + core.synthetic_amplitude_suffix
 
     mt_elements = ls.mt_elements(constraint)
 
@@ -905,6 +902,12 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
     ]
 
     # Build homogenos part of linear system
+    # Ah, bh = ls.homogenous_amplitude_equations_sparse(
+    # pamp_subset, samp_subset, incl_ev, stad, evd, phd, constraint, ncpu
+    # )
+
+    # TODO: Does the workflow below work with sparse matrices?
+    # TODO: the line above was:
     Ah, bh = ls.homogenous_amplitude_equations(
         pamp_subset, samp_subset, incl_ev, stad, evd, phd, constraint
     )
@@ -1013,40 +1016,83 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
 
     logger.info("Computing amplitude misfits and correlations...")
 
+    ppms, ppcs = zip(
+        *[
+            (
+                amp.p_misfit(
+                    mat := utils.concat_components(
+                        signal.demean_filter_window(
+                            arrd[core.join_waveid(pamp.station, "P")][
+                                [
+                                    (hdr := hdrd[core.join_waveid(pamp.station, "P")])[
+                                        "events"
+                                    ].index(pamp.event_a),
+                                    hdr["events"].index(pamp.event_b),
+                                ]
+                            ],
+                            hdr["sampling_rate"],
+                            hdr["phase_start"],
+                            hdr["phase_end"],
+                            hdr["taper_length"],
+                            pamp.highpass,
+                            pamp.lowpass,
+                        )
+                    ),
+                    Aab,
+                ),
+                amp.p_reconstruction_correlation(mat),
+            )
+            for pamp, Aab in zip(pamp_subset, Asyn)
+        ]
+    )
+
+    # S-wave posterior misfit and correlation
+    spms, spcs = zip(
+        *[
+            (
+                amp.s_misfit(
+                    mat := utils.concat_components(
+                        signal.demean_filter_window(
+                            arrd[core.join_waveid(samp.station, "S")][
+                                [
+                                    (hdr := hdrd[core.join_waveid(samp.station, "S")])[
+                                        "events"
+                                    ].index(samp.event_a),
+                                    hdr["events"].index(samp.event_b),
+                                    hdr["events"].index(samp.event_c),
+                                ]
+                            ],
+                            hdr["sampling_rate"],
+                            hdr["phase_start"],
+                            hdr["phase_end"],
+                            hdr["taper_length"],
+                            samp.highpass,
+                            samp.lowpass,
+                        )
+                    ),
+                    B[0],
+                    B[1],
+                ),
+                amp.s_reconstruction_correlation(mat, B[0], B[1]),
+            )
+            for samp, B in zip(samp_subset, Bsyn)
+        ]
+    )
+
     pamp_synthetic = [
         core.P_Amplitude_Ratio(
             pamp.station,
             pamp.event_a,
             pamp.event_b,
             Aab,
-            amp.p_misfit(
-                mat := utils.concat_components(
-                    signal.demean_filter_window(
-                        arrd[core.join_waveid(pamp.station, "P")][
-                            [
-                                (hdr := hdrd[core.join_waveid(pamp.station, "P")])[
-                                    "events"
-                                ].index(pamp.event_a),
-                                hdr["events"].index(pamp.event_b),
-                            ]
-                        ],
-                        hdr["sampling_rate"],
-                        hdr["phase_start"],
-                        hdr["phase_end"],
-                        hdr["taper_length"],
-                        pamp.highpass,
-                        pamp.lowpass,
-                    )
-                ),
-                Aab,
-            ),
-            amp.p_reconstruction_correlation(mat),
+            ppm,
+            ppc,
             p_sigma[0],
             p_sigma[1],
             pamp.highpass,
             pamp.lowpass,
         )
-        for pamp, Aab, p_sigma in zip(pamp_subset, Asyn, p_sigmas)
+        for pamp, Aab, p_sigma, ppm, ppc in zip(pamp_subset, Asyn, p_sigmas, ppms, ppcs)
     ]
 
     samp_synthetic = [
@@ -1057,37 +1103,15 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
             samp.event_c,
             B[0],
             B[1],
-            amp.s_misfit(
-                mat := utils.concat_components(
-                    signal.demean_filter_window(
-                        arrd[core.join_waveid(samp.station, "S")][
-                            [
-                                (hdr := hdrd[core.join_waveid(samp.station, "S")])[
-                                    "events"
-                                ].index(samp.event_a),
-                                hdr["events"].index(samp.event_b),
-                                hdr["events"].index(samp.event_c),
-                            ]
-                        ],
-                        hdr["sampling_rate"],
-                        hdr["phase_start"],
-                        hdr["phase_end"],
-                        hdr["taper_length"],
-                        samp.highpass,
-                        samp.lowpass,
-                    )
-                ),
-                B[0],
-                B[1],
-            ),
-            amp.s_reconstruction_correlation(mat, B[0], B[1]),
-            s_sigma[0],
-            s_sigma[1],
-            s_sigma[2],
+            spm,
+            spc,
+            ss[0],
+            ss[1],
+            ss[2],
             samp.highpass,
             samp.lowpass,
         )
-        for samp, B, s_sigma in zip(samp_subset, Bsyn, s_sigmas)
+        for samp, B, ss, spm, spc in zip(samp_subset, Bsyn, s_sigmas, spms, spcs)
     ]
 
     # Amplitude oberservations
@@ -1108,7 +1132,7 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
 
     # Moment RMS per event
     mom_rmss = {
-        evn: (
+        evn: np.sqrt(
             np.sum(p_residuals[ievp[evn]] ** 2) + np.sum(s_residuals[ievs[evn], :] ** 2)
         )
         / (len(ievp[evn]) + 2 * len(ievs[evn]))
@@ -1117,10 +1141,10 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
 
     # amplitude RMS per event
     amp_rmss = {
-        evn: (
-            np.sum(Ares[ievp[evn]] ** 2)
-            + np.sum(B1res[ievs[evn]] ** 2)
-            + np.sum(B2res[ievs[evn]] ** 2)
+        evn: np.sqrt(
+            np.sum(utils.signed_log(Ares[ievp[evn]]) ** 2)
+            + np.sum(utils.signed_log(B1res[ievs[evn]]) ** 2)
+            + np.sum(utils.signed_log(B2res[ievs[evn]]) ** 2)
         )
         / (len(ievp[evn]) + 2 * len(ievs[evn]))
         for evn in relmts
@@ -1174,9 +1198,27 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
             mis_weights[:n_p].flat[:],
             amp_weights[:n_p].flat[:],
             eq_norm[:n_p].flat[:],
+            Asyn,
+            ppms,
         ],
-        [" MomResidual", "AmpResidual", "MisfitWght", "AmplWght", "EquationNorm"],
-        ["{:11.3e}", "{:11.3e}", "{:10.5f}", "{:8.4f}", "{:7.4e}"],
+        [
+            " MomResidual",
+            "AmpResidual",
+            "MisfitWght",
+            "AmplWght",
+            "EquaNorm",
+            "PredAab ",
+            "PredMis",
+        ],
+        [
+            "{:11.3e}",
+            "{:11.3e}",
+            "{:10.5f}",
+            "{:8.4f}",
+            "{:7.2e}",
+            "{:8.2e}",
+            "{:7.5f}",
+        ],
     )
 
     io.save_amplitudes(
@@ -1191,6 +1233,9 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
             amp_weights[n_p : n_p + n_s : 2].flat[:],
             eq_norm[n_p : n_p + n_s : 2].flat[:],
             eq_norm[n_p + 1 : n_p + n_s : 2].flat[:],
+            Bsyn[:, 0],
+            Bsyn[:, 1],
+            spms,
         ],
         [
             " MomResidual1",
@@ -1199,8 +1244,11 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
             "AmpResidual2",
             "MisfitWght",
             "AmplWght",
-            "EquatNorm1",
-            "EquatNorm2",
+            "EquaNorm1",
+            "EquaNorm2",
+            "PredBabc",
+            "PredBacb",
+            "PredMis",
         ],
         [
             "{:12.3e}",
@@ -1209,8 +1257,11 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
             "{:12.3e}",
             "{:10.5f}",
             "{:8.4f}",
-            "{:7.4e}",
-            "{:7.4e}",
+            "{:9.3e}",
+            "{:9.3e}",
+            "{:8.2e}",
+            "{:8.2e}",
+            "{:7.5f}",
         ],
     )
 
