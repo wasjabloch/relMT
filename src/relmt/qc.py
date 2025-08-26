@@ -27,7 +27,7 @@
 
 import numpy as np
 import logging
-from relmt import core, signal, mt, utils, qc
+from relmt import core, signal, mt, utils, qc, angle
 from scipy.stats import skew, kurtosis
 from scipy.linalg import svd
 from scipy.sparse import csr_array
@@ -198,7 +198,7 @@ def clean_by_magnitude_difference(
 def clean_by_event_distance(
     amplitudes: list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios],
     event_dict: dict[int, core.Event],
-    event_distance: list[str] | None,
+    event_distance: float,
 ) -> list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios]:
     """Remove amplitude readings of distant event combinations
 
@@ -226,11 +226,19 @@ def clean_by_event_distance(
 
     xyz = utils.xyzarray(event_dict)
 
+    # Event indices
+    ievd = {evn: iev for iev, evn in enumerate(event_dict)}
+
     if ip:
-        ievs = np.array([(amp.event_a, amp.event_b) for amp in amplitudes])
+        ievs = np.array([(ievd[amp.event_a], ievd[amp.event_b]) for amp in amplitudes])
         dist = utils.cartesian_distance(*xyz[ievs[:, 0], :].T, *xyz[ievs[:, 1], :].T)
     else:
-        ievs = np.array([(amp.event_a, amp.event_b, amp.event_c) for amp in amplitudes])
+        ievs = np.array(
+            [
+                (ievd[amp.event_a], ievd[amp.event_b], ievd[amp.event_c])
+                for amp in amplitudes
+            ]
+        )
         ab = utils.cartesian_distance(*xyz[ievs[:, 0], :].T, *xyz[ievs[:, 1], :].T)
         ac = utils.cartesian_distance(*xyz[ievs[:, 0], :].T, *xyz[ievs[:, 2], :].T)
         bc = utils.cartesian_distance(*xyz[ievs[:, 1], :].T, *xyz[ievs[:, 2], :].T)
@@ -245,10 +253,12 @@ def clean_by_event_distance(
     return [amplitudes[n] for n in iin]
 
 
-def clean_by_equation_count(
+def clean_by_equation_count_gap(
     p_amplitudes: list[core.P_Amplitude_Ratio],
     s_amplitudes: list[core.S_Amplitude_Ratios],
+    phase_dict: dict[str, core.Phase],
     min_equations: int | None,
+    max_gap: float | None = None,
 ) -> tuple[list[core.P_Amplitude_Ratio], list[core.S_Amplitude_Ratios]]:
     """Remove observations that occurr in less than `min_equations` iteratively
 
@@ -272,6 +282,12 @@ def clean_by_equation_count(
     """
 
     if min_equations is None:
+        min_equations = 0
+
+    if max_gap is None:
+        max_gap = 360.0
+
+    if min_equations is None and max_gap is None:
         return p_amplitudes, s_amplitudes
 
     p_pairs = np.array([(amp.event_a, amp.event_b) for amp in p_amplitudes])
@@ -280,33 +296,44 @@ def clean_by_equation_count(
     )
 
     # Below created with ChatGPT o4-mini-high
-    keep_p = np.ones(len(p_pairs), dtype=bool)
-    keep_s = np.ones(len(s_triplets), dtype=bool)
+    keep_p = np.full(len(p_pairs), True)
+    keep_s = np.full(len(s_triplets), True)
 
     while True:
         # Count occurrences of each integer over the kept events
         cnt = Counter()
 
-        for i in np.nonzero(keep_p)[0]:
+        # P and S indeces
+        pin = np.nonzero(keep_p)[0]
+        sin = np.nonzero(keep_s)[0]
+
+        for i in pin:
             cnt.update(p_pairs[i])
 
-        for i in np.nonzero(keep_s)[0]:
+        for i in sin:
             cnt.update(s_triplets[i])
 
+        # Amplitdue subsets
+        psub = [p_amplitudes[i] for i in pin]
+        ssub = [s_amplitudes[i] for i in sin]
+
+        gap = angle.azimuth_gap(phase_dict, psub, ssub)
+
         # Events with too few observations
-        few = {node for node, c in cnt.items() if c < min_equations}
-        if any(few):
-            logger.debug("Excluding events: " + ", ".join(f"{f}" for f in few))
+        bad = {evn for evn in cnt if cnt[evn] < min_equations or gap[evn][0] > max_gap}
+
+        if any(bad):
+            logger.debug("Excluding events: " + ", ".join(f"{f}" for f in bad))
 
         # Drop all occurrences of the events with too few observations
         new_keep_p = keep_p.copy()
         for i in np.nonzero(keep_p)[0]:
-            if any(x in few for x in p_pairs[i]):
+            if any(x in bad for x in p_pairs[i]):
                 new_keep_p[i] = False
 
         new_keep_s = keep_s.copy()
         for i in np.nonzero(keep_s)[0]:
-            if any(x in few for x in s_triplets[i]):
+            if any(x in bad for x in s_triplets[i]):
                 new_keep_s[i] = False
 
         # If nothing was dropped, exit the loop
@@ -322,6 +349,7 @@ def clean_by_equation_count(
 
     if not any(pin):
         logger.warning("Excluded all P-observations.")
+
     if not any(sin):
         logger.warning("Excluded all S-observations.")
 
@@ -801,6 +829,7 @@ def connected_events(
 def events_phases_above_misfit(
     amplitudes: list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios],
     misfit: float,
+    subtract_below: float = 0.0,
 ) -> Counter[str, int]:
     """Count the phases that have a misfit larger than the given one
 
@@ -810,6 +839,8 @@ def events_phases_above_misfit(
         List of amplitude observations
     misfit:
         Maximum misfit to consider
+    subtract_below:
+        Subtract the number of observations with a misfit below this value
     Returns
     -------
     events:
@@ -821,8 +852,10 @@ def events_phases_above_misfit(
     phases = Counter()
     events = Counter()
 
+    isubtract = subtract_below > 0
+
     for amp in amplitudes:
-        if amp.misfit > misfit:
+        if amp.misfit >= misfit:
             if isinstance(amp, core.P_Amplitude_Ratio):
                 for iev in [amp.event_a, amp.event_b]:
                     phases[core.join_phaseid(iev, amp.station, "P")] += 1
@@ -831,5 +864,14 @@ def events_phases_above_misfit(
                 for iev in [amp.event_a, amp.event_b, amp.event_c]:
                     phases[core.join_phaseid(iev, amp.station, "S")] += 1
                     events[iev] += 1
+        elif isubtract and amp.misfit < subtract_below:
+            if isinstance(amp, core.P_Amplitude_Ratio):
+                for iev in [amp.event_a, amp.event_b]:
+                    phases[core.join_phaseid(iev, amp.station, "P")] -= 1
+                    events[iev] -= 1
+            elif isinstance(amp, core.S_Amplitude_Ratios):
+                for iev in [amp.event_a, amp.event_b, amp.event_c]:
+                    phases[core.join_phaseid(iev, amp.station, "S")] -= 1
+                    events[iev] -= 1
 
     return events, phases
