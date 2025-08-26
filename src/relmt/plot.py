@@ -608,6 +608,7 @@ def mt_matrix(
     values: dict[int, float] = {},
     valuename: str = "Value",
     cmap=plt.cm.cividis,
+    overlay_dc_at: float = 1.0,
     ax: Axes | None = None,
 ) -> Axes:
     """Plot moment tensors into a square matrix
@@ -620,6 +621,8 @@ def mt_matrix(
         Plot into existing axes
     highlight:
         Highlight these moment tensors
+    overlay_dc_at:
+        Overlay a double couple beachball if DC fraction is at least this large
 
     Return
     ------
@@ -663,6 +666,12 @@ def mt_matrix(
                 ec = highlightc
             fc = colors.get(iev, fc)
 
+        idc = thismt.standard_decomposition()[1][1] >= overlay_dc_at
+
+        mtlw = 1.0
+        if idc:
+            mtlw = 0.0
+
         beachball.plot_beachball_mpl(
             thismt,
             ax,
@@ -671,13 +680,26 @@ def mt_matrix(
             position=(x, y),
             color_t=fc,
             edgecolor=ec,
-            linewidth=1.0,
+            linewidth=mtlw,
         )
 
-        ax.annotate(names.get(iev, iev), (x, y), (-20, 20), textcoords="offset points")
+        if idc:
+            beachball.plot_beachball_mpl(
+                thismt,
+                ax,
+                beachball_type="dc",
+                size=40,
+                position=(x, y),
+                color_t="none",
+                color_p="none",
+                edgecolor=ec,
+                linewidth=1.0,
+            )
 
-    ax.set_ylim([ncol + 1, -2])
-    ax.set_xlim([-1, nrow])
+        ax.annotate(names.get(iev, iev), (x, y), (-20, 22), textcoords="offset points")
+
+    ax.set_ylim([ncol + 0.5, -0.5])
+    ax.set_xlim([-0.5, nrow - 0.5])
     ax.axis("off")
 
     if values:
