@@ -183,9 +183,9 @@ def test_synthetic():
     elev = -10e3  # 10 km elevation
     dist = np.sqrt(epi_dist**2 + elev**2)
 
-    evl, stad, phd = conftest.make_events_stations_phases(nev, nsta, epi_dist, elev)
+    evd, stad, phd = conftest.make_events_stations_phases(nev, nsta, epi_dist, elev)
 
-    M0 = [mt.moment_of_magnitude(ev.mag) for ev in evl]
+    M0 = [mt.moment_of_magnitude(ev.mag) for ev in evd.values()]
 
     # Moment tensors in tuple notation
     mtd = {
@@ -203,19 +203,19 @@ def test_synthetic():
     # Create station event pairs and triplets, only for those for which we have
     # a moment tensor and phase information
     p_pairs = [
-        (s, i, j) for s in stad for i in range(len(evl)) for j in range(i + 1, len(evl))
+        (s, i, j) for s in stad for i in range(len(evd)) for j in range(i + 1, len(evd))
     ]
 
     s_triplets = [
         (s, i, j, k)
         for s in stad
-        for i in range(len(evl))
-        for j in range(i + 1, len(evl))
-        for k in range(j + 1, len(evl))
+        for i in range(len(evd))
+        for j in range(i + 1, len(evd))
+        for k in range(j + 1, len(evd))
     ]
 
-    Aab, psig = amp.synthetic_p(mtd, evl, stad, phd, p_pairs)
-    Babc, orders, ssig = amp.synthetic_s(mtd, evl, stad, phd, s_triplets)
+    Aab, psig = amp.synthetic_p(mtd, evd, stad, phd, p_pairs)
+    Babc, orders, ssig = amp.synthetic_s(mtd, evd, stad, phd, s_triplets)
 
     assert np.isclose(psig, [1.0, 0.0]).all()
     assert np.isclose(ssig, [0.7, 0.3, 0.0], atol=0.2).all()
@@ -236,7 +236,7 @@ def test_synthetic():
         assert pytest.approx(Babc[n, 0] * ub + Babc[n, 1] * uc) == ua
 
     # Let's try not to reorder the S wavefroms for PCA
-    Babc, *_ = amp.synthetic_s(mtd, evl, stad, phd, s_triplets, keep_order=True)
+    Babc, *_ = amp.synthetic_s(mtd, evd, stad, phd, s_triplets, keep_order=True)
 
     # Now check the S amplitudes
     for n, (s, a, b, c) in enumerate(s_triplets):

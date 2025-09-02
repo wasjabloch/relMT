@@ -187,13 +187,14 @@ def test_paired_s_lag_times():
 
     wvf_matrix = s_wavelet()
     nwv = len(wvf_matrix)
-    _, cc, dd, _, evpairs = align.mccc_align(wvf_matrix, "S", 100, 0.5)
+    _, cc, dd, dd_res, evpairs = align.mccc_align(wvf_matrix, "S", 100, 0.5)
 
-    evpairs2, dd2, cc2 = align.paired_s_lag_times(evpairs, dd, cc)
+    evpairs2, dd2, cc2, rms = align.paired_s_lag_times(evpairs, dd, cc, dd_res)
 
     assert evpairs2.shape[0] == nwv * (nwv - 1) / 2
     assert len(dd2) == nwv * (nwv - 1) / 2
     assert cc2 == pytest.approx(1.0)
+    assert rms == pytest.approx(0.0)
 
     # Let's strip the last 0 used to constrain the linear system
     dd = dd[:-1]
