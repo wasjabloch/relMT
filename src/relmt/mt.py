@@ -163,24 +163,9 @@ def p_radiation(
     ``(3,)`` (or ``(1,)`` when `only_first=True`) displacement vector at receiver
     """
 
-    ndim = 3
-
-    udim = 3
-    if only_first:
-        udim = 1
-
     g = ls.gamma(azi, plu)
-    u = np.zeros(udim)
-    for i in range(udim):
-        for j in range(ndim):
-            for k in range(ndim):
-                u[i] += (
-                    g[i]
-                    * g[j]
-                    * g[k]
-                    / (4.0 * np.pi * rho * alpha**3.0 * dist)
-                    * M[j, k]
-                )
+    gMg = g @ M @ g
+    u = gMg * g / (4.0 * np.pi * rho * alpha**3.0 * dist)
     return u
 
 
@@ -210,23 +195,10 @@ def s_radiation(
     ``(3,)`` displacement vector at receiver
     """
 
-    def d(i, j):
-        if i == j:
-            return 1.0
-        return 0.0
-
-    ndim = 3
     g = ls.gamma(azi, plu)
-    u = np.zeros(ndim)
-    for i in range(ndim):
-        for j in range(ndim):
-            for k in range(ndim):
-                u[i] += (
-                    (d(i, j) - g[i] * g[j])
-                    * g[k]
-                    / (4.0 * np.pi * rho * beta**3.0 * dist)
-                    * M[j, k]
-                )
+    gMg = g @ M @ g
+    u = ((M @ g) - gMg * g) / (4.0 * np.pi * rho * beta**3.0 * dist)
+
     return u
 
 
