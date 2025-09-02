@@ -766,15 +766,40 @@ def connected_events(
     # Collect unique connections
     pcons = set()
     scons = set()
+
+    # events in order of appearance
+    evns = []
+
     if p_amplitudes is not None:
         for amp in p_amplitudes:
-            pcons.add(tuple(sorted((amp.event_a, amp.event_b))))
+            eva = amp.event_a
+            evb = amp.event_b
+
+            if eva not in evns:
+                evns.append(eva)
+            if evb not in evns:
+                evns.append(evb)
+
+            # Keep the integers small and positive in order not to create an
+            # enormous matrix down the road
+            pcons.add(tuple(sorted((evns.index(eva), evns.index(evb)))))
 
     if s_amplitudes is not None:
         for amp in s_amplitudes:
-            scons.add(tuple(sorted((amp.event_a, amp.event_b))))
-            scons.add(tuple(sorted((amp.event_a, amp.event_c))))
-            scons.add(tuple(sorted((amp.event_b, amp.event_c))))
+            eva = amp.event_a
+            evb = amp.event_b
+            evc = amp.event_c
+
+            if eva not in evns:
+                evns.append(eva)
+            if evb not in evns:
+                evns.append(evb)
+            if evc not in evns:
+                evns.append(evc)
+
+            scons.add(tuple(sorted((evns.index(eva), evns.index(evb)))))
+            scons.add(tuple(sorted((evns.index(eva), evns.index(evc)))))
+            scons.add(tuple(sorted((evns.index(evb), evns.index(evc)))))
 
     cons = pcons.union(scons)
 
@@ -783,25 +808,24 @@ def connected_events(
 
     # Build a graph from the connections
     rows, cols = zip(*sorted(cons))  # Arbitrary order
-    evs = sorted((set(rows).union(cols)))
-    nev = max(evs)  # The largest event present
+    nev = len(evns)
     data = [1] * len(rows)  # All edges count the same
 
     # Check if all MTs are represented
-    iin = np.isin(reference_mts, evs)
+    iin = np.isin(reference_mts, evns)
     if not all(iin):
         msg = "These reference MTs have no amplitude measurement: "
         msg += ", ".join(f"{reference_mts[i]}" for i in (~iin).nonzero()[0])
         raise ValueError(msg)
 
     # Connected components assumes a square matrix
-    graph = csr_array((data, (rows, cols)), (nev + 1, nev + 1))
+    graph = csr_array((data, (rows, cols)), (nev, nev))
 
     # Event index -> cluster within graph
     _, groups = connected_components(graph, False)
 
     # Group indices of moment tensors
-    igs = [groups[imt] for imt in reference_mts]
+    igs = [groups[evns.index(imt)] for imt in reference_mts]
 
     # Check if all MTs are connected to each other
     if len(set(igs)) > 1:
@@ -820,7 +844,7 @@ def connected_events(
     scount = Counter(np.array(list(scons)).flat)
 
     connections = {
-        nev: (pcount[nev], scount[nev]) for nev in (groups == igs[0]).nonzero()[0]
+        evns[nev]: (pcount[nev], scount[nev]) for nev in (groups == igs[0]).nonzero()[0]
     }
 
     return connections
