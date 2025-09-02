@@ -52,7 +52,7 @@ def xyzarray(
     ``(rows, 3)`` or ``(3,) north-east-down coordinates"""
     try:
         # Is it a dictionary?
-        return np.array([table[key][:3] for key in sorted(table)])
+        return np.array([table[key][:3] for key in table])
     except TypeError:
         try:
             # ... or a list?
