@@ -429,7 +429,7 @@ def run(
         successive runs.
     """
 
-    if not do_pca and not do_mccc:
+    if not (do_pca or do_mccc):
         raise ValueError(
             "Nothing to do. Must set at least one of: 'do_pca' or 'do_mccc'"
         )
