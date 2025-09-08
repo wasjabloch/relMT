@@ -169,6 +169,16 @@ def test_mccc_align_p():
     assert dd.shape[0] == 2 * nwv + 1
     assert dd_res.shape[0] == 2 * nwv + 1
     assert np.all(evpairs == [(i, j) for i in range(nwv) for j in range(i + 1, nwv)])
+    assert np.any(np.nonzero(dt))
+
+
+def test_mccc_align_p_pairs():
+    wvf_matrix = p_wavelet()
+    pairs = np.array([[0, 1], [0, 2], [0, 3], [0, 4]])
+    dt, _, _, _, evpairs = align.mccc_align(wvf_matrix, "P", 100, 0.5, 1, pairs, True)
+
+    assert np.any(np.nonzero(dt))
+    assert pytest.approx(evpairs) == pairs
 
 
 def test_mccc_align_s():
@@ -181,6 +191,14 @@ def test_mccc_align_s():
     assert dd_res.shape == (nwv * (nwv - 1) + 1,)
     assert dd_res == pytest.approx(0.0)  # Perfect data should be aligned perfectly
     assert evpairs.shape == (int((5 - 2) * (5 - 1) * 5 / 3), 2)
+
+
+def test_mccc_align_s_trips():
+    wvf_matrix = s_wavelet()
+    trips = np.array([[0, 1, 2], [0, 1, 3], [0, 1, 4], [0, 2, 3]])
+    dt, _, _, _, _ = align.mccc_align(wvf_matrix, "S", 100, 0.5, 1, trips, True)
+
+    assert np.any(np.nonzero(dt))
 
 
 def test_paired_s_lag_times():

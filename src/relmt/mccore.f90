@@ -306,12 +306,13 @@ integer :: ix,jx,kx,ll,mm,nn,nl,nl2,ii,jj,k
 
 end subroutine
 !-----------------
-subroutine mccc_ssf0(scomp0,dt,mxlag,ndec,verb,rowi,coli,valu,dd,cc3,ns,nt)
+subroutine mccc_ssf0(scomp0,dt,mxlag,ndec,trips,verb,rowi,coli,valu,dd,cc3,ns,nt,nci)
 ! Input:
 ! scomp0: Input seismogram matrix of NS seismograms x NT samples
 ! dt: Sampling interval (seconds)
 ! mxlag: Maximum time lag to search for correlation (seconds)
 ! ndec: Number of samples to decimate time lag search (samples)
+! trips: Optional list of event combinations to use
 ! verb: Verbose (logical)
 !
 ! Output:
@@ -325,9 +326,10 @@ subroutine mccc_ssf0(scomp0,dt,mxlag,ndec,verb,rowi,coli,valu,dd,cc3,ns,nt)
 
 implicit none
 real(8), intent(in) :: mxlag,dt
-integer, intent(in) :: ns,nt
+integer, intent(in) :: ns,nt,nci
 integer, intent(in) :: ndec
 logical, intent(in) :: verb
+integer, intent(in), dimension(nci,3) :: trips
 real(8), intent(in), dimension(nt,ns) :: scomp0
 real(8), intent(out), dimension(ns*(ns-1)*(ns-2)/2) :: cc3
 real(8), intent(out), dimension(ns*(ns-1)*(ns-2)/3+1) :: dd
@@ -337,9 +339,9 @@ real(8), dimension(nt,ns) :: scomp
 real(8), dimension(2*nt,ns*(ns-1)/2) :: ccij
 real(8), dimension(nt,3) :: gmat
 real(8), allocatable :: eobj(:),sij(:),sik(:),sjk(:),rlag(:)
-integer, allocatable :: il(:),ijn(:),ikn(:),jkn(:),ij2(:)
+integer, allocatable :: il(:),ijn(:),ikn(:),jkn(:),ij2(:),iix(:),jjx(:),kkx(:)
 integer, dimension(2) :: kk
-integer :: ix,jx,kx,ll,mm,nn,nl,nl2,ii,jj
+integer :: ix,jx,kx,ll,mm,nn,nl,nl2,ii,jj,nc,ic
 
 ! Initialize arrays.
     cc3=0
@@ -347,6 +349,34 @@ integer :: ix,jx,kx,ll,mm,nn,nl,nl2,ii,jj
     coli=0
     rowi=0
     valu=0
+
+! Initialize number of combinations
+    if (size(trips) > 0) then
+        ! User user-supplied pairs
+        if (size(trips,2) /= 3) stop "trips must have 3 columns"
+        nc=nci
+        allocate(iix(nc), jjx(nc), kkx(nc))
+        iix = trips(:,1)
+        jjx = trips(:,2)
+        kkx = trips(:,3)
+    else
+        ! Combine all events (default)
+! Allocate number of combinations
+        nc=ns*(ns-1)*(ns-2)/6
+        allocate(iix(nc), jjx(nc), kkx(nc))
+! collect combinations as to avoid nested loop
+        ic = 1
+        do ix=1,ns-2
+            do jx=ix+1,ns-1
+                do kx=jx+1,ns
+                    iix(ic) = ix
+                    jjx(ic) = jx
+                    kkx(ic) = kx
+                    ic=ic+1
+                enddo
+            enddo
+        enddo
+    endif
 
 ! Allocate grid search dimensions.
     nl=2*int(mxlag/(ndec*dt))+1
@@ -386,59 +416,57 @@ integer :: ix,jx,kx,ll,mm,nn,nl,nl2,ii,jj
         enddo
     enddo
 
-! Loop over all stations
+! Loop over all combinations
     ll=1
     mm=1
     nn=1
-! 1st loop.
-    do ix=1,ns-2
-        if (verb) then
-            print*,'Waveforms to process left: ',ns-1-ix
-        end if
+
+    do ic=1,nc
+        ix=iix(ic)
+        jx=jjx(ic)
+        kx=kkx(ic)
+
+        ! TODO: Only compute ii, jj when ix, jx changes
         ii=ns*(ix-1)-(ix*(ix-1))/2
+        sij=ccij(ijn,ii+jx-ix)
+        jj=ns*(jx-1)-(jx*(jx-1))/2
 
-! 2nd loop.
-        do jx=ix+1,ns-1
-            sij=ccij(ijn,ii+jx-ix)
-            jj=ns*(jx-1)-(jx*(jx-1))/2
-
-! 3rd loop.
-            do kx=jx+1,ns
-                sik=ccij(ikn,ii+kx-ix)
-                sjk=ccij(jkn,jj+kx-jx)
+        sik=ccij(ikn,ii+kx-ix)
+        sjk=ccij(jkn,jj+kx-jx)
 
 
 ! Define EOBJ function and find minimum location.
-                eobj=(1+2*sij*sjk*sik-sij*sij-sjk*sjk-sik*sik)
-                kk=minloc(transpose(reshape(eobj, (/ nl,nl /))))
+        eobj=(1+2*sij*sjk*sik-sij*sij-sjk*sjk-sik*sik)
+        kk=minloc(transpose(reshape(eobj, (/ nl,nl /))))
 
 ! Compute correlation coefficients between time series and their rank 2 approximations
-                gmat(:,1)=scomp(:,ix)
-                gmat(:,2)=cshift(scomp(:,jx),-int(rlag(kk(1))/dt))
-                gmat(:,3)=cshift(scomp(:,kx),-int(rlag(kk(2))/dt))
-                call ccorf3(gmat,nt,cc3(nn:nn+2))
+        gmat(:,1)=scomp(:,ix)
+        gmat(:,2)=cshift(scomp(:,jx),-int(rlag(kk(1))/dt))
+        gmat(:,3)=cshift(scomp(:,kx),-int(rlag(kk(2))/dt))
+        call ccorf3(gmat,nt,cc3(nn:nn+2))
 
 ! Fill rows,columns and values for COO spars format.
-                rowi(mm)=ll
-                coli(mm)=ix
-                valu(mm)=1.0
-                rowi(mm+1)=ll
-                coli(mm+1)=jx
-                valu(mm+1)=-1.0
-                rowi(mm+2)=ll+1
-                coli(mm+2)=ix
-                valu(mm+2)=1.0
-                rowi(mm+3)=ll+1
-                coli(mm+3)=kx
-                valu(mm+3)=-1.0
-                dd(ll)=rlag(kk(1))
-                dd(ll+1)=rlag(kk(2))
-                ll=ll+2
-                nn=nn+3
-                mm=mm+4
-            enddo
-        enddo
+        rowi(mm)=ll
+        coli(mm)=ix
+        valu(mm)=1.0
+        rowi(mm+1)=ll
+        coli(mm+1)=jx
+        valu(mm+1)=-1.0
+        rowi(mm+2)=ll+1
+        coli(mm+2)=ix
+        valu(mm+2)=1.0
+        rowi(mm+3)=ll+1
+        coli(mm+3)=kx
+        valu(mm+3)=-1.0
+        dd(ll)=rlag(kk(1))
+        dd(ll+1)=rlag(kk(2))
+        ll=ll+2
+        nn=nn+3
+        mm=mm+4
     enddo
+
+! TODO: The lines below do not account for custom indexing.
+! Data is therfore post-processed in align.mccc_align()
 
 ! Final row for 0 sum constraint to full rank.
     rowi(mm:)=ll
@@ -613,29 +641,32 @@ integer, dimension(2) :: kk
 end subroutine
 !-----------------
 
-subroutine mccc_ppf(scomp0,dt,mxlag,ndec,verb,rowi,coli,valu,dd,cc,ns,nt)
+subroutine mccc_ppf(scomp0,dt,mxlag,ndec,pairs,verb,rowi,coli,valu,dd,cc,ns,nt,nci)
 
 ! Input:
 ! scomp0: Input seismogram matrix of NS seismograms x NT samples
 ! dt: Sampling interval (seconds)
 ! mxlag: Maximum time lag to search for correlation (seconds)
 ! ndec: Number of samples to decimate time lag search (samples)
+! pairs: Combinations of events to consider
 ! verb: Output progress messages to screen
 !
 ! Output:
-! rowi: sparse matrix row indices
+! rowi: sparse matrix row indice
 ! coli: sparse matrix column indices
 ! valu: Values of G matrix (Eq. 3 in Bostock et al., 2021, BSSA)
 ! dd: Pairwise relative lag times (Eq. 3)
 ! cc: Cross correlation coefficients at optimal lag times (NS x NS)
 ! ns: Number of seismograms
 ! nt: Number of samples
+! nc: Input number of combinations
 
 implicit none
 real(8), intent(in) :: mxlag,dt
-integer, intent(in) :: ns,nt
+integer, intent(in) :: ns,nt,nci
 integer, intent(in) :: ndec
 logical, intent(in) :: verb
+integer, intent(in), dimension(nci,2) :: pairs  ! (nc,2) from NumPy
 real(8), intent(in), dimension(nt,ns) :: scomp0
 real(8), intent(out), dimension(ns,ns) :: cc
 real(8), intent(out), dimension(ns*(ns-1)/2+1) :: dd
@@ -644,10 +675,8 @@ integer, intent(out), dimension(ns+ns*(ns-1)) :: rowi,coli
 real(8), dimension(nt,ns) :: scomp
 real(8), dimension(2*nt) :: sccij
 real(8), allocatable :: eobj(:),sij(:),rlag(:)
-integer, allocatable :: il(:),ijn(:)
-integer :: ix,jx,ll,mm,nl,kk
-
-
+integer, allocatable :: il(:),ijn(:),iix(:),jjx(:)
+integer :: ix,jx,ic,ll,mm,nl,kk,nc
 
 ! Initialize arrays.
 ! arrays up front.
@@ -656,6 +685,30 @@ integer :: ix,jx,ll,mm,nl,kk
     coli=0
     rowi=0
     valu=0
+
+! Initialize number of combinations
+    if (size(pairs) > 0) then
+        ! User user-supplied pairs
+        if (size(pairs,2) /= 2) stop "pairs must have 2 columns"
+        nc=nci
+        allocate(iix(nc), jjx(nc))
+        iix = pairs(:,1)
+        jjx = pairs(:,2)
+    else
+        ! Combine all events (default)
+! Allocate number of combinations
+        nc=ns*(ns-1)/2
+        allocate(iix(nc), jjx(nc))
+! collect combinations as to avoid nested loop
+        ic = 1
+        do ix=1,ns-1
+            do jx=ix+1,ns
+                iix(ic) = ix
+                jjx(ic) = jx
+                ic=ic+1
+            enddo
+        enddo
+    endif
 
 ! Allocate grid search dimensions.
 ! nl = number of lag times
@@ -682,44 +735,58 @@ integer :: ix,jx,ll,mm,nl,kk
         scomp(:,ix)=scomp(:,ix)/norm2(scomp(:,ix))
     enddo
 
-! Loop over all stations
-    ll=1
-    mm=1
+! Loop over events
 ! 1st loop.
-    do ix=1,ns-1
-    if (verb) then
-        print*,'Processing waveform: ',ix
-        print*,'waveforms left: ', ns*ns - ix
-    end if
+!    do ix=1,ns-1
+!    if (verb) then
+!        print*,'Processing waveform: ',ix
+!        print*,'waveforms left: ', ns*ns - ix
+!    end if
 
 ! 2nd loop.
-        do jx=ix+1,ns
-            call correlate(scomp(:,ix),scomp(:,jx),sccij,nt)
-            sij=sccij(ijn)
-            eobj=(1-sij*sij)
-            ! TODO:
-            ! Introduce a penalty for anticorrelation
-            ! eobj=(1-sij*sij) + p * (1-sij)
+!        do jx=ix+1,ns
+
+
+    ll=1
+    mm=1
+! combined loop
+    if (verb) then
+        print*,'Processing P-wave combinatons: ', nc
+    end if
+
+    do ic=1,nc
+        ix=iix(ic)
+        jx=jjx(ic)
+        call correlate(scomp(:,ix),scomp(:,jx),sccij,nt)
+        sij=sccij(ijn)
+        eobj=(1-sij*sij)
+        ! TODO:
+        ! Introduce a penalty for anticorrelation
+        ! eobj=(1-sij*sij) + p * (1-sij)
 
 ! Find EOBJ function minimum location
-            kk=minloc(eobj,dim=1)
+        kk=minloc(eobj,dim=1)
 
 ! Store correlation coefficients.
-            cc(ix,jx)=sij(kk)
-            cc(jx,ix)=sij(kk)
+        cc(ix,jx)=sij(kk)
+        cc(jx,ix)=sij(kk)
 
 ! Fill rows,columns and values for COO spars format.
-            rowi(mm)=ll
-            coli(mm)=ix
-            valu(mm)=1.0
-            rowi(mm+1)=ll
-            coli(mm+1)=jx
-            valu(mm+1)=-1.0
-            dd(ll)=rlag(kk)
-            ll=ll+1
-            mm=mm+2
-        enddo
+        rowi(mm)=ll
+        coli(mm)=ix
+        valu(mm)=1.0
+        rowi(mm+1)=ll
+        coli(mm+1)=jx
+        valu(mm+1)=-1.0
+        dd(ll)=rlag(kk)
+        ll=ll+1
+        mm=mm+2
+!        enddo
+!    enddo
     enddo
+
+! TODO: The lines below do not account for custom indexing.
+! Data is therfore post-processed in align.mccc_align()
 
 ! Final row for 0 sum constraint to full rank.
     rowi(mm:)=ll

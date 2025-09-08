@@ -51,6 +51,7 @@ def mccc_align(
     sampling_rate: float,
     maxshift: float,
     ndec: int = 1,
+    combinations: np.ndarray = np.array([]),
     verbose: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -71,6 +72,9 @@ def mccc_align(
         Maximum shift to test (seconds)
     ndec:
         Test correlation function at every ndec'th point
+    combinataions:
+        Only combine these indices of mtx. ``(combinations, 2)`` for P-waves,
+        ``(combinations, 3)`` for S-waves
     verbose:
         Print diagnostic output
 
@@ -106,17 +110,39 @@ def mccc_align(
     elif phase == "S":
         fun = mccore.mccc_ssf0
 
+    icombine = True
+    if len(combinations) == 0:
+        icombine = False
+        ndim = 2
+        if phase == "S":
+            ndim = 3
+        combinations = np.empty((0, ndim), int)
+
+    combinations += 1  # Fortran indexing
+
     # Data, sampling_interval, maxlag, ndec
-    rowi, coli, valu, dd, cc = fun(mtx.T, sampling_interval, maxshift, ndec, verbose)
+    rowi, coli, valu, dd, cc = fun(
+        mtx.T, sampling_interval, maxshift, ndec, combinations, verbose
+    )
+
+    combinations -= 1  # Python indexing, avoid sideffects outside function
+
+    # When limiting combinations, the last elements of the matrix of the matrix
+    # remain unallocated. We detect this as -1 column indices
+    if icombine:
+        ivalid = coli > -1
+        rowi = rowi[ivalid]
+        coli = coli[ivalid]
+        valu = valu[ivalid]
+        dd = dd[: rowi[-1] + 1]
 
     # Make cc cubic (S) or symmetric square (P) matrix
     if phase == "S":
         cc = utils.reshape_ccvec(cc, mtx.shape[0])
-    # elif phase == "P":
-    # cc = cc + cc.T
 
     A = coo_matrix((valu, (rowi, coli)), dtype=np.float64).tocsc()
 
+    # TODO: The line below is quite a performance bottleneck
     dt, dd_res = ls.solve_irls_sparse(A, dd)
 
     # Event pairs in dd[:-1]
@@ -288,6 +314,7 @@ def paired_s_lag_times(
     dd: np.ndarray,
     cc: np.ndarray,
     dd_res: np.ndarray,
+    method: str = "median",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Pairwise from triplet-wise lag times
 
@@ -304,6 +331,11 @@ def paired_s_lag_times(
         ``(events, events, events)`` Cross correlation matrix
     dd_res:
         Residuals of the alignment
+    method:
+       - 'median': take the median of the tripletwise lag times
+       - 'residual' choose the one with the lowest residual
+       - 'cc' choose the one with the highest cross-correlation coefficient
+
 
     Returns
     -------
@@ -313,8 +345,9 @@ def paired_s_lag_times(
         Corresponding median differential arrival times
     cc: :class:`numpy.ndarray`
         Corresponding average cross correlation coefficient
-    rms: :class:`numpy.ndarray`
-        RMS residuals of the pairwise differential arrival times
+    residual: :class:`numpy.ndarray`
+        Residuals of the selected differential arrival times. If 'method' is
+        'median', the RMS of all lag times
     """
 
     # All event indices
@@ -338,32 +371,44 @@ def paired_s_lag_times(
     )
     ddm = np.zeros(ev_pair.shape[0], dtype=float)
     ccm = np.zeros_like(ddm)
-    rms = np.zeros_like(ddm)
+    res = np.zeros_like(ddm)
 
     # Third implicit differential time of the triplets
     implicit_dd = dd1[1::2] - dd1[0::2]
+    implicit_dd_res = dd_res1[1::2] - dd_res1[0::2]
     implicit_evpairs = np.array([evpairs[0::2, 1], evpairs[1::2, 1]]).T
 
     for n, ab in enumerate(ev_pair):
         iin = np.all(evpairs == ab, axis=-1)
         iin2 = np.all(implicit_evpairs == ab, axis=-1)
         all_dds = np.concatenate((dd1[iin], implicit_dd[iin2]))
+        all_dd_res = np.abs(np.concatenate((dd_res1[iin], implicit_dd_res[iin2])))
 
         # Choose a best time and weight from the set
-        # TODO: is there a better meassure? Choose a best CC from the set?
-        # TODO: Look at the residuals?
-        ddm[n] = np.median(all_dds)
-        ccm[n] = utils.fisher_average(cc[ab[0], ab[1], :])
-        if (nin := np.sum(iin)) > 0:
-            rms[n] = np.sqrt(np.sum(dd_res1[iin] ** 2) / nin)
+        if method == "median":
+            ddm[n] = np.median(all_dds)
+            ccm[n] = utils.fisher_average(cc[ab[0], ab[1], :])
+            res[n] = np.sqrt(np.sum(all_dd_res**2) / all_dds.shape[0])
+        else:
+            if method == "cc":
+                ibest = np.argmax(cc[ab[0], ab[1], :])
+            elif method == "residual":
+                ibest = np.argmin(all_dd_res)
+            else:
+                raise ValueError(f"Unknown 'measure': {method}")
+            ddm[n] = all_dds[ibest]
+            ccm[n] = cc[ab[0], ab[1], ibest]
+            res[n] = all_dd_res[ibest]
 
-    return ev_pair, ddm, ccm, rms
+    return ev_pair, ddm, ccm, res
 
 
 def run(
     wvarr: np.ndarray,
     header: core.Header,
     destination: tuple[str, str, int, str],
+    do_mccc: bool = True,
+    do_pca: bool = True,
 ):
     """Align waveforms and save results to disk
 
@@ -376,81 +421,130 @@ def run(
     destination:
         Tuple holding station name, phase type, alignment iteration number and
         destination root directory
+    do_mccc:
+        Align using multi-channel cross correlation.
+    do_pca:
+        Align using principal component analyses. This allows for sub-sample
+        alignment, but impedes to combine cross correlation lag times of two
+        successive runs.
     """
+
+    if not do_pca and not do_mccc:
+        raise ValueError(
+            "Nothing to do. Must set at least one of: 'do_pca' or 'do_mccc'"
+        )
 
     pwv = utils.concat_components(
         signal.demean_filter_window(wvarr, **header.kwargs(signal.demean_filter_window))
     )
 
-    maxshift = header["phase_end"] - header["phase_start"]
+    if do_mccc:
+        maxshift = header["phase_end"] - header["phase_start"]
 
-    # Align using MCCC
-    dt_cc, cc, dd, dd_res, evpairs = mccc_align(
-        pwv,
-        verbose=True,
-        maxshift=maxshift,
-        **header.kwargs(mccc_align),
-    )
+        # Align using MCCC
+        dt_cc, _, dd, dd_res, evpairs = mccc_align(
+            pwv,
+            verbose=True,
+            maxshift=maxshift,
+            **header.kwargs(mccc_align),
+        )
 
-    if len(evpairs) < 1:
-        logger.warning(f"{header['station']}_{header['phase']}: Nothing to process.")
-        return
+        if len(evpairs) < 1:
+            logger.warning(
+                f"{header['station']}_{header['phase']}: Nothing to process."
+            )
+            return
 
-    if header["phase"] == "S":
-        evpairs, dd, ccp, dd_res = paired_s_lag_times(evpairs, dd, cc, dd_res)
-        cc = utils.fisher_average(cc)
+        # Look up actual event names
+        evns = np.vectorize(header["events"].__getitem__)(evpairs)
+
+        # Shift the traces
+        arr_shift = signal.shift_3d(wvarr, -dt_cc, **header.kwargs(signal.shift_3d))
+        wvmat_cc = utils.concat_components(
+            signal.demean_filter_window(
+                arr_shift, **header.kwargs(signal.demean_filter_window)
+            )
+        )
+
+        # Re-compute the cc's on the shifted traces
+        ccijk, ccij, *_ = signal.reconstruction_correlation_averages(
+            wvmat_cc, header["phase"]
+        )
+
+        methods = [""]
+        if header["phase"] == "S":
+            methods = ["median", "residual", "cc"]
+
+        # Use differen methods to extract S lag times
+        for method in methods:
+            if header["phase"] == "S":
+                evpairs, dd, ccp, dd_res = paired_s_lag_times(
+                    evpairs, dd, ccijk, dd_res, method
+                )
+            else:
+                dd = dd[:-1]
+                dd_res = dd_res[:-1]
+                ccp = np.array(
+                    [
+                        ccij[i, j]
+                        for i in range(pwv.shape[0] - 1)
+                        for j in range(i + 1, pwv.shape[0])
+                    ]
+                )
+
+            # Silly format before saving lag times
+            evdd = np.char.mod(
+                ["% 9.0f", "% 9.0f", "%13.6e", "%6.3f", "%13.2e"],
+                np.hstack(
+                    (evns, dd[:, np.newaxis], ccp[:, np.newaxis], dd_res[:, np.newaxis])
+                ),
+            )
+
+            # Save the lag times
+            np.savetxt(
+                core.file("mccc_lag_times", *destination, suffix=method),
+                evdd,
+                fmt="%s",
+                header=" EventA    EventB    LagTime(s)     CC   Residual(s)",
+            )
+
+        # Sum alignment residuals for each event
+        nev = len(header["events"])
+        rms = np.zeros(nev)
+        for iev in range(nev):
+            iin = np.any(evpairs == iev, axis=-1)
+            rms[iev] = np.sqrt(np.sum(dd_res[iin] ** 2) / np.sum(iin))
+
+        # Save the time shifts
+        io.save_results(
+            core.file("mccc_time_shift", *destination), np.vstack((dt_cc, rms)).T
+        )
+
+        # Save the cc matrix, values are on the shifted traces
+        io.save_results(core.file("cc_matrix", *destination), ccij)
+
     else:
-        dd = dd[:-1]
-        dd_res = dd_res[:-1]
-        ccp = np.array(
-            [
-                cc[i, j]
-                for i in range(pwv.shape[0] - 1)
-                for j in range(i + 1, pwv.shape[0])
-            ]
+        # If we don't align, preprocess the input array
+        wvmat_cc = utils.concat_components(
+            signal.demean_filter_window(
+                wvarr, **header.kwargs(signal.demean_filter_window)
+            )
         )
+        dt_cc = np.zeros(wvarr.shape[0])
 
-    # Sum residuals for each event
-    nev = len(header["events"])
-    rms = np.zeros(nev)
-    for iev in range(nev):
-        iin = np.any(evpairs == iev, axis=-1)
-        rms[iev] = np.sqrt(np.sum(dd_res[iin] ** 2) / np.sum(iin))
+    if do_pca:
+        # Align using PCA
+        dt_pca, phi = pca_align(wvmat_cc, dphi=1e-3, **header.kwargs(pca_align))
 
-    # Look up actual event indices and format before saving
-    evpairs = np.vectorize(header["events"].__getitem__)(evpairs)
-    evdd = np.char.mod(
-        ["% 9.0f", "% 9.0f", "%6.3f", "%13.6e", "%13.2e"],
-        np.hstack(
-            (evpairs, ccp[:, np.newaxis], dd[:, np.newaxis], dd_res[:, np.newaxis])
-        ),
-    )
+        io.save_results(core.file("pca_time_shift", *destination), dt_pca)
+        io.save_results(core.file("pca_objective", *destination), phi)
 
-    np.savetxt(core.file("mccc_lag_times", *destination), evdd, fmt="%s")
-    io.save_results(
-        core.file("mccc_time_shift", *destination), np.vstack((dt_cc, rms)).T
-    )
-    io.save_results(core.file("cc_matrix", *destination), cc)
-
-    arr_cc = signal.shift_3d(wvarr, -dt_cc, **header.kwargs(signal.shift_3d))
-    wvmat_cc = utils.concat_components(
-        signal.demean_filter_window(
-            arr_cc, **header.kwargs(signal.demean_filter_window)
+        # Apply shift to input array and save
+        arr_shift = signal.shift_3d(
+            wvarr,
+            -dt_pca - dt_cc,
+            **header.kwargs(signal.shift_3d),
         )
-    )
-
-    # Align using PCA
-    dt_pca, phi = pca_align(wvmat_cc, dphi=1e-3, **header.kwargs(pca_align))
-
-    io.save_results(core.file("pca_time_shift", *destination), dt_pca)
-    io.save_results(core.file("pca_objective", *destination), phi)
-
-    # Apply shift to input array and save
-    arrout = signal.shift_3d(
-        wvarr,
-        -dt_pca - dt_cc,
-        **header.kwargs(signal.shift_3d),
-    )
 
     # We are saving a numpy array, not matlab
     header["variable_name"] = None
@@ -458,11 +552,12 @@ def run(
     # Fresh start with QC parameters
     header["min_expansion_coefficient_norm"] = None
     header["min_signal_noise_ratio"] = None
+    header["min_correlation"] = None
 
     # Write out header and array files
     arrf = core.file("waveform_array", *destination)
     hdrf = core.file("waveform_header", *destination)
 
     # Save everything
-    np.save(arrf, arrout)
+    np.save(arrf, arr_shift)
     header.to_file(hdrf, True)
