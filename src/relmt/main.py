@@ -42,7 +42,12 @@ logger.addHandler(core.logsh)
 
 
 def main_align(
-    config: core.Config, directory: Path, iteration: int, overwrite: bool = False
+    config: core.Config,
+    directory: Path,
+    iteration: int,
+    do_mccc: bool = True,
+    do_pca: bool = True,
+    overwrite: bool = False,
 ):
     """
     Align waveform files and write results into next alignment directory
@@ -110,7 +115,7 @@ def main_align(
         hdr["events"] = list(np.array(hdr["events"])[iin])
         arr = arr[iin, :, :]
 
-        args.append((arr, hdr, dest))
+        args.append((arr, hdr, dest, do_mccc, do_pca))
 
     if ncpu > 1:
         with mp.Pool(ncpu) as pool:
@@ -542,7 +547,6 @@ def main_amplitude(
                                 lpas,
                                 evns[a],
                                 evns[b],
-                                True,
                             )
                         )
 
@@ -582,7 +586,6 @@ def main_amplitude(
                                 evns[a],
                                 evns[b],
                                 evns[c],
-                                True,
                             )
                         )
 
@@ -1016,6 +1019,9 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
 
     logger.info("Computing amplitude misfits and correlations...")
 
+    # ppms, ppcs, spms, spcs = amp.predicted_misfit_correlation(
+    #    pamp_subset, Asyn, samp_subset, Bsyn, arrd, hdrd, max_workers=ncpu,
+    # )
     ppms, ppcs = zip(
         *[
             (
@@ -1079,6 +1085,7 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
         ]
     )
 
+    logger.info("Collecting results...")
     pamp_synthetic = [
         core.P_Amplitude_Ratio(
             pamp.station,
@@ -1293,7 +1300,11 @@ Software for computing relative seismic moment tensors"""
     subpars = parser.add_subparsers(dest="mode")
 
     init_p = subpars.add_parser("init", help="Initialize default directories and files")
-    align_p = subpars.add_parser("align", help="Align waveforms")
+    align_p = subpars.add_parser(
+        "align",
+        help="Align waveforms",
+        epilog=("When neither '--pca' nor '--mccc' are given, " "we assume both."),
+    )
     exclude_p = subpars.add_parser(
         "exclude", help="Exclude phase observations from alignment"
     )
@@ -1342,6 +1353,20 @@ Software for computing relative seismic moment tensors"""
         default=".",
         nargs="?",
         help="Name of the directory to initiate",
+    )
+
+    # Sub arguments of the alignment routine
+    align_p.add_argument(
+        "--mccc",
+        action="store_true",
+        help="Align with Multi-Channel Cross Correlation (MCCC)",
+    )
+
+    # Sub arguments of the alignment routine
+    align_p.add_argument(
+        "--pca",
+        action="store_true",
+        help="Align with principal component analysis (PCA).",
     )
 
     # Sub arguments of the exlusion routine
@@ -1409,6 +1434,16 @@ def main(args=None):
         kwargs.update(dict(iteration=n_align))
     if parsed.mode == "amplitude" or parsed.mode == "align" or parsed.mode == "exclude":
         kwargs.update(dict(iteration=n_align, overwrite=overwrite))
+    if parsed.mode == "align":
+        if parsed.mccc:
+            logger.info("Aligning with MCCC")
+        if parsed.pca:
+            logger.info("Aligning with PCA")
+        if not (parsed.pca or parsed.mccc):
+            logger.info("Aligning with MCCC and PCA")
+            parsed.pca = True
+            parsed.mccc = True
+        kwargs.update(dict(do_pca=parsed.pca, do_mccc=parsed.mccc))
     if parsed.mode == "exclude":
         kwargs.update(
             dict(
