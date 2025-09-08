@@ -8,7 +8,7 @@ find_package(
 
 # F2PY headers
 execute_process(
-  COMMAND "${PYTHON_EXECUTABLE}" -c
+  COMMAND "${Python_EXECUTABLE}" -c
           "import numpy.f2py; print(numpy.f2py.get_include())"
   OUTPUT_VARIABLE F2PY_INCLUDE_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -35,7 +35,8 @@ add_custom_command(
 python_add_library(
   mccore MODULE "${CMAKE_CURRENT_BINARY_DIR}/mccoremodule.c"
   "${CMAKE_CURRENT_BINARY_DIR}/mccore-f2pywrappers.f"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/relmt/mccore.f90" WITH_SOABI)
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/relmt/mccore.f90"
+  WITH_SOABI)
 target_link_libraries(mccore PRIVATE fortranobject)
 
 install(TARGETS mccore DESTINATION .)
