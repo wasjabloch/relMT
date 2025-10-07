@@ -26,7 +26,7 @@
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse.linalg import lsmr
-from scipy.sparse import spmatrix, coo_matrix
+from scipy.sparse import spmatrix, csc_array, coo_array
 from relmt import utils, core
 from relmt import mt as relmtmt
 import multiprocessing as mp
@@ -661,7 +661,7 @@ def homogenous_amplitude_equations_sparse(
     constraint: str,
     s_coefficients: tuple[int, int] | None = None,
     ncpu: int = 1,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[csc_array, np.ndarray]:
     """Homogenous part of the linear system Am = b
 
     This functions writes the matrices directly in
@@ -724,7 +724,7 @@ def homogenous_amplitude_equations_sparse(
     # And S-arguments
     sargs = []
     for samp in s_amplitudes:
-        station = station_dictionary[pamp.station]
+        station = station_dictionary[samp.station]
 
         # Only pass subset dicts to avoid huge memory overhead
         this_evd = {
@@ -749,10 +749,10 @@ def homogenous_amplitude_equations_sparse(
     cols = np.concatenate([line[0] for line in pcolval + scolval])
     rows = np.concatenate(
         [[p] * (2 * nmt) for p in range(peq)]
-        + [[s] * (3 * nmt) + [s + 1] * (3 * nmt) for s in range(0, seq, 2)]
+        + [[peq + s] * (3 * nmt) + [peq + s + 1] * (3 * nmt) for s in range(0, seq, 2)]
     )
 
-    Ah = coo_matrix((vals, (rows, cols)))
+    Ah = coo_array((vals, (rows, cols))).tocsc()
 
     return Ah, bh
 
@@ -946,6 +946,7 @@ def condition_homogenous_matrix_by_norm(
     if n_homogenous is None:
         n_homogenous = mat.shape[0]
 
+    # TODO: This is a bottleneck. Vectorize computation of factors
     factors = np.ones(mat.shape[0])
     for n, line in enumerate(mat[:n_homogenous, :]):
         norm = 1 / np.linalg.norm(line[line.nonzero()])
