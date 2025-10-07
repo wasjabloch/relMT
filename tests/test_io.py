@@ -255,6 +255,29 @@ def test_write_bandpass(mock_bandpass_file):
     io.save_yaml(str(mock_bandpass_file), bpd, format_bandpass=True)
 
 
+@pytest.fixture
+def mock_combination_file(tmp_path):
+    file = tmp_path / "bandpass.yaml"
+    # Event names are 10x the event index
+    data = """
+0 10
+0 20
+0 30
+40 0
+10 20
+10 30
+    """
+    file.write_text(data)
+    return file
+
+
+def test_read_combinations(mock_combination_file):
+    combs = io.read_combinations(str(mock_combination_file))
+    assert len(combs) == 6
+    assert (0, 40) in combs
+    assert (0, 10) in combs
+
+
 def test_make_read_phase_table():
     # Test if a phase table is read correctly
     phd1 = {

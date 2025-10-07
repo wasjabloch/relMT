@@ -847,6 +847,26 @@ def write_formatted_table(
     )
 
 
+def read_combinations(filename: str | Path) -> set[tuple[int, int]]:
+    """
+    Read a table of event combinations
+
+    Each pair will be sorted to allow for
+
+
+    Parameters
+    ----------
+    filename:
+        Name of the input file
+    Returns
+    -------
+    ``(combinations, 2)`` array of event combinations
+    """
+    combs = np.loadtxt(filename, usecols=(0, 1), dtype=int)
+    combs.sort(axis=-1)
+    return set(tuple(comb) for comb in combs)
+
+
 def read_amplitudes(filename: str, phase: str, unpack: bool = False):
     """
     Load relative amplitudes from file
