@@ -26,6 +26,7 @@
 import numpy as np
 from scipy.linalg import svd
 from scipy.sparse import coo_matrix
+from itertools import combinations as combs
 import logging
 from relmt import utils, signal, core, ls, io
 import mccore
@@ -89,7 +90,7 @@ def mccc_align(
     dd_res: :class:`numpy.ndarray`
         Resiudal when computing time lags from pairwise differential arrival
         times
-    ev_pair: :class:`numpy.ndarray`
+    combinations: :class:`numpy.ndarray`
         Event indices pointing into `mtx` of shape ``(pairs, 2)``, where `pairs`
         is `events * (events-1) / 2` for P waves and
         `events * (events-1) * (events-2)/ 3` for S waves
@@ -104,6 +105,7 @@ def mccc_align(
     """
     _test_phase_shape(phase, mtx)
     sampling_interval = 1 / sampling_rate
+    nev = mtx.shape[0]
 
     if phase == "P":
         fun = mccore.mccc_ppf
@@ -114,18 +116,32 @@ def mccc_align(
     if len(combinations) == 0:
         icombine = False
         ndim = 2
+        ncombi = int(nev * (nev - 1) / 2)
         if phase == "S":
             ndim = 3
-        combinations = np.empty((0, ndim), int)
+            ncombi = int(nev * (nev - 1) * (nev - 2) / 6)
+        # combinations = np.empty((0, ndim), int)
+        # Pre-combute combinations. This is also handled in the fortran codes,
+        # but combination needs to be consistent with actual array sizes, so
+        # parsing an empty array violates this
+        combinations = np.array(list(combs(range(nev), ndim)))
+    else:
+        ncombi = combinations.shape[0]
+        uc = np.unique(combinations)
+        if np.any(uc < 0) or np.any(uc > mtx.shape[0]):
+            outs = [f"{i}" for i in np.concatenate((uc[uc < 0], uc[uc > mtx.shape[0]]))]
+            msg = "'combinations' indices out of bounds: "
+            msg += ", ".join(outs)
+            raise IndexError(msg)
 
     combinations += 1  # Fortran indexing
 
     # Data, sampling_interval, maxlag, ndec
     rowi, coli, valu, dd, cc = fun(
-        mtx.T, sampling_interval, maxshift, ndec, combinations, verbose
+        mtx.T, sampling_interval, maxshift, ndec, combinations, verbose, nci=ncombi
     )
 
-    combinations -= 1  # Python indexing, avoid sideffects outside function
+    combinations -= 1  # Return to python indexing
 
     # When limiting combinations, the last elements of the matrix of the matrix
     # remain unallocated. We detect this as -1 column indices
@@ -137,8 +153,10 @@ def mccc_align(
         dd = dd[: rowi[-1] + 1]
 
     # Make cc cubic (S) or symmetric square (P) matrix
-    if phase == "S":
-        cc = utils.reshape_ccvec(cc, mtx.shape[0])
+    if phase == "S" and not icombine:
+        cc = utils.reshape_ccvec(cc, nev)
+    elif phase == "S":
+        cc = utils.reshape_ccvec(cc, nev, combinations)
 
     A = coo_matrix((valu, (rowi, coli)), dtype=np.float64).tocsc()
 
@@ -157,7 +175,7 @@ def pca_align(
     mtx: np.ndarray,
     sampling_rate: float,
     phase: str,
-    iterations: int = 200,
+    iterations: int = 50,
     dphi: float = 0,
     dtime: float = 0,
 ) -> tuple[np.ndarray, float]:
@@ -309,17 +327,17 @@ def pca_align(
     return tshift_tot, phi_old
 
 
-def paired_s_lag_times(
+def complete_paired_s_lag_times(
     evpairs: np.ndarray,
     dd: np.ndarray,
     cc: np.ndarray,
     dd_res: np.ndarray,
     method: str = "median",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Pairwise from triplet-wise lag times
+    """Pair-wise from triplet-wise lag times
 
-    Compute median lag times between event pairs from the tripplet-wise lag
-    times ``dd`` returned by :func:`mccc_align`.
+    Compute pair-wise from the triplet-wise lag times ``dd`` returned by
+    :func:`mccc_align`. Assume all combinateions are present.
 
     Parameters
     ----------
@@ -349,6 +367,7 @@ def paired_s_lag_times(
         Residuals of the selected differential arrival times. If 'method' is
         'median', the RMS of all lag times
     """
+    logger.debug("Gathering complete pair of S lag times")
 
     # All event indices
     nev = evpairs[-1, -1] + 1  # We except the highest event index at the end
@@ -403,12 +422,100 @@ def paired_s_lag_times(
     return ev_pair, ddm, ccm, res
 
 
+def incomplete_paired_s_lag_times(
+    evpairs: np.ndarray,
+    dd: np.ndarray,
+    cc: np.ndarray,
+    dd_res: np.ndarray,
+    combinations: np.ndarray,
+    method: str = "cc",
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Pair-wise from triplet-wise lag times
+
+    Compute pair-wise from the triplet-wise lag times ``dd`` returned by
+    :func:`mccc_align`. Do not attempt to compute implicit combinations
+
+    Parameters
+    ----------
+    evpairs:
+        ``(npair, 2)`` event indices
+    dd:
+        Corresponding pairwise differential arrival times
+    cc:
+        ``(events, events, events)`` Cross correlation matrix
+    dd_res:
+        Residuals of the alignment
+    combinations:
+        ``(npair/2, 3)`` triplet combinations that form the incomplete observations
+    method:
+       - 'residual' choose the one with the lowest residual
+       - 'cc' choose the one with the highest cross-correlation coefficient
+
+
+    Returns
+    -------
+    ev_pair: :class:`numpy.ndarray`
+        ``(events * (events-1) / 2, 2)`` event indices
+    dd: :class:`numpy.ndarray`
+        Corresponding median differential arrival times
+    cc: :class:`numpy.ndarray`
+        Corresponding average cross correlation coefficient
+    residual: :class:`numpy.ndarray`
+        Residuals of the selected differential arrival times.
+    """
+    logger.debug("Gathering incomplete pair of S lag times")
+
+    # Strip last zero that constrained the linear system to solve for time shifts
+    dd1 = dd[:-1]
+    dd_res1 = dd_res[:-1]
+
+    if evpairs.shape[0] != dd1.shape[0]:
+        msg = "Arrays must be of same length."
+        raise IndexError(msg)
+
+    # Present event pairs
+    uniq_pairs = np.array(sorted(set([(a, b) for a, b in evpairs])))
+    ddm = np.zeros(uniq_pairs.shape[0], dtype=float)
+    ccm = np.zeros_like(ddm)
+    res = np.zeros_like(ddm)
+
+    for n, ab in enumerate(uniq_pairs):
+        iin = np.all(evpairs == ab, axis=-1)
+
+        # All 3rd events of the combination
+        iab = np.sum((ab[0] == combinations) + (ab[1] == combinations), axis=-1) == 2
+        ic = (combinations[iab, :] != ab[0]) & (combinations[iab, :] != ab[1])
+        # But the 3rd event is not supposed to be on the first index, because
+        # this would be an "implicit" event pair, which we are not considering
+        # here.
+        ic[:, 0] = False
+        c = combinations[ic.nonzero()]  # 3rd events of the 'ab' indexed by iin
+
+        all_dds = dd1[iin]
+        all_dd_res = dd_res1[iin]
+
+        if method == "cc":
+            ibest = np.argmax(cc[ab[0], ab[1], c])
+
+        elif method == "residual":
+            ibest = np.argmin(all_dd_res)
+        else:
+            raise ValueError(f"Unknown 'measure': {method}")
+
+        ddm[n] = all_dds[ibest]
+        ccm[n] = cc[ab[0], ab[1], c][ibest]
+        res[n] = all_dd_res[ibest]
+
+    return uniq_pairs, ddm, ccm, res
+
+
 def run(
     wvarr: np.ndarray,
     header: core.Header,
     destination: tuple[str, str, int, str],
     do_mccc: bool = True,
     do_pca: bool = True,
+    mccc_combinations: np.ndarray = np.array([]),
 ):
     """Align waveforms and save results to disk
 
@@ -427,6 +534,9 @@ def run(
         Align using principal component analyses. This allows for sub-sample
         alignment, but impedes to combine cross correlation lag times of two
         successive runs.
+    mccc_combinations:
+        When aligning using mccc, only combine these pairs (P-waves) or triplets
+        (S-waves).
     """
 
     if not (do_pca or do_mccc):
@@ -438,25 +548,26 @@ def run(
         signal.demean_filter_window(wvarr, **header.kwargs(signal.demean_filter_window))
     )
 
+    # Number of events
+    nev = pwv.shape[0]
+
     if do_mccc:
         maxshift = header["phase_end"] - header["phase_start"]
 
         # Align using MCCC
-        dt_cc, _, dd, dd_res, evpairs = mccc_align(
+        dt_cc, ccmc, ddmc, ddresmc, evpairsmc = mccc_align(
             pwv,
             verbose=True,
             maxshift=maxshift,
+            combinations=mccc_combinations,
             **header.kwargs(mccc_align),
         )
 
-        if len(evpairs) < 1:
+        if len(evpairsmc) < 1:
             logger.warning(
                 f"{header['station']}_{header['phase']}: Nothing to process."
             )
             return
-
-        # Look up actual event names
-        evns = np.vectorize(header["events"].__getitem__)(evpairs)
 
         # Shift the traces
         arr_shift = signal.shift_3d(wvarr, -dt_cc, **header.kwargs(signal.shift_3d))
@@ -467,8 +578,13 @@ def run(
         )
 
         # Re-compute the cc's on the shifted traces
+        logger.info("Computing aligned correlation coefficients")
+
+        # Recompute correlations with shifted traces
         ccijk, ccij, *_ = signal.reconstruction_correlation_averages(
-            wvmat_cc, header["phase"]
+            wvmat_cc,
+            header["phase"],
+            set_autocorrelation=False,
         )
 
         methods = [""]
@@ -478,21 +594,29 @@ def run(
         # Use differen methods to extract S lag times
         for method in methods:
             if header["phase"] == "S":
-                evpairs, dd, ccp, dd_res = paired_s_lag_times(
-                    evpairs, dd, ccijk, dd_res, method
-                )
+                if evpairsmc.shape[0] == nev * (nev - 1) * (nev - 2) / 3:
+                    # Complete set of lag time combinations
+                    evpairs, dd, ccp, dd_res = complete_paired_s_lag_times(
+                        evpairsmc, ddmc, ccijk, ddresmc, method
+                    )
+                else:
+                    # The set is incomplete, so we can't compute the implicit
+                    # combinations
+                    if method == "median":
+                        continue
+                    evpairs, dd, ccp, dd_res = incomplete_paired_s_lag_times(
+                        evpairsmc, ddmc, ccijk, ddresmc, mccc_combinations, method
+                    )
             else:
-                dd = dd[:-1]
-                dd_res = dd_res[:-1]
-                ccp = np.array(
-                    [
-                        ccij[i, j]
-                        for i in range(pwv.shape[0] - 1)
-                        for j in range(i + 1, pwv.shape[0])
-                    ]
-                )
-
+                dd = ddmc[:-1]
+                dd_res = ddresmc[:-1]
+                ccp = ccij[evpairsmc[:, 0], evpairsmc[:, 1]]
+                evpairs = evpairsmc
             # Silly format before saving lag times
+
+            # Look up actual event names
+            evns = np.vectorize(header["events"].__getitem__)(evpairs)
+
             evdd = np.char.mod(
                 ["% 9.0f", "% 9.0f", "%13.6e", "%6.3f", "%13.2e"],
                 np.hstack(
@@ -512,8 +636,11 @@ def run(
         nev = len(header["events"])
         rms = np.zeros(nev)
         for iev in range(nev):
-            iin = np.any(evpairs == iev, axis=-1)
-            rms[iev] = np.sqrt(np.sum(dd_res[iin] ** 2) / np.sum(iin))
+            try:
+                iin = np.any(evpairs == iev, axis=-1)
+                rms[iev] = np.sqrt(np.sum(dd_res[iin] ** 2) / np.sum(iin))
+            except IndexError:
+                rms[iev] = np.nan
 
         # Save the time shifts
         io.save_results(
@@ -524,7 +651,7 @@ def run(
         io.save_results(core.file("cc_matrix", *destination), ccij)
 
     else:
-        # If we don't align, preprocess the input array
+        # If we don't align with mccc, just, preprocess the input array
         wvmat_cc = utils.concat_components(
             signal.demean_filter_window(
                 wvarr, **header.kwargs(signal.demean_filter_window)
@@ -534,7 +661,7 @@ def run(
 
     if do_pca:
         # Align using PCA
-        dt_pca, phi = pca_align(wvmat_cc, dphi=1e-3, **header.kwargs(pca_align))
+        dt_pca, phi = pca_align(wvmat_cc, dphi=1e-9, **header.kwargs(pca_align))
 
         io.save_results(core.file("pca_time_shift", *destination), dt_pca)
         io.save_results(core.file("pca_objective", *destination), phi)

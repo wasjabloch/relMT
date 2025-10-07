@@ -29,7 +29,7 @@ import numpy as np
 from scipy.sparse import coo_matrix
 
 import mccore as mcf
-from relmt import align, signal, utils, ls
+from relmt import align, signal, utils, ls, core
 
 
 # TODO: How to do this properly?
@@ -74,10 +74,13 @@ def test_mccc_ppf():
 
     wvin = p_wavelet()
 
+    # Explicit combinations in Fortran indexing
+    combs = np.array(list(core.iterate_event_pair(wvin.shape[0]))) + 1
+
     # rowi, coli, valu are indices and values of non-zero elements in time difference matrix A
     # cc are maximal cross correlation coefficient pairs.
     # dd is matrix of optimal lag time pairs.
-    rowi, coli, valu, dd, cc = mcf.mccc_ppf(wvin.T, ds, 20, 1, False)
+    rowi, coli, valu, dd, cc = mcf.mccc_ppf(wvin.T, ds, 20, 1, combs, False)
 
     A = coo_matrix((valu, (rowi, coli)), dtype=np.float64).tocsc()
     dtouts, _ = ls.solve_irls_sparse(A, dd, 1e-4)
@@ -98,8 +101,11 @@ def test_mccc_ssf0():
 
     sampling_rate = 1
 
+    # Explicit combinations in Fortran indexing
+    combs = np.array(list(core.iterate_event_triplet(wvin.shape[0]))) + 1
+
     rowi, coli, valu, dd, cc3 = mcf.mccc_ssf0(
-        wvin.T, 1 / sampling_rate, 20, 1, verb=False
+        wvin.T, 1 / sampling_rate, 20, 1, combs, verb=False
     )
 
     A = coo_matrix((valu, (rowi, coli)), dtype=np.float64).tocsc()
@@ -207,7 +213,7 @@ def test_paired_s_lag_times():
     nwv = len(wvf_matrix)
     _, cc, dd, dd_res, evpairs = align.mccc_align(wvf_matrix, "S", 100, 0.5)
 
-    evpairs2, dd2, cc2, rms = align.paired_s_lag_times(evpairs, dd, cc, dd_res)
+    evpairs2, dd2, cc2, rms = align.complete_paired_s_lag_times(evpairs, dd, cc, dd_res)
 
     assert evpairs2.shape[0] == nwv * (nwv - 1) / 2
     assert len(dd2) == nwv * (nwv - 1) / 2
@@ -222,6 +228,35 @@ def test_paired_s_lag_times():
 
         # All dd times should be equal, since we have perfect data.
         assert dd[iin] == pytest.approx(ddtime)
+
+
+def test_incomplete_paired_s_lag_times():
+    # Synthetic setup with an incomplete set of triplets and duplicated pairs
+    evpairs = np.array([[0, 1], [0, 2], [0, 2]])
+    dd = np.array([0.5, -0.2, -0.25, 0.0])
+    dd_res = np.array([0.1, 0.2, 0.15, 0.0])
+    combinations = np.array([[0, 1, 2], [0, 2, 3]])
+
+    cc = np.zeros((4, 4, 4))
+    cc[0, 1, 2] = cc[1, 0, 2] = 0.8
+    cc[0, 2, 1] = cc[2, 0, 1] = 0.4
+    cc[0, 2, 3] = cc[2, 0, 3] = 0.3
+
+    pairs_cc, dd_cc, cc_cc, res_cc = align.incomplete_paired_s_lag_times(
+        evpairs, dd, cc, dd_res, combinations, method="cc"
+    )
+    assert np.array_equal(pairs_cc, np.array([[0, 1], [0, 2]]))
+    assert dd_cc == pytest.approx([0.5, -0.2])
+    assert cc_cc == pytest.approx([0.8, 0.4])
+    assert res_cc == pytest.approx([0.1, 0.2])
+
+    pairs_res, dd_res_sel, cc_res, res_res = align.incomplete_paired_s_lag_times(
+        evpairs, dd, cc, dd_res, combinations, method="residual"
+    )
+    assert np.array_equal(pairs_res, np.array([[0, 1], [0, 2]]))
+    assert dd_res_sel == pytest.approx([0.5, -0.25])
+    assert cc_res == pytest.approx([0.8, 0.3])
+    assert res_res == pytest.approx([0.1, 0.15])
 
 
 def test_pca_align():
