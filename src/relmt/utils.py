@@ -31,6 +31,7 @@ import logging
 from typing import Iterable
 from relmt import core, mt, signal, qc, angle
 from collections import defaultdict
+from itertools import combinations
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -155,11 +156,22 @@ def approx_time_lookup(
     return lut
 
 
-def reshape_ccvec(ccvec: np.ndarray, ns: int) -> np.ndarray:
+def reshape_ccvec(ccvec: np.ndarray, ns: int, combinations=None) -> np.ndarray:
     """Reshape 1D vector of cc coefficeints c_ijk to ``(n, n, n)`` 3D matrix"""
+    iterator = core.ijk_ccvec(ns)
+
+    if combinations is not None:
+
+        def iterate_combinations(combinations):
+            for i, j, k in combinations:
+                yield (i, j, k)
+                yield (k, i, j)
+                yield (j, k, i)
+
+        iterator = iterate_combinations(combinations)
 
     cc = np.full((ns, ns, ns), 0.0)
-    for n, (i, j, k) in enumerate(core.ijk_ccvec(ns)):
+    for n, (i, j, k) in enumerate(iterator):
         val = max(min(ccvec[n], 1.0), -1.0)
         cc[i, j, k] = val
         cc[i, k, j] = val
@@ -360,6 +372,7 @@ def phase_dict_hash_plunge(
                 event_dict[core.split_phaseid(phid)[0]].depth,
             )
             for phid in phase_dict
+            if phid in phase_dict
         ]
     )
 
@@ -682,6 +695,90 @@ def select_events(arr: np.ndarray, select: list[int], events: list[int]) -> np.n
     return arr[iin, ...]
 
 
+def valid_combinations(
+    events: list[int], pairs: set[tuple[int, int]], phase: str
+) -> np.ndarray:
+    """Indices to the event combinations that are in pairs
+
+    Parameters
+    ----------
+    pairs:
+        Event numbers (a, b) that may be combined pairwise. We assume sorted
+        pairs: a < b
+    events:
+        List of event numbers
+    phase:
+        Phase type, either 'P' or 'S'
+
+    Returns
+    -------
+    Array of shape ``(combinations, 2)`` (if phase='P') or ``(combinations, 3)``
+    (if phase='S') with the indices to the valid event combinations
+    """
+
+    def _triplets(pairs):
+        """Yield the triplets that can be built from pairs"""
+
+        # Inspired by ChatGPT-5
+
+        # Find neigbours
+        nbrs = defaultdict(list)
+        for u, v in ipairs:
+            nbrs[u].append(v)
+            nbrs[v].append(u)
+        for x in nbrs:
+            nbrs[x].sort()
+
+        # For each edge (u, v) with u < v, intersect N(u) and N(v)
+        # but only keep neighbors > v to avoid duplicates.
+        for u, v in sorted(ipairs):
+            nu = nbrs[u]
+            nv = nbrs[v]
+            i = j = 0
+
+            # Advance i to first entry > v (since we only want w > v)
+            while i < len(nu) and nu[i] <= v:
+                i += 1
+
+            # Similarly skip <= v on nv:
+            while j < len(nv) and nv[j] <= v:
+                j += 1
+
+            # Two-pointer intersection (both lists are sorted)
+            while i < len(nu) and j < len(nv):
+                if nu[i] == nv[j]:
+                    w = nu[i]  # v guaranteed by the skips above
+                    yield (u, v, w)
+
+                    i += 1
+                    j += 1
+                elif nu[i] < nv[j]:
+                    i += 1
+                else:
+                    j += 1
+
+    ipairs = set(
+        (
+            (events.index(a), events.index(b))
+            if a < b
+            else (events.index(b), events.index(a))
+        )
+        for a, b in pairs
+        if a in events and b in events
+    )
+
+    if phase == "P":
+        # All event name combinations
+        return np.array(sorted(ipairs))
+
+    elif phase == "S":
+        logger.debug("Finding valid event triplets")
+        return np.array(list(_triplets(ipairs)))
+
+    else:
+        raise ValueError("Phase must be 'P' or 'S'")
+
+
 def collect_takeoff(
     phase_dict: dict[str : core.Phase],
     event_index: int,
@@ -847,3 +944,175 @@ def subset_list(lst: list, indices: Iterable[int]) -> list:
     """
     logger.warning("Do not use this function, but a list comprehension instead.")
     return [lst[i] for i in indices]
+
+
+def _ccorf3_from_d_e_f_vectorized(d, e, f):
+    """
+    Vectorized core of the ccorf3 algorithm using only the three
+    off-diagonal correlations (d=⟨i,j⟩, e=⟨j,k⟩, f=⟨k,i⟩).
+    All inputs are shape (N,), outputs cc3 are shape (N, 3).
+    """
+    d = np.asarray(d, dtype=np.float64)
+    e = np.asarray(e, dtype=np.float64)
+    f = np.asarray(f, dtype=np.float64)
+
+    d2, e2, f2 = d * d, e * e, f * f
+    de, ef = d * e, e * f
+
+    # Major (vectorized)
+    x1 = 3.0 * (d2 + e2 + f2)
+    x2 = -54.0 * (de * f)
+    sx2 = 2.0 * np.sqrt(x1)
+
+    rad = np.maximum(0.0, 4.0 * x1**3 - x2**2)
+    root = np.sqrt(rad)
+    pi = np.pi
+
+    # piecewise phi
+    phi = np.empty_like(x2)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ar = np.arctan(root / x2)
+
+    # x2 > 0
+    m = x2 > 0
+    phi[m] = ar[m]
+    # x2 < 0
+    m = x2 < 0
+    phi[m] = ar[m] + pi
+    # x2 == 0
+    m = ~((x2 > 0) | (x2 < 0))
+    phi[m] = pi / 2.0
+
+    ev0 = (3.0 - sx2 * np.cos(phi / 3.0)) / 3.0
+    ev1 = (3.0 + sx2 * np.cos((phi - pi) / 3.0)) / 3.0
+    ev2 = (3.0 + sx2 * np.cos((phi + pi) / 3.0)) / 3.0
+
+    # We need the largest (λ1) and middle (λ2) eigenvalues for each row
+    EV = np.stack([ev0, ev1, ev2], axis=1)  # (N, 3)
+    EV_sorted = np.sort(EV, axis=1)[:, ::-1]  # desc
+    lam1 = EV_sorted[:, 0]  # largest
+    lam2 = EV_sorted[:, 1]  # middle
+
+    # Slopes m1, m2
+    with np.errstate(divide="ignore", invalid="ignore"):
+        m1 = (d * (1.0 - lam1) - ef) / (f * (1.0 - lam1) - d * e)
+        m2 = (d * (1.0 - lam2) - ef) / (f * (1.0 - lam2) - d * e)
+
+    # Eigenvectors (unnormalized), components correspond to (i, j, k) = (a, b, c)
+    # v1 = [(lam1-1 - e*m1)/f,   m1, 1]
+    # v2 = [(lam2-1 - e*m2)/f,   m2, 1]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        v1a = (lam1 - 1.0 - e * m1) / f
+        v2a = (lam2 - 1.0 - e * m2) / f
+    v1b, v1c = m1, np.ones_like(m1)
+    v2b, v2c = m2, np.ones_like(m2)
+
+    # Normalize v1, v2
+    n1 = np.sqrt(v1a * v1a + v1b * v1b + v1c * v1c)
+    n2 = np.sqrt(v2a * v2a + v2b * v2b + v2c * v2c)
+    with np.errstate(invalid="ignore"):
+        v1a, v1b, v1c = v1a / n1, v1b / n1, v1c / n1
+        v2a, v2b, v2c = v2a / n2, v2b / n2, v2c / n2
+
+    # For each ii = 0(i),1(j),2(k) compute coff = disc @ dvec / den
+    # ii = 0: ij=1, ik=2 → den0 = v1b*v2c - v1c*v2b
+    den0 = v1b * v2c - v1c * v2b
+    c1_0 = (v2c * v1a - v2b * v2a) / den0
+    c2_0 = (-v1c * v1a + v1b * v2a) / den0
+
+    # ii = 1: ij=2, ik=0 → den1 = v1c*v2a - v1a*v2c
+    den1 = v1c * v2a - v1a * v2c
+    c1_1 = (v2a * v1b - v2c * v2b) / den1
+    c2_1 = (-v1a * v1b + v1c * v2b) / den1
+
+    # ii = 2: ij=0, ik=1 → den2 = v1a*v2b - v1b*v2a
+    den2 = v1a * v2b - v1b * v2a
+    c1_2 = (v2b * v1c - v2a * v2c) / den2
+    c2_2 = (-v1b * v1c + v1a * v2c) / den2
+
+    # Numerators: ⟨g_i, a*g_j + b*g_k⟩ = a*⟨g_i,g_j⟩ + b*⟨g_i,g_k⟩
+    num0 = c1_0 * d + c2_0 * f  # ii = i
+    num1 = c1_1 * e + c2_1 * d  # ii = j
+    num2 = c1_2 * f + c2_2 * e  # ii = k
+
+    # Denominators: ||a*g_j + b*g_k|| = sqrt(a^2 + b^2 + 2ab⟨g_j,g_k⟩)
+    den_cc0 = np.sqrt(
+        c1_0 * c1_0 + c2_0 * c2_0 + 2.0 * c1_0 * c2_0 * e
+    )  # uses ⟨j,k⟩ = e
+    den_cc1 = np.sqrt(
+        c1_1 * c1_1 + c2_1 * c2_1 + 2.0 * c1_1 * c2_1 * f
+    )  # uses ⟨k,i⟩ = f
+    den_cc2 = np.sqrt(
+        c1_2 * c1_2 + c2_2 * c2_2 + 2.0 * c1_2 * c2_2 * d
+    )  # uses ⟨i,j⟩ = d
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        cc_i = num0 / den_cc0
+        cc_j = num1 / den_cc1
+        cc_k = num2 / den_cc2
+
+    return np.stack([cc_i, cc_j, cc_k], axis=1)  # (N, 3)
+
+
+def ccorf3_all(gmat, batch_size=200000):
+    """
+    Generalized and optimized ccorf3 for all column triples.
+
+    Parameters
+    ----------
+    gmat : (nt, M) array_like (float64)
+        Input matrix. Rows are assumed to be normalized
+    batch_size : int, default 200000
+        Process up to this many triples per batch to control memory.
+
+    Returns
+    -------
+    cc_all : (C(M,3), 3) float64
+        cc3 for each triple, ordered in the same order as the yielded triples.
+    """
+    A = np.asarray(gmat, dtype=np.float64)
+    M = A.shape[1]
+    if M < 3:
+        raise ValueError("Need at least 3 columns to form triples.")
+
+    # Gram matrix (M x M)
+    G = A.T @ A
+
+    # Preallocate outputs
+    ccijk = np.zeros((M, M, M), dtype=np.float16)
+
+    # Enumerate all triples of columns (i<j<k)
+    comb_iter = combinations(range(M), 3)
+
+    # Process in batches to keep memory bounded
+    while True:
+        # Pull up to batch_size triples
+        batch = []
+        try:
+            for _ in range(batch_size):
+                batch.append(next(comb_iter))
+        except StopIteration:
+            pass
+
+        if not batch:
+            break
+
+        idx = np.array(batch, dtype=np.int16)  # (B, 3) with columns (i,j,k)
+        i, j, k = idx[:, 0], idx[:, 1], idx[:, 2]
+
+        # Pull the three off-diagonal correlations from the Gram
+        d = G[i, j]  # ⟨i,j⟩
+        e = G[j, k]  # ⟨j,k⟩
+        f = G[k, i]  # ⟨k,i⟩
+
+        cc_batch = _ccorf3_from_d_e_f_vectorized(d, e, f)  # (B, 3)
+
+        # Scatter directly into ccijk
+        ccijk[i, j, k] = cc_batch[:, 0]
+        ccijk[j, i, k] = cc_batch[:, 0]
+        ccijk[j, k, i] = cc_batch[:, 1]
+        ccijk[k, j, i] = cc_batch[:, 1]
+        ccijk[k, i, j] = cc_batch[:, 2]
+        ccijk[i, k, j] = cc_batch[:, 2]
+
+    return ccijk

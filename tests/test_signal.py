@@ -81,23 +81,6 @@ def test_reconstruction_correlation_averages():
     assert pytest.approx(c) == 1.0
 
 
-# def test_xcorrc1():
-#    # Test if a wavelet correlates with itself
-#    n = 512
-#    x = signal.make_wavelet(n, 5, "sin", 30, 0, 0)
-#    corr = signal._xcorrc(x, x)
-#    assert corr[n - 1] == pytest.approx(1)
-#
-#
-# def test_xcorrc2():
-#    # Test if 1/2 periot shifted wavelet anti-correlates
-#    n = 512
-#    x = signal.make_wavelet(n, 10, "sin", 30, 0, 0)
-#    y = signal.make_wavelet(n, 10, "sin", 30, 5, 0)
-#    corr = signal._xcorrc(x, y)
-#    assert corr[n - 1] == pytest.approx(-1)
-
-
 def test_make_wavelet_sin():
     # Test if make_wavelet makes a sine
     n = 512

@@ -29,7 +29,6 @@ import scipy.fft as fft
 import logging
 from typing import Iterable
 from relmt import utils, core, align
-from mccore import ccorf3
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -744,7 +743,9 @@ def cc_coef(x: np.ndarray, y: np.ndarray) -> float:
 
 
 def reconstruction_correlation_averages(
-    mat: np.ndarray, phase: str
+    mat: np.ndarray,
+    phase: str,
+    set_autocorrelation=True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     """Correlation coefficients between event pairs or triplets
 
@@ -763,6 +764,8 @@ def reconstruction_correlation_averages(
         Waveform matrix of shape ``(events, samples)``
     phase:
         'P' for pairwise correlation, 'S' for triplet-wise correlation
+    set_autocorrelation:
+        Set correlations with two matching indices to unity in ccijk and ccij
 
     Returns
     -------
@@ -778,6 +781,9 @@ def reconstruction_correlation_averages(
     cc:
         Average absolute correlation coefficient of the matrix
     """
+    logger.info(
+        "Computing correlation coefficients of all event combinations. This may take a while..."
+    )
     n = mat.shape[0]
 
     if phase == "P":
@@ -792,15 +798,8 @@ def reconstruction_correlation_averages(
     elif phase == "S":
         # ccorf3 expects normalized matrix
         nmat = mat / np.linalg.norm(mat, axis=-1)[:, np.newaxis]
-        ccijk = np.zeros((n, n, n))
-        for i, j, k in core.iterate_event_triplet(n):
-            ccs = ccorf3(nmat[[i, j, k], :].T)
-            ccijk[i, j, k] = ccs[0]
-            ccijk[j, i, k] = ccs[0]
-            ccijk[k, i, j] = ccs[1]
-            ccijk[i, k, j] = ccs[1]
-            ccijk[j, k, i] = ccs[2]
-            ccijk[k, j, i] = ccs[2]
+
+        ccijk = utils.ccorf3_all(nmat.T)
 
         # Correct nummerical corner cases in ccorf3
         ccijk[np.isnan(ccijk)] = 1.0
@@ -810,10 +809,11 @@ def reconstruction_correlation_averages(
         ccij = utils.fisher_average(ccijk)
 
         # Two indices that are the same (due to ChatGPT o4-mini-high)
-        iij = np.argwhere(
-            (I := np.eye(n, dtype=bool))[:, :, None] | I[:, None, :] | I[None, :, :]
-        )
-        ccijk[iij] = 1.0
+        if set_autocorrelation:
+            iij = np.argwhere(
+                (I := np.eye(n, dtype=bool))[:, :, None] | I[:, None, :] | I[None, :, :]
+            )
+            ccijk[iij] = 1.0
 
     else:
         raise ValueError(f"'phase' must be 'P' or 'S', not: '{phase}'")
@@ -821,6 +821,7 @@ def reconstruction_correlation_averages(
     cci = utils.fisher_average(abs(ccij))
     cc = utils.fisher_average(cci)
 
-    ccij[np.diag_indices_from(ccij)] = 1.0
+    if set_autocorrelation:
+        ccij[np.diag_indices_from(ccij)] = 1.0
 
     return ccijk, ccij, cci, cc

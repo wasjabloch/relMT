@@ -28,6 +28,7 @@ import pytest
 import numpy as np
 from pathlib import Path
 from relmt import signal, utils, core, io, extra
+from mccore import ccorf3
 
 
 def test_concat_wvf_array():
@@ -405,3 +406,28 @@ def test_next_fftw_size():
 
 def test_source_duration():
     assert pytest.approx(utils.source_duration(5)) == 1.0
+
+
+def test_cc_corf3():
+    # Test if a wavelet correlates with itself
+    n = 12
+
+    rng = np.random.default_rng()
+
+    mat = rng.random((n, 512))
+    nmat = mat / np.linalg.norm(mat, axis=-1)[:, np.newaxis]
+
+    cc_batch = utils.ccorf3_all(nmat.T)
+
+    # Calling Michael's original Fortran routine once per triplet
+    ccijk = np.zeros((n, n, n))
+    for i, j, k in core.iterate_event_triplet(n):
+        ccs = ccorf3(nmat[[i, j, k], :].T)
+        ccijk[i, j, k] = ccs[0]
+        ccijk[j, i, k] = ccs[0]
+        ccijk[k, i, j] = ccs[1]
+        ccijk[i, k, j] = ccs[1]
+        ccijk[j, k, i] = ccs[2]
+        ccijk[k, j, i] = ccs[2]
+
+    pytest.approx(cc_batch) == ccijk
