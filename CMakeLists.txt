@@ -29,7 +29,7 @@ add_custom_command(
   OUTPUT mccoremodule.c mccore-f2pywrappers.f
   DEPENDS src/relmt/mccore.f90
   VERBATIM
-  COMMAND "${Python_EXECUTABLE}" -m numpy.f2py
+  COMMAND "${Python_EXECUTABLE}" -m numpy.f2py #--debug-capi
           "${CMAKE_CURRENT_SOURCE_DIR}/src/relmt/mccore.f90" -m mccore --lower)
 
 python_add_library(
