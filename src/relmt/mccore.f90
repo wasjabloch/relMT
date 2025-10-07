@@ -323,6 +323,7 @@ subroutine mccc_ssf0(scomp0,dt,mxlag,ndec,trips,verb,rowi,coli,valu,dd,cc3,ns,nt
 ! cc3: Corresponding cross correlation coefficients
 ! ns: Number of seismograms
 ! nt: Number of samples
+! nci: Number of combinations
 
 implicit none
 real(8), intent(in) :: mxlag,dt
@@ -331,10 +332,16 @@ integer, intent(in) :: ndec
 logical, intent(in) :: verb
 integer, intent(in), dimension(nci,3) :: trips
 real(8), intent(in), dimension(nt,ns) :: scomp0
-real(8), intent(out), dimension(ns*(ns-1)*(ns-2)/2) :: cc3
-real(8), intent(out), dimension(ns*(ns-1)*(ns-2)/3+1) :: dd
-real(8), intent(out), dimension(ns+2*ns*(ns-1)*(ns-2)/3) :: valu
-integer, intent(out), dimension(ns+2*ns*(ns-1)*(ns-2)/3) :: rowi,coli
+
+! OBS! Some of the dimension values below may overfloat at ns > 1025
+!real(8), intent(out), dimension(ns*(ns-1)*(ns-2)/2) :: cc3
+!real(8), intent(out), dimension(ns*(ns-1)*(ns-2)/3+1) :: dd
+!real(8), intent(out), dimension(ns+2*ns*(ns-1)*(ns-2)/3) :: valu
+!integer, intent(out), dimension(ns+2*ns*(ns-1)*(ns-2)/3) :: rowi,coli
+real(8), intent(out), dimension(3*nci) :: cc3
+real(8), intent(out), dimension(2*nci+1) :: dd
+real(8), intent(out), dimension(ns+4*nci) :: valu
+integer, intent(out), dimension(ns+4*nci) :: rowi,coli
 real(8), dimension(nt,ns) :: scomp
 real(8), dimension(2*nt,ns*(ns-1)/2) :: ccij
 real(8), dimension(nt,3) :: gmat
@@ -342,6 +349,10 @@ real(8), allocatable :: eobj(:),sij(:),sik(:),sjk(:),rlag(:)
 integer, allocatable :: il(:),ijn(:),ikn(:),jkn(:),ij2(:),iix(:),jjx(:),kkx(:)
 integer, dimension(2) :: kk
 integer :: ix,jx,kx,ll,mm,nn,nl,nl2,ii,jj,nc,ic
+
+if (verb) then
+    print*,'ns, nt, nci',ns, nt, nci
+endif
 
 ! Initialize arrays.
     cc3=0
@@ -422,6 +433,11 @@ integer :: ix,jx,kx,ll,mm,nn,nl,nl2,ii,jj,nc,ic
     nn=1
 
     do ic=1,nc
+        if (verb) then
+            if (mod(nc-ic, 10000) == 0) then
+                print*,'S wave combinations left: ', nc - ic
+            end if
+        end if
         ix=iix(ic)
         jx=jjx(ic)
         kx=kkx(ic)
@@ -669,14 +685,22 @@ logical, intent(in) :: verb
 integer, intent(in), dimension(nci,2) :: pairs  ! (nc,2) from NumPy
 real(8), intent(in), dimension(nt,ns) :: scomp0
 real(8), intent(out), dimension(ns,ns) :: cc
-real(8), intent(out), dimension(ns*(ns-1)/2+1) :: dd
-real(8), intent(out), dimension(ns+ns*(ns-1)) :: valu
-integer, intent(out), dimension(ns+ns*(ns-1)) :: rowi,coli
+!real(8), intent(out), dimension(ns*(ns-1)/2+1) :: dd
+!real(8), intent(out), dimension(ns+ns*(ns-1)) :: valu
+!integer, intent(out), dimension(ns+ns*(ns-1)) :: rowi,coli
+real(8), intent(out), dimension(nci+1) :: dd
+real(8), intent(out), dimension(ns+2*nci) :: valu
+integer, intent(out), dimension(ns+2*nci) :: rowi,coli
+
 real(8), dimension(nt,ns) :: scomp
 real(8), dimension(2*nt) :: sccij
 real(8), allocatable :: eobj(:),sij(:),rlag(:)
 integer, allocatable :: il(:),ijn(:),iix(:),jjx(:)
 integer :: ix,jx,ic,ll,mm,nl,kk,nc
+
+if (verb) then
+    print*,'ns, nt, nci',ns, nt, nci
+endif
 
 ! Initialize arrays.
 ! arrays up front.
@@ -755,6 +779,11 @@ integer :: ix,jx,ic,ll,mm,nl,kk,nc
     end if
 
     do ic=1,nc
+        if (verb) then
+            if (mod(nc-ic, 10000) == 0) then
+                print*,'P wave combinations left: ', nc - ic
+            end if
+        end if
         ix=iix(ic)
         jx=jjx(ic)
         call correlate(scomp(:,ix),scomp(:,jx),sccij,nt)
