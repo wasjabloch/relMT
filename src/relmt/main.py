@@ -27,7 +27,7 @@
 
 import logging
 from relmt import io, utils, align, core, signal, extra, amp, ls, mt, qc, angle
-from scipy.sparse import coo_matrix
+from scipy import sparse
 from pathlib import Path
 import yaml
 import numpy as np
@@ -101,11 +101,10 @@ def main_align(
             excl, return_bool=True, **hdr.kwargs(qc.included_events)
         )
 
-        # Events that are non-zero and finite
-        inz = qc.index_nonzero_events(
-            arr, null_threshold=hdr["null_threshold"], return_bool=True
-        )
-        iin &= inz
+        # Read optional pair list and  check for singolton events
+        if hdr["mccc_combination_file"] is not None:
+            pairs = io.read_combinations(core.file("combination", *source))
+            iin &= np.isin(hdr["events"], np.unique(list(pairs)))
 
         # Any events left?
         if not any(iin):
@@ -113,9 +112,17 @@ def main_align(
 
         # Only parse valid events
         hdr["events"] = list(np.array(hdr["events"])[iin])
+
+        # Convert pair to triplet combinations and return indices into arr
+        combinations = np.array([])
+        if hdr["mccc_combination_file"] is not None:
+            logger.debug("Finding valid combinations")
+            combinations = utils.valid_combinations(hdr["events"], pairs, hdr["phase"])
+            logger.info(f"Found {combinations.shape[0]} combinations for {wvid}")
+
         arr = arr[iin, :, :]
 
-        args.append((arr, hdr, dest, do_mccc, do_pca))
+        args.append((arr, hdr, dest, do_mccc, do_pca, combinations))
 
     if ncpu > 1:
         with mp.Pool(ncpu) as pool:
@@ -510,6 +517,16 @@ def main_amplitude(
             xarr = arr[ievs, :, :]
             hdr["events"] = evns
 
+            if hdr["combinations_from_file"]:
+                pairs = io.read_combinations(
+                    core.file("combination", sta, pha, iteration, directory)
+                )
+                combs = utils.valid_combinations(evns, pairs, pha)
+            elif pha == "P":
+                combs = core.iterate_event_pair(len(evns))
+            else:
+                combs = core.iterate_event_pair(len(evns))
+
             # Make a shared array (Inspired by CatGPT 4o)
             dtype = xarr.dtype
             shape = xarr.shape
@@ -521,8 +538,7 @@ def main_amplitude(
 
             # Look up correct passband and collect the arguments
             if pha == "P":
-                for a, b in core.iterate_event_pair(len(evns)):
-
+                for a, b in combs:
                     hpas, lpas = signal.choose_passband(
                         [pasbnds[wvid][evns[i]][0] for i in [a, b]],
                         [pasbnds[wvid][evns[i]][1] for i in [a, b]],
@@ -551,8 +567,7 @@ def main_amplitude(
                         )
 
             if pha == "S":
-
-                for a, b, c in core.iterate_event_triplet(len(evns)):
+                for a, b, c in combs:
                     hpas, lpas = signal.choose_passband(
                         [pasbnds[wvid][evns[i]][0] for i in [a, b, c]],
                         [pasbnds[wvid][evns[i]][1] for i in [a, b, c]],
@@ -821,6 +836,9 @@ def main_qc(config: core.Config, directory: Path):
         if ph == "P":
             pamps = amps.copy()
         else:
+            if False:
+                # Decimate by a factor of 10
+                amps = [amps[iin] for iin in range(0, len(amps), 10)]
             samps = amps.copy()
 
     # Make sure we have enough equations
@@ -905,19 +923,25 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
     ]
 
     # Build homogenos part of linear system
-    # Ah, bh = ls.homogenous_amplitude_equations_sparse(
-    # pamp_subset, samp_subset, incl_ev, stad, evd, phd, constraint, ncpu
-    # )
-
-    # TODO: Does the workflow below work with sparse matrices?
-    # TODO: the line above was:
-    Ah, bh = ls.homogenous_amplitude_equations(
-        pamp_subset, samp_subset, incl_ev, stad, evd, phd, constraint
-    )
+    isparse = True
+    if isparse:
+        # as sparse array
+        Ah, bh = ls.homogenous_amplitude_equations_sparse(
+            pamp_subset, samp_subset, incl_ev, stad, evd, phd, constraint, None, ncpu
+        )
+    else:
+        # as dense array
+        Ah, bh = ls.homogenous_amplitude_equations(
+            pamp_subset, samp_subset, incl_ev, stad, evd, phd, constraint
+        )
 
     # Normalization applied to columns
     ev_norm = ls.norm_event_median_amplitude(Ah, mt_elements)
-    Ah *= ev_norm
+
+    if isparse:
+        Ah = (Ah * ev_norm).tocsc(copy=False)
+    else:
+        Ah *= ev_norm
 
     # Weight applied by row
     mis_weights = np.vstack(
@@ -935,12 +959,16 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
         [1.0 for _ in pamp_subset] + [ls.weight_s_amplitude(amp) for amp in samp_subset]
     )
 
+    # Equation norm
     eq_norm = ls.condition_homogenous_matrix_by_norm(Ah)
 
     # Apply the weights only after measuring the norm
-    Ah *= mis_weights * amp_weights
-
-    Ah *= eq_norm
+    if isparse:
+        Ah = (Ah * (mis_weights * amp_weights)).tocsc(copy=False)
+        Ah = (Ah * eq_norm).tocsc(copy=False)
+    else:
+        Ah *= mis_weights * amp_weights
+        Ah *= eq_norm
 
     # Build inhomogenous equations
     Ai, bi = ls.reference_mt_equations(irefs, mtd, incl_ev, constraint)
@@ -951,6 +979,7 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
     # Indices of reference events
     incl_ref = [incl_ev.index(iref) for iref in irefs]
 
+    # Normalization of the reference event
     refev_norm = ls.reference_mt_event_norm(ev_norm, incl_ref, mt_elements)
     Ai *= refmt_weight
     bi *= refmt_weight / mean_moment / refev_norm
@@ -958,7 +987,14 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
     # Scale of resulting relative moment tensors
     ev_scale = mean_moment * ev_norm
 
-    A = coo_matrix(np.vstack((Ah, Ai))).tocsc()
+    # Dense matrix
+    if isparse:
+        # Sparse matrix
+        A = sparse.vstack((Ah, Ai), format="csc")
+    else:
+        # Dense matrix
+        A = sparse.coo_matrix(np.vstack((Ah, Ai))).tocsc()
+
     b = np.vstack((bh, bi))
 
     # save_npz(core.file("amplitude_matrix", directory=directory, suffix=outsuf), A)
