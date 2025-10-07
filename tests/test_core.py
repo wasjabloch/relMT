@@ -334,8 +334,8 @@ def test_iterate_event_pair():
     pairs = list(core.iterate_event_pair(3))
     assert pytest.approx(pairs) == [(0, 1), (0, 2), (1, 2)]
 
-    pairs = list(core.iterate_event_pair(3, event_list=[0, 2]))
-    assert pytest.approx(pairs) == [(0, 2, 0, 1)]
+    pairs = list(core.iterate_event_pair(3, event_list=[0, 2, 4]))
+    assert pytest.approx(pairs) == [(0, 2), (0, 4), (2, 4)]
 
 
 def test_iterate_event_triplet():
@@ -347,8 +347,13 @@ def test_iterate_event_triplet():
         (1, 2, 3),
     ]
 
-    triplets = list(core.iterate_event_triplet(4, event_list=[0, 1, 3]))
-    assert pytest.approx(triplets) == [(0, 1, 3, 0, 1, 2)]
+    triplets = list(core.iterate_event_triplet(4, event_list=[0, 1, 3, 4]))
+    assert pytest.approx(triplets) == [
+        (0, 1, 3),
+        (0, 1, 4),
+        (0, 3, 4),
+        (1, 3, 4),
+    ]
 
 
 def test_header():

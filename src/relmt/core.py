@@ -121,6 +121,10 @@ basenames_phase_station = {
         "Waveform meta data. Without station and phase argument: default-hdr.yaml",
         "hdr.yaml",
     ),
+    "combination": (
+        "Two column list of allowed event combinations.",
+        "combinations.txt",
+    ),
     "mccc_time_shift": (
         "Time shifts from Multi-channel cross correlation",
         "dt_cc.txt",
@@ -216,7 +220,7 @@ def file(
     ):
         folder /= "amplitude"
 
-    elif file_id.startswith("waveform_"):
+    elif file_id.startswith("waveform_") or file_id == "combination":
         if n_align is None or n_align == 0:
             folder /= "data"
         elif n_align > 0:
@@ -406,12 +410,9 @@ def iterate_event_pair(nev: int, event_list: list[int] | range | None = None):
     else:
         for a in range(nev - 1):
             for b in range(a + 1, nev):
-                try:
-                    ia = event_list.index(a)
-                    ib = event_list.index(b)
-                    yield (a, b, ia, ib)
-                except ValueError:
-                    continue
+                ia = event_list[a]
+                ib = event_list[b]
+                yield (ia, ib)
 
 
 def iterate_event_triplet(nev: int, event_list: list[int] | range | None = None):
@@ -445,10 +446,10 @@ def iterate_event_triplet(nev: int, event_list: list[int] | range | None = None)
             for b in range(a + 1, nev - 1):
                 for c in range(b + 1, nev):
                     try:
-                        ia = event_list.index(a)
-                        ib = event_list.index(b)
-                        ic = event_list.index(c)
-                        yield (a, b, c, ia, ib, ic)
+                        ia = event_list[a]
+                        ib = event_list[b]
+                        ic = event_list[c]
+                        yield (ia, ib, ic)
                     except ValueError:
                         continue
 
@@ -1135,6 +1136,11 @@ event exclusion""",
 Minimum allowed norm of the principal component expansion coefficients
 contributing to the waveform reconstruction for event exclusion""",
     ),
+    "combinations_from_file": (
+        "bool",
+        """
+Read combinations from file names STATION_PHASE-combination.txt""",
+    ),
 }
 
 
@@ -1174,6 +1180,7 @@ class Header(Config):
         min_signal_noise_ratio: float | None = None,
         min_correlation: float | None = None,
         min_expansion_coefficient_norm: float | None = None,
+        combinations_from_file: bool | None = None,
     ):
         for key, value in locals().items():
             if key != "self":

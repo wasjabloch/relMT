@@ -73,4 +73,5 @@ header = core.Header(
     min_signal_noise_ratio=0.0,
     min_correlation=0.5,
     min_expansion_coefficient_norm=0.5,
+    combinations_from_file=False,
 )
