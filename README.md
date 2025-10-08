@@ -13,7 +13,7 @@ greater or equal 3.10
 
 ```sh
 # Create and activate the environment
-conda create -n relmt python=3.10
+conda create -n relmt python
 conda activate relmt
 
 # Install the Fastest Fourier Transform in the West
@@ -28,13 +28,31 @@ cd relMT
 pip install .
 ```
 
-If you wish to use import functions from the `extra` module that require *ObsPy*, consider installing the optional dependency:
+For plotting, we require:
+
+* `matplotlib` for all plotting
+* `networkx` to visualize connections of equations in the linear system
+* `pyrocko` to plot moment tensors
+
+Consider installing these packages using the `plot` optional dependency:
 
 ```sh
-pip install .[obspy]
+pip install .[plot]
 ```
 
-If you are working in `IPython`, or `Jupyter`, install the package in the same conda environment to avoid version conflicts
+Some additional functionality requires community packages:
+
+* Import of waveforms and station inventories via `obspy`
+* Computation of spectra with `multitaper`
+* Conversion to and from Cartesian coordinates with `utm`
+
+Consider installing these packages using the `extra` optional dependency:
+
+```sh
+pip install .[extra]
+```
+
+If you are working in `IPython`, or `Jupyter`, install the package in the same `conda` environment to avoid version conflicts
 
 ```sh
 conda install ipython
@@ -44,6 +62,12 @@ or
 
 ```sh
 conda install jupyter
+```
+
+If you consider contributing to `relmt`, please install the development version
+
+```sh
+pip install .[dev]
 ```
 
 ## Documentation

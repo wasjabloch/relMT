@@ -32,25 +32,17 @@ classifiers = [
 
 [project.optional-dependencies]
 
-# Waveform plotting with matplotlib
-plot = ["matplotlib"]
+# Plotting funtionalities
+plot = ["matplotlib", "networkx", "pyrocko"]
 
-# Waveform import with obspy
-obspy = ["obspy"]
-
-# Beachball plotting with pyrocko
-pyrocko = ["pyrocko"]
-
-# Convert from / to geographic coordinates
-geo = ["utm"]
-
-# Make use of nice spectra
-spec = ["multitaper"]
+# Waveform processing
+extra = ["obspy", "multitaper", "utm", "pyrocko"]
 
 # All the above, plus documentation and testing
 dev = [
   "pytest",
   "coverage",
+  "pre_commit",
   "myst_parser >=0.13",
   "sphinx >=4.0",
   "sphinx-copybutton",
@@ -58,10 +50,7 @@ dev = [
   "sphinx-markdown-tables",
   "sphinxawesome-theme",
   "relmt[plot]",
-  "relmt[geo]",
-  "relmt[obspy]",
-  "relmt[pyrocko]",
-  "relmt[spec]",
+  "relmt[extra]",
 ]
 
 [project.urls]
@@ -85,9 +74,3 @@ cmake.version = ">=3.17.2"
 
 [project.scripts]
 relmt = "relmt.main:main"
-relmt-exclude = "relmt.main:main_exclude"
-relmt-align = "relmt.main:main_align"
-relmt-bandpass = "relmt.main:main_bandpass"
-relmt-amplitude = "relmt.main:main_amplitude"
-relmt-ls = "relmt.main:main_linear_system"
-relmt-solve = "relmt.main:main_solve"
