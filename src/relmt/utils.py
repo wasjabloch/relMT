@@ -1076,7 +1076,8 @@ def ccorf3_all(gmat, batch_size=200000):
     G = A.T @ A
 
     # Preallocate outputs
-    ccijk = np.zeros((M, M, M), dtype=np.float16)
+    # float32 minimum precission required for Fisher averaging
+    ccijk = np.zeros((M, M, M), dtype=np.float32)
 
     # Enumerate all triples of columns (i<j<k)
     comb_iter = combinations(range(M), 3)
@@ -1094,7 +1095,7 @@ def ccorf3_all(gmat, batch_size=200000):
         if not batch:
             break
 
-        idx = np.array(batch, dtype=np.int16)  # (B, 3) with columns (i,j,k)
+        idx = np.array(batch)  # (B, 3) with columns (i,j,k)
         i, j, k = idx[:, 0], idx[:, 1], idx[:, 2]
 
         # Pull the three off-diagonal correlations from the Gram
