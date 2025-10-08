@@ -947,7 +947,13 @@ def condition_homogenous_matrix_by_norm(
     # TODO: This is a bottleneck. Vectorize computation of factors
     factors = np.ones(mat.shape[0])
     for n, line in enumerate(mat[:n_homogenous, :]):
-        norm = 1 / np.linalg.norm(line[line.nonzero()])
+
+        try:
+            # We're dealing with a sparse array, for which devision is not defined
+            norm = 1 / np.linalg.norm(line[line.nonzero()].asformat("array"))
+        except AttributeError:
+            norm = 1 / np.linalg.norm(line[line.nonzero()])
+
         if ~np.isfinite(norm):
             logger.warning(f"Non finite norm for Eq. {n}. Setting to 0.")
             norm = 0.0
