@@ -27,15 +27,12 @@ import numpy as np
 from scipy.linalg import svd
 from scipy.interpolate import interpn
 from datetime import datetime
-import logging
 from typing import Iterable
 from relmt import core, mt, signal, qc, angle
 from collections import defaultdict
 from itertools import combinations
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+logger = core.register_logger(__name__)
 
 
 def xyzarray(

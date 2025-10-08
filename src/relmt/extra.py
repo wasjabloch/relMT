@@ -22,13 +22,10 @@
 # SOFTWARE.
 
 import numpy as np
-import logging
 from typing import Callable, Iterable
 from relmt import core, signal
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+logger = core.register_logger(__name__)
 
 
 def make_waveform_array(

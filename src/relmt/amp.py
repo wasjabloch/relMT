@@ -26,13 +26,13 @@
 import numpy as np
 from numpy.linalg import LinAlgError
 from scipy.linalg import svd, norm, solve
-from relmt import core, signal, qc, mt, utils
+from relmt import core, signal, qc, mt, utils, amp
 from multiprocessing import shared_memory
-import logging
+import multiprocessing as mp
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
+logger = core.register_logger(__name__)
 
 
 def pca_amplitude_2p(mtx_ab: np.ndarray) -> float:
@@ -1008,6 +1008,136 @@ def triplet_s_amplitudes(
         highpass,
         lowpass,
     )
+
+
+def predicted_p_mis_corr(pamp, Aab, arrd, hdrd):
+    """Predict misfit and correlation of a single P-wave amplitude measurement."""
+
+    # Get wave ID and header
+    wave_id = core.join_waveid(pamp.station, "P")
+    hdr = hdrd[wave_id]
+
+    # Get event indices
+    ievs = [hdr["events"].index(pamp.event_a), hdr["events"].index(pamp.event_b)]
+
+    # Process the signal
+    farr = signal.demean_filter_window(
+        arrd[wave_id][ievs, :, :],
+        hdr["sampling_rate"],
+        hdr["phase_start"],
+        hdr["phase_end"],
+        hdr["taper_length"],
+        pamp.highpass,
+        pamp.lowpass,
+    )
+
+    # Concatenate components
+    mat = utils.concat_components(farr)
+
+    # Compute misfit and correlation
+    p_misfit = amp.p_misfit(mat, Aab)
+    p_correlation = amp.p_reconstruction_correlation(mat)
+
+    return p_misfit, p_correlation
+
+
+def predicted_s_mis_corr(samp, B, arrd, hdrd):
+    """Predict misfit and correlation of a single S-wave amplitude measurement."""
+    wave_id = core.join_waveid(samp.station, "S")
+    hdr = hdrd[wave_id]
+
+    # Get event indices
+    ievs = [
+        hdr["events"].index(samp.event_a),
+        hdr["events"].index(samp.event_b),
+        hdr["events"].index(samp.event_c),
+    ]
+
+    # Process the signal
+    farr = signal.demean_filter_window(
+        arrd[wave_id][ievs, :, :],
+        hdr["sampling_rate"],
+        hdr["phase_start"],
+        hdr["phase_end"],
+        hdr["taper_length"],
+        samp.highpass,
+        samp.lowpass,
+    )
+
+    # Concatenate components
+    mat = utils.concat_components(farr)
+
+    # Compute misfit and correlation
+    s_misfit = s_misfit(mat, B[0], B[1])
+    s_correlation = s_reconstruction_correlation(mat, B[0], B[1])
+
+    return s_misfit, s_correlation
+
+
+def predicted_misfit_correlation(
+    p_amplitudes,
+    Asyn,
+    s_amplitudes,
+    Bsyn,
+    arrd,
+    hdrd,
+    max_workers=None,
+    chunk_size=None,
+):
+    """
+    Compute perdicted amplitude misfits and correlations in parallel for both P
+    and S waves.
+
+    Parameters:
+    -----------
+    max_workers : int, optional
+        Number of worker processes. Defaults to CPU count.
+    chunk_size : int, optional
+        Number of tasks per chunk for load balancing. Auto-calculated if None.
+
+    Returns:
+    --------
+    tuple: (ppms, ppcs, spms, spcs) - P and S wave misfits and correlations
+    """
+
+    if max_workers is None:
+        max_workers = mp.cpu_count()
+
+    # Auto-calculate chunk size for load balancing
+    if chunk_size is None:
+        total_tasks = len(p_amplitudes) + len(s_amplitudes)
+        chunk_size = max(1, total_tasks // (max_workers * 4))
+
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # Submit P-wave jobs
+        p_futures = [
+            executor.submit(predicted_p_mis_corr, pamp, Aab, arrd, hdrd)
+            for pamp, Aab in zip(p_amplitudes, Asyn)
+        ]
+
+        # Submit S-wave jobs
+        s_futures = [
+            executor.submit(predicted_s_mis_corr, samp, B, arrd, hdrd)
+            for samp, B in zip(s_amplitudes, Bsyn)
+        ]
+
+        # Collect P-wave results
+        p_results = []
+        for future in as_completed(p_futures):
+            result = future.result()
+            p_results.append(result)
+
+        # Collect S-wave results
+        s_results = []
+        for future in as_completed(s_futures):
+            result = future.result()
+            s_results.append(result)
+
+    # Unpack results
+    ppms, ppcs = zip(*p_results) if p_results else ([], [])
+    spms, spcs = zip(*s_results) if s_results else ([], [])
+
+    return ppms, ppcs, spms, spcs
 
 
 def info(

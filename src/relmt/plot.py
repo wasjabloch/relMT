@@ -29,13 +29,10 @@ from matplotlib.axes import Axes
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 import matplotlib.transforms as transforms
 from relmt import core, mt, amp, qc
-import logging
 
 plt.ion()
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+logger = core.register_logger(__name__)
 
 norsar_lightblue = (0.0, 145 / 255, 214 / 255)
 norsar_gray = (156 / 255, 188 / 255, 205 / 255)

@@ -34,18 +34,100 @@ from pathlib import Path
 
 from collections import namedtuple
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+_LEVEL_NAME_MAP = {
+    "CRITICAL": logging.CRITICAL,
+    "ERROR": logging.ERROR,
+    "WARNING": logging.WARNING,
+    "INFO": logging.INFO,
+    "DEBUG": logging.DEBUG,
+    "NOTSET": logging.NOTSET,
+    None: logging.NOTSET,
+}
+
+_CURRENT_LOG_LEVEL_NAME = "DEBUG"
+_CURRENT_LOG_LEVEL = _LEVEL_NAME_MAP[_CURRENT_LOG_LEVEL_NAME]
+_REGISTERED_LOGGERS: set[str] = set()
 
 logsh = logging.StreamHandler()
-logsh.setLevel(logging.DEBUG)
+logsh.setLevel(_CURRENT_LOG_LEVEL)
 logsh.setFormatter(
     logging.Formatter(
         "{levelname: <8s} {asctime} {name}.{funcName}: {message}", style="{"
     )
 )
 
-logger.addHandler(logsh)
+
+def _resolve_log_level(level: str | int) -> tuple[int, str]:
+    """Normalize log level input to (numeric, textual) representation.
+
+    ..note: Written by gpt-5-codex
+    """
+
+    if isinstance(level, str):
+        normalized = level.upper()
+        if normalized not in _LEVEL_NAME_MAP:
+            msg = (
+                f"Unknown log level '{level}'. "
+                f"Valid options are: {', '.join(sorted(_LEVEL_NAME_MAP))}."
+            )
+            raise ValueError(msg)
+        return _LEVEL_NAME_MAP[normalized], normalized
+
+    if isinstance(level, int):
+        for name, value in _LEVEL_NAME_MAP.items():
+            if level == value:
+                return value, name
+        msg = (
+            f"Unknown numeric log level '{level}'. "
+            f"Valid options are: {', '.join(sorted(_LEVEL_NAME_MAP))}."
+        )
+        raise ValueError(msg)
+
+    raise TypeError(f"Log level must be 'str' or 'int', not: {type(level)!r}")
+
+
+def set_loglevel(level: str | int) -> str:
+    """Set the log level for the relMT package loggers.
+
+    ..note: Written by gpt-5-codex
+    """
+
+    global _CURRENT_LOG_LEVEL, _CURRENT_LOG_LEVEL_NAME
+
+    numeric_level, text_level = _resolve_log_level(level)
+    _CURRENT_LOG_LEVEL = numeric_level
+    _CURRENT_LOG_LEVEL_NAME = text_level
+
+    logsh.setLevel(numeric_level)
+
+    for logger_name in _REGISTERED_LOGGERS.copy():
+        logging.getLogger(logger_name).setLevel(numeric_level)
+
+    return text_level
+
+
+def register_logger(logger_or_name: str | logging.Logger) -> logging.Logger:
+    """Attach the relMT handler and current log level to a logger.
+
+    ..note: Written by gpt-5-codex
+    """
+
+    if isinstance(logger_or_name, logging.Logger):
+        logger = logger_or_name
+    else:
+        logger = logging.getLogger(logger_or_name)
+
+    if logsh not in logger.handlers:
+        logger.addHandler(logsh)
+
+    logger.setLevel(_CURRENT_LOG_LEVEL)
+    _REGISTERED_LOGGERS.add(logger.name)
+
+    return logger
+
+
+register_logger("relmt")
+logger = register_logger(__name__)
 
 # Naming conventions for output files
 # Files that are depend on cluster
@@ -674,6 +756,11 @@ Suffix (read/write) of amplitude files of this run""",
         """
 Suffix (read/write) of result files of this run""",
     ),
+    "loglevel": (
+        "str",
+        """
+Logging verbosity for relMT modules. One of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'NOTSET'""",
+    ),
     "compute_synthetics": (
         "bool",
         """
@@ -823,6 +910,7 @@ class Config:
         reference_mt_file: str | None = None,
         amplitude_suffix: str = "",
         result_suffix: str = "",
+        loglevel: str | None = None,
         compute_synthetics: bool | None = None,
         solve_synthetics: bool | None = None,
         reference_mts: list[int] | None = None,
@@ -869,6 +957,8 @@ class Config:
         for attr in self._valid_args:
             if key == "auto_lowpass_stressdrop_range":
                 value = [float(value[0]), float(value[1])]
+            if key == "events":
+                value = [int(val) for val in value]
             elif key == attr:
                 typ = __builtins__[self._valid_args[attr][0]]
                 # Cast input to type
@@ -878,8 +968,13 @@ class Config:
                     msg = f"Unable to cast value '{value}' of '{key}' to type: {typ}"
                     raise TypeError(msg)
 
+        if key == "loglevel" and isinstance(value, str):
+            value = value.upper()
+
         self._check_choices(key, value)
         self.__setattr__(key, value)
+        if key == "loglevel":
+            set_loglevel(value)
 
     def __getitem__(self, key):
         return self.__getattribute__(key)
@@ -923,6 +1018,24 @@ class Config:
         """Check arguments that allow for a set of choices"""
 
         if value is None:
+            return
+
+        if key == "loglevel":
+            if isinstance(value, str):
+                normalized = value.upper()
+                if normalized not in _LEVEL_NAME_MAP:
+                    raise ValueError(
+                        f"Unknown 'loglevel': {value}. Must be one of: {', '.join(sorted(_LEVEL_NAME_MAP))}."
+                    )
+            elif isinstance(value, int):
+                if value not in _LEVEL_NAME_MAP.values():
+                    raise ValueError(
+                        f"Unknown numeric 'loglevel': {value}. Must match standard logging levels."
+                    )
+            else:
+                raise TypeError(
+                    f"Unknown type for 'loglevel': {type(value)!r}. Expected str or int."
+                )
             return
 
         if key == "mt_constraint" and value not in ["none", "deviatoric"]:

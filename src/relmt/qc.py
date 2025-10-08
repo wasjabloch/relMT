@@ -26,7 +26,6 @@
 """Functions for Quality Control"""
 
 import numpy as np
-import logging
 from relmt import core, signal, mt, utils, qc, angle
 from scipy.stats import skew, kurtosis
 from scipy.linalg import svd
@@ -35,9 +34,7 @@ from scipy.sparse.csgraph import connected_components
 from typing import Iterable
 from collections import Counter
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+logger = core.register_logger(__name__)
 
 
 def _switch_return_bool_not(

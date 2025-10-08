@@ -25,11 +25,8 @@
 
 import numpy as np
 from relmt import core, ls
-import logging
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+logger = core.register_logger(__name__)
 
 
 def mt_array(mt: core.MT) -> np.ndarray:

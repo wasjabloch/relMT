@@ -27,13 +27,10 @@ import numpy as np
 from scipy.linalg import svd
 from scipy.sparse import coo_matrix
 from itertools import combinations as combs
-import logging
 from relmt import utils, signal, core, ls, io
 import mccore
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+logger = core.register_logger(__name__)
 
 
 def _test_phase_shape(phase, mtx):

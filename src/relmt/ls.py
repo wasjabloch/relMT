@@ -32,9 +32,7 @@ from relmt import mt as relmtmt
 import multiprocessing as mp
 import logging
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+logger = core.register_logger(__name__)
 
 # Machine epsilon
 EPS = np.finfo(float).eps

@@ -24,7 +24,6 @@
 """In- and output functions"""
 
 import numpy as np
-import logging
 from relmt import core, mt
 from typing import Callable
 import yaml
@@ -33,9 +32,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+logger = core.register_logger(__name__)
 
 
 # TODO: Sphinx table not working, likley due to stange indentation somewhe in the docs.

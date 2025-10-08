@@ -25,7 +25,6 @@
 
 """Main relMT executables"""
 
-import logging
 from relmt import io, utils, align, core, signal, extra, amp, ls, mt, qc, angle
 from scipy import sparse
 from pathlib import Path
@@ -36,9 +35,7 @@ import multiprocessing as mp
 from multiprocessing import shared_memory as sm
 from argparse import ArgumentParser
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+logger = core.register_logger(__name__)
 
 
 def main_align(

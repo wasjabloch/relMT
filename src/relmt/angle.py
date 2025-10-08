@@ -33,12 +33,9 @@ this code.
 # SOFTWARE.
 
 import numpy as np
-import logging
 from relmt import core, utils
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+logger = core.register_logger(__name__)
 
 
 def hash_plunge_table(

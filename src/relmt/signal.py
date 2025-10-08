@@ -26,13 +26,10 @@
 import numpy as np
 from scipy.signal import bessel, butter, lfilter, filtfilt
 import scipy.fft as fft
-import logging
 from typing import Iterable
 from relmt import utils, core, align
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.addHandler(core.logsh)
+logger = core.register_logger(__name__)
 
 
 def _gauss(n: int, sig: float, de: float):

@@ -33,6 +33,7 @@ config = core.Config(
     reference_mt_file=core.file("reference_mt"),
     amplitude_suffix="",
     result_suffix="",
+    loglevel="DEBUG",
     compute_synthetics=False,
     solve_synthetics=False,
     reference_mts=[0],
