@@ -134,10 +134,10 @@ def main_exclude(
     iteration: int,
     overwrite: bool,
     directory: Path = Path("."),
-    donodata: bool = False,
-    dosnr: bool = False,
-    docc: bool = False,
-    doecn: bool = False,
+    do_nodata: bool = False,
+    do_snr: bool = False,
+    do_cc: bool = False,
+    do_ecn: bool = False,
 ):
     """Exclude observations from alignment procedure"""
 
@@ -187,7 +187,7 @@ def main_exclude(
             continue
 
         isnr = np.full_like(ind, False)
-        if (minsnr := hdr["min_signal_noise_ratio"]) is not None and dosnr:
+        if (minsnr := hdr["min_signal_noise_ratio"]) is not None and do_snr:
             snr = signal.signal_noise_ratio(
                 arr, **hdr.kwargs(signal.signal_noise_ratio)
             )
@@ -195,7 +195,7 @@ def main_exclude(
             logger.debug(f"{wvid}: {sum(isnr)} traces with SNR < {minsnr}")
 
         icc = np.full_like(ind, False)
-        if (mincc := hdr["min_correlation"]) is not None and docc:
+        if (mincc := hdr["min_correlation"]) is not None and do_cc:
             mat = utils.concat_components(
                 signal.demean_filter_window(
                     arr, **hdr.kwargs(signal.demean_filter_window)
@@ -206,7 +206,7 @@ def main_exclude(
             logger.debug(f"{wvid}: {sum(icc)} traces with CC < {mincc}")
 
         iecn = np.full_like(ind, False)
-        if (minecn := hdr["min_expansion_coefficient_norm"]) is not None and doecn:
+        if (minecn := hdr["min_expansion_coefficient_norm"]) is not None and do_ecn:
             arr = signal.demean_filter_window(
                 arr, **hdr.kwargs(signal.demean_filter_window)
             )
@@ -228,19 +228,19 @@ def main_exclude(
         excludes["ecn"] += excl["phase_auto_ecn"]
 
     # Write everything into the exclude dict
-    if donodata:
+    if do_nodata:
         logger.info(f"Excluding {len(excludes['no_data'])} invalid traces")
         excl["phase_auto_nodata"] = excludes["no_data"]
 
-    if dosnr:
+    if do_snr:
         logger.info(f"Excluding {len(excludes['snr'])} traces with SNR < {minsnr}")
         excl["phase_auto_snr"] = excludes["snr"]
 
-    if docc:
+    if do_cc:
         logger.info(f"Excluding {len(excludes['cc'])} traces with CC < {mincc}")
         excl["phase_auto_cc"] = excludes["cc"]
 
-    if doecn:
+    if do_ecn:
         logger.info(f"Excluding {len(excludes['ecn'])} traces with ECN < {minecn}")
         excl["phase_auto_ecn"] = excludes["ecn"]
 
@@ -404,10 +404,6 @@ def main_amplitude(
     ncpu = config["ncpu"]
     compare_method = config["amplitude_measure"]  # direct or indirect
     filter_method = config["amplitude_filter"]  # auto or manual
-
-    ls.logger.setLevel("WARNING")
-    signal.logger.setLevel("WARNING")
-    align.logger.setLevel("WARNING")
 
     exclude = io.read_exclude_file(core.file("exclude", directory=directory))
 
@@ -855,11 +851,11 @@ def main_qc(config: core.Config, directory: Path):
         io.save_amplitudes(outfile, amps)
 
 
-def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0):
+def main_solve(
+    config: core.Config, directory: Path = Path(), iteration: int = 0, do_predict=False
+):
     """Construct and validate linear system from amplitude measurement. Solve
     for moment tensors."""
-
-    ls.logger.setLevel("INFO")
 
     evf = directory / config["event_file"]
     stf = directory / config["station_file"]
@@ -1019,172 +1015,271 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
         relmts, core.file("relative_mt", suffix=outsuf, directory=directory)
     )
 
-    # Compute synthetic amplitudes and posteori-residuals
-    logger.info("Computing synthetic amplitudes and residuals")
-    p_pairs = [(pamp.station, pamp.event_a, pamp.event_b) for pamp in pamp_subset]
-    p_sta = set(p_pair[0] for p_pair in p_pairs)
-
-    Asyn, p_sigmas = amp.synthetic_p(relmts, evd, stad, phd, p_pairs)
-
-    s_triplets = [
-        (samp.station, samp.event_a, samp.event_b, samp.event_c) for samp in samp_subset
-    ]
-    s_sta = set(s_trip[0] for s_trip in s_triplets)
-
-    Bsyn, _, s_sigmas = amp.synthetic_s(
-        relmts,
-        evd,
-        stad,
-        phd,
-        s_triplets,
-        False,
-    )
-
-    # Load the waveforms to compute a posteori misfits and ccs
-    arrd = {}
-    hdrd = {}
-    for stas, pha in zip([p_sta, s_sta], "PS"):
-        for sta in stas:
-            wvid = core.join_waveid(sta, pha)
-            arrd[wvid], hdrd[wvid] = io.read_waveform_array_header(
-                sta, pha, iteration, directory
-            )
-
-    logger.info("Computing amplitude misfits and correlations...")
-
-    # ppms, ppcs, spms, spcs = amp.predicted_misfit_correlation(
-    #    pamp_subset, Asyn, samp_subset, Bsyn, arrd, hdrd, max_workers=ncpu,
-    # )
-    ppms, ppcs = zip(
-        *[
-            (
-                amp.p_misfit(
-                    mat := utils.concat_components(
-                        signal.demean_filter_window(
-                            arrd[core.join_waveid(pamp.station, "P")][
-                                [
-                                    (hdr := hdrd[core.join_waveid(pamp.station, "P")])[
-                                        "events_"
-                                    ].index(pamp.event_a),
-                                    hdr["events_"].index(pamp.event_b),
-                                ]
-                            ],
-                            hdr["sampling_rate"],
-                            hdr["phase_start"],
-                            hdr["phase_end"],
-                            hdr["taper_length"],
-                            pamp.highpass,
-                            pamp.lowpass,
-                        )
-                    ),
-                    Aab,
-                ),
-                amp.p_reconstruction_correlation(mat),
-            )
-            for pamp, Aab in zip(pamp_subset, Asyn)
-        ]
-    )
-
-    # S-wave posterior misfit and correlation
-    spms, spcs = zip(
-        *[
-            (
-                amp.s_misfit(
-                    mat := utils.concat_components(
-                        signal.demean_filter_window(
-                            arrd[core.join_waveid(samp.station, "S")][
-                                [
-                                    (hdr := hdrd[core.join_waveid(samp.station, "S")])[
-                                        "events_"
-                                    ].index(samp.event_a),
-                                    hdr["events_"].index(samp.event_b),
-                                    hdr["events_"].index(samp.event_c),
-                                ]
-                            ],
-                            hdr["sampling_rate"],
-                            hdr["phase_start"],
-                            hdr["phase_end"],
-                            hdr["taper_length"],
-                            samp.highpass,
-                            samp.lowpass,
-                        )
-                    ),
-                    B[0],
-                    B[1],
-                ),
-                amp.s_reconstruction_correlation(mat, B[0], B[1]),
-            )
-            for samp, B in zip(samp_subset, Bsyn)
-        ]
-    )
-
-    logger.info("Collecting results...")
-    pamp_synthetic = [
-        core.P_Amplitude_Ratio(
-            pamp.station,
-            pamp.event_a,
-            pamp.event_b,
-            Aab,
-            ppm,
-            ppc,
-            p_sigma[0],
-            p_sigma[1],
-            pamp.highpass,
-            pamp.lowpass,
-        )
-        for pamp, Aab, p_sigma, ppm, ppc in zip(pamp_subset, Asyn, p_sigmas, ppms, ppcs)
-    ]
-
-    samp_synthetic = [
-        core.S_Amplitude_Ratios(
-            samp.station,
-            samp.event_a,
-            samp.event_b,
-            samp.event_c,
-            B[0],
-            B[1],
-            spm,
-            spc,
-            ss[0],
-            ss[1],
-            ss[2],
-            samp.highpass,
-            samp.lowpass,
-        )
-        for samp, B, ss, spm, spc in zip(samp_subset, Bsyn, s_sigmas, spms, spcs)
-    ]
-
-    # Amplitude oberservations
-    Aobs = np.array([pamp.amp_ab for pamp in pamp_subset])
-    B1obs = np.array([samp.amp_abc for samp in samp_subset])
-    B2obs = np.array([samp.amp_acb for samp in samp_subset])
-
-    # Amplitude residuals
-    Ares = Aobs / Asyn
-    B1res = B1obs / Bsyn[:, 0]
-    B2res = B2obs / Bsyn[:, 1]
-
-    logger.info("Collecting event statistics...")
-
     # Indices in subsets of events
     ievp = utils.event_indices(pamp_subset)
     ievs = utils.event_indices(samp_subset)
+
+    if do_predict:
+        # Compute synthetic amplitudes and posteori-residuals
+        logger.info("Computing synthetic amplitudes and residuals")
+        p_pairs = [(pamp.station, pamp.event_a, pamp.event_b) for pamp in pamp_subset]
+        p_sta = set(p_pair[0] for p_pair in p_pairs)
+
+        Asyn, p_sigmas = amp.synthetic_p(relmts, evd, stad, phd, p_pairs)
+
+        s_triplets = [
+            (samp.station, samp.event_a, samp.event_b, samp.event_c)
+            for samp in samp_subset
+        ]
+        s_sta = set(s_trip[0] for s_trip in s_triplets)
+
+        Bsyn, _, s_sigmas = amp.synthetic_s(
+            relmts,
+            evd,
+            stad,
+            phd,
+            s_triplets,
+            False,
+        )
+
+        # Load the waveforms to compute a posteori misfits and ccs
+        arrd = {}
+        hdrd = {}
+        for stas, pha in zip([p_sta, s_sta], "PS"):
+            for sta in stas:
+                wvid = core.join_waveid(sta, pha)
+                arrd[wvid], hdrd[wvid] = io.read_waveform_array_header(
+                    sta, pha, iteration, directory
+                )
+
+        logger.info("Computing amplitude misfits and correlations...")
+
+        # ppms, ppcs, spms, spcs = amp.predicted_misfit_correlation(
+        #    pamp_subset, Asyn, samp_subset, Bsyn, arrd, hdrd, max_workers=ncpu,
+        # )
+        ppms, ppcs = zip(
+            *[
+                (
+                    amp.p_misfit(
+                        mat := utils.concat_components(
+                            signal.demean_filter_window(
+                                arrd[core.join_waveid(pamp.station, "P")][
+                                    [
+                                        (
+                                            hdr := hdrd[
+                                                core.join_waveid(pamp.station, "P")
+                                            ]
+                                        )["events_"].index(pamp.event_a),
+                                        hdr["events_"].index(pamp.event_b),
+                                    ]
+                                ],
+                                hdr["sampling_rate"],
+                                hdr["phase_start"],
+                                hdr["phase_end"],
+                                hdr["taper_length"],
+                                pamp.highpass,
+                                pamp.lowpass,
+                            )
+                        ),
+                        Aab,
+                    ),
+                    amp.p_reconstruction_correlation(mat),
+                )
+                for pamp, Aab in zip(pamp_subset, Asyn)
+            ]
+        )
+
+        # S-wave posterior misfit and correlation
+        spms, spcs = zip(
+            *[
+                (
+                    amp.s_misfit(
+                        mat := utils.concat_components(
+                            signal.demean_filter_window(
+                                arrd[core.join_waveid(samp.station, "S")][
+                                    [
+                                        (
+                                            hdr := hdrd[
+                                                core.join_waveid(samp.station, "S")
+                                            ]
+                                        )["events_"].index(samp.event_a),
+                                        hdr["events_"].index(samp.event_b),
+                                        hdr["events_"].index(samp.event_c),
+                                    ]
+                                ],
+                                hdr["sampling_rate"],
+                                hdr["phase_start"],
+                                hdr["phase_end"],
+                                hdr["taper_length"],
+                                samp.highpass,
+                                samp.lowpass,
+                            )
+                        ),
+                        B[0],
+                        B[1],
+                    ),
+                    amp.s_reconstruction_correlation(mat, B[0], B[1]),
+                )
+                for samp, B in zip(samp_subset, Bsyn)
+            ]
+        )
+
+        logger.info("Collecting results...")
+        pamp_synthetic = [
+            core.P_Amplitude_Ratio(
+                pamp.station,
+                pamp.event_a,
+                pamp.event_b,
+                Aab,
+                ppm,
+                ppc,
+                p_sigma[0],
+                p_sigma[1],
+                pamp.highpass,
+                pamp.lowpass,
+            )
+            for pamp, Aab, p_sigma, ppm, ppc in zip(
+                pamp_subset, Asyn, p_sigmas, ppms, ppcs
+            )
+        ]
+
+        samp_synthetic = [
+            core.S_Amplitude_Ratios(
+                samp.station,
+                samp.event_a,
+                samp.event_b,
+                samp.event_c,
+                B[0],
+                B[1],
+                spm,
+                spc,
+                ss[0],
+                ss[1],
+                ss[2],
+                samp.highpass,
+                samp.lowpass,
+            )
+            for samp, B, ss, spm, spc in zip(samp_subset, Bsyn, s_sigmas, spms, spcs)
+        ]
+
+        # Amplitude oberservations
+        Aobs = np.array([pamp.amp_ab for pamp in pamp_subset])
+        B1obs = np.array([samp.amp_abc for samp in samp_subset])
+        B2obs = np.array([samp.amp_acb for samp in samp_subset])
+
+        # Amplitude residuals
+        Ares = Aobs / Asyn
+        B1res = B1obs / Bsyn[:, 0]
+        B2res = B2obs / Bsyn[:, 1]
+
+        logger.info("Collecting event statistics...")
+
+        # amplitude RMS per event
+        amp_rmss = {
+            evn: np.sqrt(
+                np.sum(utils.signed_log(Ares[ievp[evn]]) ** 2)
+                + np.sum(utils.signed_log(B1res[ievs[evn]]) ** 2)
+                + np.sum(utils.signed_log(B2res[ievs[evn]]) ** 2)
+            )
+            / (len(ievp[evn]) + 2 * len(ievs[evn]))
+            for evn in relmts
+        }
+
+        # Synthetic amplitudes
+        for ph, amps in zip("PS", [pamp_synthetic, samp_synthetic]):
+            outfile = core.file(
+                "amplitude_observation",
+                directory=directory,
+                phase=ph,
+                suffix=synsuf,
+            )
+            io.save_amplitudes(outfile, amps)
+
+        # Save reduced amplitude set to file. Use the output suffix.
+        io.save_amplitudes(
+            core.file(
+                "amplitude_summary", phase="P", suffix=outsuf, directory=directory
+            ),
+            pamp_subset,
+            [
+                p_residuals,
+                Ares,
+                mis_weights[:n_p].flat[:],
+                amp_weights[:n_p].flat[:],
+                eq_norm[:n_p].flat[:],
+                Asyn,
+                ppms,
+            ],
+            [
+                " MomResidual",
+                "AmpResidual",
+                "MisfitWght",
+                "AmplWght",
+                "EquaNorm",
+                "PredAab ",
+                "PredMis",
+            ],
+            [
+                "{:11.3e}",
+                "{:11.3e}",
+                "{:10.5f}",
+                "{:8.4f}",
+                "{:7.2e}",
+                "{:8.2e}",
+                "{:7.5f}",
+            ],
+        )
+
+        io.save_amplitudes(
+            core.file(
+                "amplitude_summary", phase="S", suffix=outsuf, directory=directory
+            ),
+            samp_subset,
+            [
+                s_residuals[:, 0],
+                s_residuals[:, 1],
+                B1res,
+                B2res,
+                mis_weights[n_p : n_p + n_s : 2].flat[:],
+                amp_weights[n_p : n_p + n_s : 2].flat[:],
+                eq_norm[n_p : n_p + n_s : 2].flat[:],
+                eq_norm[n_p + 1 : n_p + n_s : 2].flat[:],
+                Bsyn[:, 0],
+                Bsyn[:, 1],
+                spms,
+            ],
+            [
+                " MomResidual1",
+                "MomResidual2",
+                "AmpResidual1",
+                "AmpResidual2",
+                "MisfitWght",
+                "AmplWght",
+                "EquaNorm1",
+                "EquaNorm2",
+                "PredBabc",
+                "PredBacb",
+                "PredMis",
+            ],
+            [
+                "{:12.3e}",
+                "{:12.3e}",
+                "{:12.3e}",
+                "{:12.3e}",
+                "{:10.5f}",
+                "{:8.4f}",
+                "{:9.3e}",
+                "{:9.3e}",
+                "{:8.2e}",
+                "{:8.2e}",
+                "{:7.5f}",
+            ],
+        )
 
     # Moment RMS per event
     mom_rmss = {
         evn: np.sqrt(
             np.sum(p_residuals[ievp[evn]] ** 2) + np.sum(s_residuals[ievs[evn], :] ** 2)
-        )
-        / (len(ievp[evn]) + 2 * len(ievs[evn]))
-        for evn in relmts
-    }
-
-    # amplitude RMS per event
-    amp_rmss = {
-        evn: np.sqrt(
-            np.sum(utils.signed_log(Ares[ievp[evn]]) ** 2)
-            + np.sum(utils.signed_log(B1res[ievs[evn]]) ** 2)
-            + np.sum(utils.signed_log(B2res[ievs[evn]]) ** 2)
         )
         / (len(ievp[evn]) + 2 * len(ievs[evn]))
         for evn in relmts
@@ -1206,6 +1301,10 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
 
     gaps = angle.azimuth_gap(phd, pamp_subset, samp_subset)
 
+    if not do_predict:
+        # We need predictions to compute the amplitude RMS
+        amp_rmss = {evn: np.nan for evn in relmts}
+
     logger.info("Saving files.")
     io.save_mt_result_summary(
         core.file("mt_summary", suffix=outsuf, directory=directory),
@@ -1217,92 +1316,6 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
         avccs,
         mom_rmss,
         amp_rmss,
-    )
-
-    for ph, amps in zip("PS", [pamp_synthetic, samp_synthetic]):
-        outfile = core.file(
-            "amplitude_observation",
-            directory=directory,
-            phase=ph,
-            suffix=synsuf,
-        )
-        io.save_amplitudes(outfile, amps)
-
-    # Save reduced amplitude set to file. Use the output suffix.
-    io.save_amplitudes(
-        core.file("amplitude_summary", phase="P", suffix=outsuf, directory=directory),
-        pamp_subset,
-        [
-            p_residuals,
-            Ares,
-            mis_weights[:n_p].flat[:],
-            amp_weights[:n_p].flat[:],
-            eq_norm[:n_p].flat[:],
-            Asyn,
-            ppms,
-        ],
-        [
-            " MomResidual",
-            "AmpResidual",
-            "MisfitWght",
-            "AmplWght",
-            "EquaNorm",
-            "PredAab ",
-            "PredMis",
-        ],
-        [
-            "{:11.3e}",
-            "{:11.3e}",
-            "{:10.5f}",
-            "{:8.4f}",
-            "{:7.2e}",
-            "{:8.2e}",
-            "{:7.5f}",
-        ],
-    )
-
-    io.save_amplitudes(
-        core.file("amplitude_summary", phase="S", suffix=outsuf, directory=directory),
-        samp_subset,
-        [
-            s_residuals[:, 0],
-            s_residuals[:, 1],
-            B1res,
-            B2res,
-            mis_weights[n_p : n_p + n_s : 2].flat[:],
-            amp_weights[n_p : n_p + n_s : 2].flat[:],
-            eq_norm[n_p : n_p + n_s : 2].flat[:],
-            eq_norm[n_p + 1 : n_p + n_s : 2].flat[:],
-            Bsyn[:, 0],
-            Bsyn[:, 1],
-            spms,
-        ],
-        [
-            " MomResidual1",
-            "MomResidual2",
-            "AmpResidual1",
-            "AmpResidual2",
-            "MisfitWght",
-            "AmplWght",
-            "EquaNorm1",
-            "EquaNorm2",
-            "PredBabc",
-            "PredBacb",
-            "PredMis",
-        ],
-        [
-            "{:12.3e}",
-            "{:12.3e}",
-            "{:12.3e}",
-            "{:12.3e}",
-            "{:10.5f}",
-            "{:8.4f}",
-            "{:9.3e}",
-            "{:9.3e}",
-            "{:8.2e}",
-            "{:8.2e}",
-            "{:7.5f}",
-        ],
     )
 
     # Bootstrap
@@ -1436,6 +1449,15 @@ Software for computing relative seismic moment tensors"""
         ),
     )
 
+    solve_p.add_argument(
+        "--predict",
+        action="store_true",
+        help=(
+            "Predict relative amplitudes of the solution and compute "
+            "prediction misfits"
+        ),
+    )
+
     parsed = parser.parse_args(args)
 
     if parsed.mode is None:
@@ -1462,11 +1484,14 @@ def main(args=None):
     overwrite = parsed.overwrite
     parent = conff.parent
 
+    # Convert parsers to function kwargs
     kwargs = dict(directory=parent)
     if parsed.mode == "solve":
-        kwargs.update(dict(iteration=n_align))
+        kwargs.update(dict(iteration=n_align, do_predict=parsed.predict))
+
     if parsed.mode == "amplitude" or parsed.mode == "align" or parsed.mode == "exclude":
         kwargs.update(dict(iteration=n_align, overwrite=overwrite))
+
     if parsed.mode == "align":
         if parsed.mccc:
             logger.info("Aligning with MCCC")
@@ -1477,13 +1502,14 @@ def main(args=None):
             parsed.pca = True
             parsed.mccc = True
         kwargs.update(dict(do_pca=parsed.pca, do_mccc=parsed.mccc))
+
     if parsed.mode == "exclude":
         kwargs.update(
             dict(
-                donodata=parsed.no_data,
-                dosnr=parsed.snr,
-                docc=parsed.cc,
-                doecn=parsed.ecn,
+                do_nodata=parsed.no_data,
+                do_snr=parsed.snr,
+                do_cc=parsed.cc,
+                do_ecn=parsed.ecn,
             )
         )
 
