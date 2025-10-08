@@ -612,7 +612,7 @@ def run(
             # Silly format before saving lag times
 
             # Look up actual event names
-            evns = np.vectorize(header["events"].__getitem__)(evpairs)
+            evns = np.vectorize(header["events_"].__getitem__)(evpairs)
 
             evdd = np.char.mod(
                 ["% 9.0f", "% 9.0f", "%13.6e", "%6.3f", "%13.2e"],
@@ -630,7 +630,7 @@ def run(
             )
 
         # Sum alignment residuals for each event
-        nev = len(header["events"])
+        nev = len(header["events_"])
         rms = np.zeros(nev)
         for iev in range(nev):
             try:

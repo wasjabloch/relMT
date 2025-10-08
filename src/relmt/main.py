@@ -101,20 +101,20 @@ def main_align(
         # Read optional pair list and  check for singolton events
         if hdr["mccc_combination_file"] is not None:
             pairs = io.read_combinations(core.file("combination", *source))
-            iin &= np.isin(hdr["events"], np.unique(list(pairs)))
+            iin &= np.isin(hdr["events_"], np.unique(list(pairs)))
 
         # Any events left?
         if not any(iin):
             continue
 
         # Only parse valid events
-        hdr["events"] = list(np.array(hdr["events"])[iin])
+        hdr["events_"] = list(np.array(hdr["events_"])[iin])
 
         # Convert pair to triplet combinations and return indices into arr
         combinations = np.array([])
         if hdr["mccc_combination_file"] is not None:
             logger.debug("Finding valid combinations")
-            combinations = utils.valid_combinations(hdr["events"], pairs, hdr["phase"])
+            combinations = utils.valid_combinations(hdr["events_"], pairs, hdr["phase"])
             logger.info(f"Found {combinations.shape[0]} combinations for {wvid}")
 
         arr = arr[iin, :, :]
@@ -174,7 +174,7 @@ def main_exclude(
         except FileNotFoundError:
             continue
 
-        events = np.array(hdr["events"])
+        events = np.array(hdr["events_"])
 
         # Boolean indices of events with no data
         ind = qc.index_nonzero_events(
@@ -441,7 +441,7 @@ def main_amplitude(
                 continue
 
             pasbnds[wvid] = {
-                evn: [hdr["highpass"], hdr["lowpass"]] for evn in hdr["events"]
+                evn: [hdr["highpass"], hdr["lowpass"]] for evn in hdr["events_"]
             }
 
     elif filter_method == "auto":
@@ -512,7 +512,7 @@ def main_amplitude(
                 continue
 
             xarr = arr[ievs, :, :]
-            hdr["events"] = evns
+            hdr["events_"] = evns
 
             if hdr["combinations_from_file"]:
                 pairs = io.read_combinations(
@@ -622,7 +622,7 @@ def main_amplitude(
             # Exclude the excluded events
             ievs, evns = qc.included_events(exclude, **hdr.kwargs(qc.included_events))
             xarr = arr[ievs, :, :]
-            hdr["events"] = evns
+            hdr["events_"] = evns
 
             # Choose highest highpass and lowest lowpass
             # Note all event passbands are equl if filter method is "manual"
@@ -1064,9 +1064,9 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
                             arrd[core.join_waveid(pamp.station, "P")][
                                 [
                                     (hdr := hdrd[core.join_waveid(pamp.station, "P")])[
-                                        "events"
+                                        "events_"
                                     ].index(pamp.event_a),
-                                    hdr["events"].index(pamp.event_b),
+                                    hdr["events_"].index(pamp.event_b),
                                 ]
                             ],
                             hdr["sampling_rate"],
@@ -1095,10 +1095,10 @@ def main_solve(config: core.Config, directory: Path = Path(), iteration: int = 0
                             arrd[core.join_waveid(samp.station, "S")][
                                 [
                                     (hdr := hdrd[core.join_waveid(samp.station, "S")])[
-                                        "events"
+                                        "events_"
                                     ].index(samp.event_a),
-                                    hdr["events"].index(samp.event_b),
-                                    hdr["events"].index(samp.event_c),
+                                    hdr["events_"].index(samp.event_b),
+                                    hdr["events_"].index(samp.event_c),
                                 ]
                             ],
                             hdr["sampling_rate"],

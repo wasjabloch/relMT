@@ -761,16 +761,6 @@ Suffix (read/write) of result files of this run""",
         """
 Logging verbosity for relMT modules. One of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'NOTSET'""",
     ),
-    "compute_synthetics": (
-        "bool",
-        """
-Compute synthetic amplitudes for each moment tensor in 'reference_mt_file'""",
-    ),
-    "solve_synthetics": (
-        "bool",
-        """
-Compute moment tensors from synthetic, not meassured amplitudes""",
-    ),
     "reference_mts": (
         "list",
         """
@@ -911,8 +901,6 @@ class Config:
         amplitude_suffix: str = "",
         result_suffix: str = "",
         loglevel: str | None = None,
-        compute_synthetics: bool | None = None,
-        solve_synthetics: bool | None = None,
         reference_mts: list[int] | None = None,
         mt_constraint: str | None = None,
         reference_weight: float | None = None,
@@ -957,7 +945,7 @@ class Config:
         for attr in self._valid_args:
             if key == "auto_lowpass_stressdrop_range":
                 value = [float(value[0]), float(value[1])]
-            if key == "events":
+            if key == "events_":
                 value = [int(val) for val in value]
             elif key == attr:
                 typ = __builtins__[self._valid_args[attr][0]]
@@ -1189,11 +1177,6 @@ One-character component names ordered as in the waveform array, as one string
         """
 Sampling rate of the seismic waveform (Hertz)""",
     ),
-    "events": (
-        "list",
-        """
-Event indices corresponding to the first dimension of the waveform array.""",
-    ),
     "data_window": (
         "float",
         """
@@ -1254,6 +1237,12 @@ contributing to the waveform reconstruction for event exclusion""",
         """
 Read combinations from file names STATION_PHASE-combination.txt""",
     ),
+    "events_": (
+        "list",
+        """
+Event indices corresponding to the first dimension of the waveform array. Do not
+edit.""",
+    ),
 }
 
 
@@ -1282,7 +1271,6 @@ class Header(Config):
         components: str | None = None,
         variable_name: str | None = None,
         sampling_rate: float | None = None,
-        events: list[int] | None = None,
         data_window: float | None = None,
         phase_start: float | None = None,
         phase_end: float | None = None,
@@ -1294,6 +1282,7 @@ class Header(Config):
         min_correlation: float | None = None,
         min_expansion_coefficient_norm: float | None = None,
         combinations_from_file: bool | None = None,
+        events_: list[int] | None = None,
     ):
         for key, value in locals().items():
             if key != "self":

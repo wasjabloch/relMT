@@ -586,7 +586,7 @@ def principal_p_amplitudes(
     List of relative P amplitude ratios for all event pairs
     """
 
-    evns = hdr["events"]
+    evns = hdr["events_"]
 
     mat = utils.concat_components(
         signal.demean_filter_window(
@@ -798,7 +798,7 @@ def principal_s_amplitudes(
     List of relative S amplitude ratios for all event triplet combinations
     """
 
-    evns = np.array(hdr["events"])
+    evns = np.array(hdr["events_"])
 
     mat = utils.concat_components(
         signal.demean_filter_window(
