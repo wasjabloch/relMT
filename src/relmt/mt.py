@@ -24,15 +24,17 @@
 """Functions to set up and solve the linear systems"""
 
 import numpy as np
+import math
 from relmt import core, ls
+
 
 logger = core.register_logger(__name__)
 
 
-def mt_array(mt: core.MT) -> np.ndarray:
+def mt_array(mt: core.MT | np.ndarray) -> np.ndarray:
     """Return 3x3 array representation of moment tensor"""
     return np.array(
-        [[mt.nn, mt.ne, mt.nd], [mt.ne, mt.ee, mt.ed], [mt.nd, mt.ed, mt.dd]]
+        [[mt[0], mt[3], mt[4]], [mt[3], mt[1], mt[5]], [mt[4], mt[5], mt[2]]]
     )
 
 
@@ -197,6 +199,104 @@ def s_radiation(
     u = ((M @ g) - gMg * g) / (4.0 * np.pi * rho * beta**3.0 * dist)
 
     return u
+
+
+def norm_rms(
+    mt_list: list[core.MT] | dict[int, list[core.MT]], mt_true: core.MT | None = None
+) -> float | dict[int, float]:
+    """Normalized RMS misfit of MTs
+
+    Parameters
+    ----------
+    mt_list:
+        List of MT observations to compatre, or dict of lists
+    mt_true:
+        A true MT from which to compute deviation. It None, use mean of `mt_list`
+
+    Returns
+    -------
+    normalized root-mean-square misfit
+    """
+
+    if type(mt_list) == dict:
+        return {evn: norm_rms(mtl) for evn, mtl in mt_list.items()}
+
+    mt_array = np.array(mt_list)
+
+    mean = mt_array.mean(axis=0)
+    m0 = mean_moment(mt_list)
+    if mt_true is not None:
+        mean = np.array(mt_true)
+        m0 = moment_of_vector(mt_true)
+
+    return np.sqrt(np.sum((mt_array - mean) ** 2) / mt_array.size) / m0
+
+
+_pbt2tpb = np.array(((0.0, 0.0, 1.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
+
+
+def _tpb2q(t, p, b):
+    eps = 0.001
+    tqw = 1.0 + t[0] + p[1] + b[2]
+    tqx = 1.0 + t[0] - p[1] - b[2]
+    tqy = 1.0 - t[0] + p[1] - b[2]
+    tqz = 1.0 - t[0] - p[1] + b[2]
+
+    q = np.zeros(4)
+    if tqw > eps:
+        q[0] = 0.5 * math.sqrt(tqw)
+        q[1:] = p[2] - b[1], b[0] - t[2], t[1] - p[0]
+    elif tqx > eps:
+        q[0] = 0.5 * math.sqrt(tqx)
+        q[1:] = p[2] - b[1], p[0] + t[1], b[0] + t[2]
+    elif tqy > eps:
+        q[0] = 0.5 * math.sqrt(tqy)
+        q[1:] = b[0] - t[2], p[0] + t[1], b[1] + p[2]
+    elif tqz > eps:
+        q[0] = 0.5 * math.sqrt(tqz)
+        q[1:] = t[1] - p[0], b[0] + t[2], b[1] + p[2]
+    else:
+        raise Exception("should not reach this line, check theory!")
+        # q[0] = max(0.5 * math.sqrt(tqx), eps)
+        # q[1:] = p[2] - b[1], p[0] + t[1], b[0] + t[2]
+
+    q[1:] /= 4.0 * q[0]
+
+    q /= math.sqrt(np.sum(q**2))
+
+    return q
+
+
+def kagan_angle(mt1: core.MT, mt2: core.MT) -> float:
+    """
+    Given two moment tensors, return the Kagan angle in degrees.
+
+    ..note: Implementation curtesy of :func:`pyrocko.moment_tensor.kagan_angle`
+
+    After Kagan (1991) and Tape & Tape (2012).
+    """
+
+    mta1 = mt_array(mt1)
+    mta2 = mt_array(mt2)
+
+    eve1 = np.linalg.eigh(mta1)[1]
+    eve2 = np.linalg.eigh(mta2)[1]
+
+    if np.linalg.det(eve1) < 0.0:
+        eve1 *= -1.0
+    if np.linalg.det(eve2) < 0.0:
+        eve2 *= -1.0
+
+    ai = np.dot(_pbt2tpb, eve1.T)
+    aj = np.dot(_pbt2tpb, eve2.T)
+
+    u = np.dot(ai, aj.T)
+
+    tk, pk, bk = u
+
+    qk = _tpb2q(tk, pk, bk)
+
+    return 2.0 * math.acos(np.max(np.abs(qk))) * 180 / np.pi
 
 
 def rtf2ned(
