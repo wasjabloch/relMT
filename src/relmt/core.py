@@ -119,6 +119,8 @@ def register_logger(logger_or_name: str | logging.Logger) -> logging.Logger:
 
     if logsh not in logger.handlers:
         logger.addHandler(logsh)
+        # Don't propagate to parent, so message only appears once.
+        logger.propagate = False
 
     logger.setLevel(_CURRENT_LOG_LEVEL)
     _REGISTERED_LOGGERS.add(logger.name)
