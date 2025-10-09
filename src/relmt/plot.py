@@ -1005,9 +1005,6 @@ def alignment(
     if ccij is None:
         ccij = np.full((nin, nin), np.nan)
 
-    # ccij = np.corrcoef(mat)
-    # ccij[np.diag_indices_from(ccij)] = 0
-
     cci = utils.fisher_average(np.abs(ccij))
     cc = utils.fisher_average(cci)
 
