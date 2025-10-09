@@ -49,7 +49,7 @@ def test_section_3d(iplot=False):
     hdr = core.Header(
         station="STAT",
         phase="P",
-        events=[0, 1, 2, 6, 7],
+        events_=[0, 1, 2, 6, 7],
         components="ZNE",
         sampling_rate=100,
     )

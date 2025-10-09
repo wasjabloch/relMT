@@ -99,7 +99,7 @@ def main_align(
         )
 
         # Read optional pair list and  check for singolton events
-        if hdr["mccc_combination_file"] is not None:
+        if hdr["combinations_from_file"]:
             pairs = io.read_combinations(core.file("combination", *source))
             iin &= np.isin(hdr["events_"], np.unique(list(pairs)))
 
@@ -112,7 +112,7 @@ def main_align(
 
         # Convert pair to triplet combinations and return indices into arr
         combinations = np.array([])
-        if hdr["mccc_combination_file"] is not None:
+        if hdr["combinations_from_file"]:
             logger.debug("Finding valid combinations")
             combinations = utils.valid_combinations(hdr["events_"], pairs, hdr["phase"])
             logger.info(f"Found {combinations.shape[0]} combinations for {wvid}")

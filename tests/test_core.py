@@ -361,7 +361,7 @@ def test_header():
     hdrkws = dict(
         station="STA1",
         phase="P",
-        events=[0, 1, 2],
+        events_=[0, 1, 2],
         components="NEZ",
         sampling_rate=100.0,
         data_window=12.0,

@@ -178,7 +178,7 @@ def test_make_waveform_array():
         components=components,
     )
     arr, hdr = extra.make_waveform_array(header, phase_dict, stream)
-    assert hdr["events"] == [0, 1]
+    assert hdr["events_"] == [0, 1]
     assert arr.shape == (2, 3, sampling_rate * data_window)
 
 

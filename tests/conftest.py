@@ -115,7 +115,7 @@ def synthetic_aligned_waveforms(tmp_path):
                 phase=pha,
                 components="NEZ",
                 sampling_rate=100,
-                events=list(range(len(event_dict))),
+                events_=list(range(len(event_dict))),
                 data_window=5.12,
                 phase_start=0,
                 phase_end=2,

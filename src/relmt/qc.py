@@ -582,7 +582,7 @@ def included_events(
     exclude: core.Exclude | None,
     station: str,
     phase: str,
-    events: list[int],
+    events_: list[int],
     return_not: bool = False,
     return_bool: bool = False,
 ) -> tuple[list[int | bool], list[int]]:
@@ -636,13 +636,13 @@ def included_events(
     ]
 
     # Boolean index of not-excluded (=included) events
-    ievs = np.array([False if evn in exevs else True for evn in events])
+    ievs = np.array([False if evn in exevs else True for evn in events_])
 
     # Included event names
-    inevns = np.array(events)[ievs].astype(int)
+    inevns = np.array(events_)[ievs].astype(int)
 
     # excluded event names
-    exevns = np.array(events)[~ievs].astype(int)
+    exevns = np.array(events_)[~ievs].astype(int)
 
     if return_not:
         if return_bool:

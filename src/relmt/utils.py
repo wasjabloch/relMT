@@ -674,26 +674,26 @@ def concat_components(arr: np.ndarray) -> np.ndarray:
     return arr.reshape(ne, ns * nc)  # events, components * samples
 
 
-def select_events(arr: np.ndarray, select: list[int], events: list[int]) -> np.ndarray:
+def select_events(arr: np.ndarray, select: list[int], events_: list[int]) -> np.ndarray:
     """Return waveforms of specific evetn numbers
 
     arr:
        ``(events, ...)`` or waveform array or matrix
     select:
         List of event numbers to select
-    events:
+    events_:
         List of event numbers in the array
     Returns
     -------
     ``(selected_events, ...)`` Waveform array or matrix
     """
 
-    iin = [events.index(i) for i in select]
+    iin = [events_.index(i) for i in select]
     return arr[iin, ...]
 
 
 def valid_combinations(
-    events: list[int], pairs: set[tuple[int, int]], phase: str
+    events_: list[int], pairs: set[tuple[int, int]], phase: str
 ) -> np.ndarray:
     """Indices to the event combinations that are in pairs
 
@@ -756,12 +756,12 @@ def valid_combinations(
 
     ipairs = set(
         (
-            (events.index(a), events.index(b))
+            (events_.index(a), events_.index(b))
             if a < b
-            else (events.index(b), events.index(a))
+            else (events_.index(b), events_.index(a))
         )
         for a, b in pairs
-        if a in events and b in events
+        if a in events_ and b in events_
     )
 
     if phase == "P":
