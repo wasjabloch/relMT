@@ -26,9 +26,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 import matplotlib.transforms as transforms
-from relmt import core, mt, amp, qc
+from scipy.linalg import svd
+from relmt import core, mt, amp, qc, signal, utils, align
 
 plt.ion()
 
@@ -897,5 +899,274 @@ def bootstrap_matrix(
 
             axpo.scatter(az[iup], pl[iup], marker="o", fc="none", ec="lightblue")
             axpo.scatter(az[~iup], pl[~iup], marker="x", color="lightblue")
+
+    return fig, axs
+
+
+def alignment(
+    arr: np.ndarray,
+    hdr: core.Header,
+    event_list: list[int] = None,
+    event_dict: dict[int, core.Event] = {},
+    dt_mccc: np.ndarray | None = None,
+    dt_rms: np.ndarray | None = None,
+    dt_pca: np.ndarray | None = None,
+    ccij: np.ndarray | None = None,
+    sort: str = "pci",
+    highlight_events: list[int] = [],
+) -> tuple[Figure, dict[str, Axes]]:
+    """Plot waveform array with alignment diagnostics
+
+    Parameters
+    ----------
+    arr:
+        ``(events, components, samples)`` Waveform array
+    hdr:
+        Header of the waveform array
+    event_list:
+        List of event IDs to show
+    event_dict:
+        The seismic event catalog
+    dt_mccc:
+        Time shifts from MCCC alignment
+    dt_rms:
+        RMS of time shifts from MCCC alignment
+    dt_pca:
+        Time shifts from PCA alignment
+    ccij:
+        2D Cross-correlation matrix between all event pairs
+    sort:
+        Sort by "magnitude", "pci" (principal component index), or
+        "time" (input order)
+    refevs:
+        Highlight these reference events in red
+
+    Returns
+    -------
+    fig:
+        The :class:`matplotlib.figure.Figure` containing the plot
+    axs:
+        Dictionary of :class:`matplotlib.axes.Axes` in the plot
+        with keys:
+        - "dt": Time shifts
+        - "snr": Signal to noise ratios
+        - "pv": Principal seismograms
+        - "wv": Waveform section
+        - "cci": Average correlation of each event
+        - "ccij": Cross-correlation matrix
+        - "ec": Expansion coefficients
+    """
+
+    # Get station and phase
+    phase = hdr["phase"]
+
+    # Principal components to show (two significant and the first insignificant)
+    icomps = [0, 1]
+    compc = ["black", "gray"]
+    comps = "ox"
+    if phase == "S":
+        icomps += [2]
+        compc = ["black", "green", "gray"]
+        comps = "o+x"
+
+    if event_list is None:
+        event_list = hdr["events_"]
+
+    nin = len(event_list)
+    ievs = np.array(range(nin))
+
+    if not any(event_list):
+        raise ValueError("No events in list")
+
+    if (phase == "P" and nin < 2) or (phase == "S" and nin < 3):
+        raise ValueError("No enough events for phase")
+
+    # Taper and filter the actual phase data
+    snr = signal.signal_noise_ratio(arr, **hdr.kwargs(signal.signal_noise_ratio))
+    arr = signal.demean_filter_window(arr, **hdr.kwargs(signal.demean_filter_window))
+    i0, i1 = signal.indices_inside_taper(**hdr.kwargs(signal.indices_inside_taper))
+
+    mat = utils.concat_components(arr[ievs, :, i0:i1])
+
+    if sort == "magnitude":
+        if event_dict is None or not event_dict:
+            raise ValueError("Need event_dict to sort by magnitude")
+        mags = [ev.mag for iev, ev in event_dict.items() if iev in event_list]
+        isort = np.argsort(mags)[::-1]
+    elif sort == "pci":
+        isort = utils.pc_index(mat, phase=phase)
+    elif sort == "time":
+        isort = ievs
+    else:
+        raise ValueError(f"unknown sort: {sort}")
+
+    snr = snr[isort]
+
+    if ccij is None:
+        ccij = np.full((nin, nin), np.nan)
+
+    # ccij = np.corrcoef(mat)
+    # ccij[np.diag_indices_from(ccij)] = 0
+
+    cci = utils.fisher_average(np.abs(ccij))
+    cc = utils.fisher_average(cci)
+
+    # Fill in auto-correlation values and sort
+    ccij = ccij[isort, :][:, isort]
+    cci = cci[isort]
+
+    # Event labels
+    if event_dict:
+        evlabels = [event_dict[ie].name for ie in event_list[isort]]
+    else:
+        evlabels = [str(ie) for ie in event_list[isort]]
+
+    # Set up subplot arragement
+    mosaic = [
+        [".", ".", "pv", ".", "cbar", "."],
+        [".", ".", "pv", ".", ".", "."],
+        ["dt", "snr", "wv", "cci", "ccij", "ec"],
+    ]
+
+    fig, axs = plt.subplot_mosaic(
+        mosaic,
+        width_ratios=[0.1, 0.1, 0.5, 0.1, 0.3, 0.2],
+        height_ratios=[0.03, 0.07, 0.9],
+        gridspec_kw=dict(
+            left=0.05, right=0.95, top=0.95, bottom=0.05, wspace=0.1, hspace=0.05
+        ),
+        figsize=(18, 10),
+    )
+
+    fig.suptitle(f"Alignment {hdr['station']} {phase}", ha="left", va="top")
+
+    axs["dt"].sharey(axs["snr"])
+    axs["wv"].sharey(axs["dt"])
+    axs["wv"].sharex(axs["pv"])
+    axs["cci"].sharey(axs["wv"])
+    axs["ccij"].sharey(axs["cci"])
+    axs["ec"].sharey(axs["ccij"])
+
+    if len(highlight_events) > 0:
+        # Sorted event list for indexing
+        sevl = list(event_list[isort])
+        for ax in axs.values():
+            for refev in highlight_events:
+                ax.axhline(sevl.index(refev), color="red", zorder=5)
+
+    # Time shift plot
+    ax = axs["dt"]
+
+    if dt_pca is not None:
+        ax.plot(dt_pca[isort], range(nin), color="blue", label="pca")
+
+    if dt_mccc is not None:
+        dt_mccc = dt_mccc[isort]
+        ax.plot(dt_mccc, range(nin), color="green", label="mccc")
+        if dt_rms is not None:
+            dt_rms = dt_rms[isort]
+            ax.errorbar(dt_mccc, range(nin), xerr=dt_rms, color="green")
+
+    if dt_pca is not None or not dt_mccc is None:
+        ax.set_xlabel("Shift (s)")
+        ax.set_ylabel("Event #")
+        ax.set_yticks(range(nin), evlabels)
+        ax.grid(axis="y")
+        ax.legend()
+
+    else:
+        ax.axis("off")
+        axs["snr"].set_yticks(range(nin), evlabels)
+
+    # Signal noise ratio plot
+    ax = axs["snr"]
+    ax.plot(snr, range(nin), color="black")
+    ax.set_xlabel("SNR (dB)")
+    ax.axvline(0, color="silver")
+    if (minsnr := hdr["min_signal_noise_ratio"]) is not None:
+        ax.axvline(minsnr, color="silver")
+    ax.grid(axis="y")
+    ax.tick_params(labelleft=False)
+
+    # Principal seismograms
+    ax = axs["pv"]
+    try:
+        U, s, Vh = svd(signal.norm_power(mat[isort, :]), False)
+    except ValueError:
+        logger.warning("Could not compute SVD")
+        U = np.full((mat.shape[0], mat.shape[0]), np.nan)
+        s = np.full(mat.shape[0], np.nan)
+        Vh = np.full((mat.shape[0], mat.shape[1]), np.nan)
+
+    phi = align.pca_objective(s, phase)
+    section_2d(Vh[icomps, :], **hdr.kwargs(section_2d), ax=ax)
+    ax.set_title("$\Phi={:.4f}$".format(phi), pad=12)
+    ax.set_ylabel("Principal\nSeismogram")
+    ax.set_yticks(icomps)
+    ax.set_xlabel("")
+
+    # Waveform plot
+    ax = axs["wv"]
+    section_2d(
+        mat[isort, :],
+        **hdr.kwargs(section_2d),
+        wiggle=False,
+        image=True,
+        ax=ax,
+    )
+    ax.set_ylabel("")
+    ax.set_xlabel("Time (s)")
+    ax.tick_params(labelleft=False, labelbottom=True)
+    ax.grid(axis="x")
+
+    # Cross correlation plot
+    ax = axs["cci"]
+    ax.plot(cci, range(nin), color="red")
+    ax.axvline(0, color="silver")
+    ax.set_xlabel("$\hat{{{C}}}_i$")
+    ax.grid(axis="y")
+
+    if (mincc := hdr["min_correlation"]) is not None:
+        ax.axvline(mincc, color="silver")
+    ax.tick_params(labelleft=False)
+
+    for ax in [axs["dt"], axs["snr"], axs["cci"], axs["wv"], axs["ccij"], axs["ec"]]:
+        ax.set_ylim([nin - 0.5, -0.5])
+        ax.spines[["right", "left"]].set_visible(False)
+
+    # Cross correlation coefficient matrix
+    ax = axs["ccij"]
+    ax.set_title("$\hat{{{|C|}}}$ = " + "{:.3f}".format(cc))
+    cmap = ax.imshow(
+        ccij, vmin=-1, vmax=1, cmap="RdGy", interpolation="nearest", aspect="auto"
+    )
+    ax.set_xticks(range(nin), evlabels, rotation=90)
+    ax.tick_params(labelleft=False)
+
+    plt.colorbar(
+        cmap,
+        cax=axs["cbar"],
+        location="top",
+        ticks=[-1, 0, 1],
+        label="$cc_{ij}$",
+    )
+
+    # Expansion coefficeints
+    ax = axs["ec"]
+    ec_score = qc.expansion_coefficient_norm(mat, phase)[isort]
+
+    for i, col, sym in zip(icomps, compc, comps):
+        e0 = abs(s[i] * U[:, i])
+        ax.plot(e0, range(nin), sym, mec=col, mfc="none", label=f"EC{i}")
+    ax.plot(ec_score, range(nin), "|", mec="red", mfc="none", label=f"Score")
+
+    if (ecn := hdr["min_expansion_coefficient_norm"]) is not None:
+        ax.axvline(ecn, color="silver")
+
+    ax.legend()
+    ax.set_yticks(range(nin), event_list[isort])
+    ax.set_xlim((0, 1))
+    ax.grid(axis="y")
+    ax.tick_params(labelleft=False, labelright=True)
 
     return fig, axs

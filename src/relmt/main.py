@@ -25,7 +25,7 @@
 
 """Main relMT executables"""
 
-from relmt import io, utils, align, core, signal, extra, amp, ls, mt, qc, angle
+from relmt import io, utils, align, core, signal, extra, amp, ls, mt, qc, angle, plot
 from scipy import sparse
 from pathlib import Path
 import yaml
@@ -1417,6 +1417,77 @@ def main_solve(
         )
 
 
+def main_plot_alignment(
+    arrf: Path,
+    config: core.Config = None,
+    do_exclude=False,
+    sort: str = "pci",
+    highligh_events: list[int] = [],
+):
+    """Plot the waveform array with parameters relevant to judging the alignment"""
+
+    # Find where we are
+    subdir = arrf.parts[-2]
+    directory = Path(*arrf.parts[:-2])
+
+    iteration = 0
+    if subdir.startswith("align"):
+        iteration = int(subdir.replace("align", ""))
+
+    # Load the header first
+    hdrf = arrf.with_name(arrf.stem.replace("-wvarr", "-hdr.yaml"))
+    hdr = io.read_header(
+        hdrf,
+        default_name=core.file(
+            "waveform_header", n_align=iteration, directory=directory
+        ),
+    )
+    phase = hdr["phase"]
+    station = hdr["station"]
+    event_list = np.array(hdr["events_"])
+
+    event_dict = {}
+    if config is not None and config["event_file"] is not None:
+        evf = directory / config["event_file"]
+        event_dict = io.read_event_table(evf)
+
+    dest = (station, phase, iteration, directory)
+    arr = np.load(arrf)
+
+    try:
+        dt_mccc, dt_rms = np.loadtxt(core.file("mccc_time_shift", *dest), unpack=True)
+    except (FileNotFoundError, ValueError):
+        dt_mccc = dt_rms = None
+
+    try:
+        dt_pca = np.loadtxt(core.file("pca_time_shift", *dest))
+    except FileNotFoundError:
+        dt_pca = None
+
+    try:
+        ccij = np.loadtxt(core.file("cc_matrix", *dest))
+    except FileNotFoundError:
+        ccij = None
+
+    if do_exclude:
+        excl = io.read_exclude_file(core.file("exclude", directory=directory))
+        _, event_list = qc.included_events(excl, **hdr.kwargs(qc.included_events))
+
+    plot.alignment(
+        arr,
+        hdr,
+        event_list,
+        event_dict,
+        dt_mccc,
+        dt_rms,
+        dt_pca,
+        ccij,
+        sort,
+        highligh_events,
+    )
+    input("Press any key to continue...")
+
+
 def get_arguments(args=None):
     """Get command line options for :func:`main_align()`"""
 
@@ -1427,24 +1498,32 @@ Software for computing relative seismic moment tensors"""
 
     subpars = parser.add_subparsers(dest="mode")
 
+    # Subparsers
     init_p = subpars.add_parser("init", help="Initialize default directories and files")
+
     align_p = subpars.add_parser(
         "align",
         help="Align waveforms",
         epilog=("When neither '--pca' nor '--mccc' are given, " "we assume both."),
     )
+
     exclude_p = subpars.add_parser(
         "exclude", help="Exclude phase observations from alignment"
     )
+
     amp_p = subpars.add_parser(
         "amplitude", help="Measure relative amplitudes on aligned waveforms"
     )
+
     qc_p = subpars.add_parser(
         "qc", help="Apply quality control parameters to amplitude measurements"
     )
+
     solve_p = subpars.add_parser(
         "solve", help="Compute moment tensors from amplitude measurements"
     )
+
+    plot_p = subpars.add_parser("plot", help="Plot results to screen")
 
     # Now set the functions to be called
     init_p.set_defaults(command=core.init)
@@ -1540,6 +1619,43 @@ Software for computing relative seismic moment tensors"""
         ),
     )
 
+    plot_p.add_argument(
+        "what",
+        choices=["alignment"],
+        help=(
+            "What kind of plot to make: \n"
+            "* alignment: Plot alignment diagnostics. Give path to a -wvarr.npy file."
+        ),
+    )
+
+    plot_p.add_argument(
+        "file",
+        type=Path,
+        help="The file to be plotted",
+    )
+
+    plot_p.add_argument(
+        "--sort",
+        type=str,
+        help="The sorting to apply: 'pci' (default), 'magnitude', 'none'",
+        choices=["pci", "magnitude", "none"],
+        default="pci",
+    )
+
+    plot_p.add_argument(
+        "--exclude",
+        action="store_true",
+        help="Exclude events listed in the exclude file",
+    )
+
+    plot_p.add_argument(
+        "--highlight",
+        type=int,
+        nargs="+",
+        help="Event IDs to highligh in the plot",
+        default=[],
+    )
+
     parsed = parser.parse_args(args)
 
     if parsed.mode is None:
@@ -1594,6 +1710,17 @@ def main(args=None):
                 do_ecn=parsed.ecn,
             )
         )
+
+    if parsed.mode == "plot":
+        if parsed.what == "alignment":
+            main_plot_alignment(
+                parsed.file,
+                config,
+                parsed.exclude,
+                parsed.sort,
+                parsed.highlight,
+            )
+            return
 
     # The command to be executed is defined above for each of the subparsers
     parsed.command(config, **kwargs)

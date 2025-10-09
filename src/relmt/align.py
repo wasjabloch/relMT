@@ -168,6 +168,36 @@ def mccc_align(
     return dt, cc, dd, dd_res, evpair
 
 
+def pca_objective(sigma: np.ndarray, phase: str) -> float:
+    """Principal component alignment objective function
+
+    for `P` phases:
+    .. math::
+        \phi = s_0^2 / n
+
+    For `S` phases:
+
+    .. math::
+        \phi = 1 - s_2 / (s_0 + s_1),
+
+    Parameters
+    ----------
+    sigma:
+        Singular value vector of the singular value decompostion
+    phase:
+        Seismic phase to consider. 'P' or 'S'
+
+    Returns
+    -------
+    The objective value
+    """
+    # worst 0 -> 1 best
+    if phase == "P":
+        return sigma[0] ** 2 / len(sigma)
+    elif phase == "S":
+        return 1 - (sigma[2] / (sigma[0] + sigma[1]))
+
+
 def pca_align(
     mtx: np.ndarray,
     sampling_rate: float,
@@ -229,19 +259,9 @@ def pca_align(
     tshift_tot = np.zeros(ns)
     tshift = np.zeros(ns)
 
-    if phase == "P":
-        ip = True
-
-        def phi(s, ns):
-            # worst 0 -> 1 best
-            return s[0] ** 2 / ns
-
-    elif phase == "S":
+    ip = True
+    if phase == "S":
         ip = False
-
-        def phi(s, _):
-            # worst 0 -> 1 best
-            return 1 - (s[2] / (s[0] + s[1]))
 
     # Remove mean and normalize.
     scomp = signal.norm_power(signal.demean(mtx))
@@ -257,7 +277,7 @@ def pca_align(
     this_dphi = np.inf
 
     # Concentrate energy on first principal component.
-    phi_old = phi(s, ns)
+    phi_old = pca_objective(s, phase)
 
     logger.info("Singular values are:")
     logger.info(f"Starting pca_align for {phase} Phase")
@@ -307,7 +327,7 @@ def pca_align(
 
         # Re-computed SVD and compute new objective function
         U, s, Vh = svd(scomp)
-        phi_new = phi(s, ns)
+        phi_new = pca_objective(s, phase)
 
         this_dphi = phi_new - phi_old
 
