@@ -518,7 +518,7 @@ def main_amplitude(
             elif pha == "P":
                 combs = core.iterate_event_pair(len(evns))
             else:
-                combs = core.iterate_event_pair(len(evns))
+                combs = core.iterate_event_triplet(len(evns))
 
             # Make a shared array (Inspired by CatGPT 4o)
             dtype = xarr.dtype
