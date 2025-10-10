@@ -103,8 +103,8 @@ def main_align(
             pairs = io.read_combinations(core.file("combination", *source))
             iin &= np.isin(hdr["events_"], np.unique(list(pairs)))
 
-        # Any events left?
-        if not any(iin):
+        # Enough events left?
+        if (phase == "P" and sum(iin) < 2) or (phase == "S" and sum(iin) < 3):
             continue
 
         # Only parse valid events
