@@ -422,12 +422,12 @@ def clean_by_kurtosis(
     For P-waves, we investigate the distribution:
 
     .. math::
-        \log_{10}( A_{ab} M_0^b / M_0^a )
+        \\log_{10}( A_{ab} M_0^b / M_0^a )
 
     For S-waves:
 
     .. math::
-        \log_{10}( (B_{abc} M_0^b + B_{acb} M_0^c) / M_0^a )
+        \\log_{10}( (B_{abc} M_0^b + B_{acb} M_0^c) / M_0^a )
 
     and all equivalent event combinations.
 

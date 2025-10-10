@@ -183,14 +183,14 @@ def pca_align(
     :math:`n` waveforms:
 
     .. math::
-        \phi = s_0^2 / n
+        \\phi = s_0^2 / n
 
     For S-waves, we maximize the sum of the first two singular values:
 
     .. math::
-        \phi = 1 - s_2 / (s_0 + s_1),
+        \\phi = 1 - s_2 / (s_0 + s_1),
 
-    where :math:`\phi` ranges from `0` (worst) to `1` (best)
+    where :math:`\\phi` ranges from `0` (worst) to `1` (best)
 
     Parameters
     ----------

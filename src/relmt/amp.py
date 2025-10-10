@@ -96,7 +96,7 @@ def p_misfit(mtx_ab: np.ndarray, Aab: float) -> float:
     waveform :math:`u_a`:
 
     .. math::
-        \Psi_P = || A^{ab} u_b - u_a || / || u_a ||
+        \\Psi_P = || A^{ab} u_b - u_a || / || u_a ||
 
     Parameters
     ----------
@@ -310,7 +310,7 @@ def s_misfit(mtx_abc: np.ndarray, Babc: float, Bacb: float) -> float:
     waveform :math:`u_a`:
 
     .. math::
-        \Psi_S = || B^{abc} u_b + B^{acb} u_c - u_a || / || u_a ||
+        \\Psi_S = || B^{abc} u_b + B^{acb} u_c - u_a || / || u_a ||
 
     Parameters
     ----------

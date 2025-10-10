@@ -830,7 +830,7 @@ def bootstrap_matrix(
             ax.set_xticks(ticks, ticklabels, rotation="vertical")
 
         # Report mean an standard deviation
-        tit = "{:.2f} $\pm$ {:.2f}".format(np.mean(x), np.std(x))
+        tit = "{:.2f} $\\pm$ {:.2f}".format(np.mean(x), np.std(x))
         ax.set_title(tit, size="small")
 
     if plot_beachball:

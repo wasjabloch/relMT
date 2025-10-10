@@ -857,7 +857,7 @@ def corner_frequency(
     Return a rought estimate of the corner frequency based on
 
     .. math::
-        f_c = (16/7 \sigma k_s^3 v_S^3 / M_0 )^{1/3}
+        f_c = (16/7 \\sigma k_s^3 v_S^3 / M_0 )^{1/3}
 
     Parameters
     ----------
@@ -866,7 +866,7 @@ def corner_frequency(
     phase : str
         P (:math:`k_s` = 0.375) or S (:math:`k_s` = 0.21)
     stress_drop : float
-        Stress drop :math:`\sigma` in Pa (use ~5e6)
+        Stress drop :math:`\\sigma` in Pa (use ~5e6)
     vs : float
         S wave velocity :math:`v_S` in m/s
 

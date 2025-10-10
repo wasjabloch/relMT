@@ -96,7 +96,7 @@ def norm_power(array: np.ndarray, axis: int = -1) -> np.ndarray:
     Normalize input array by power
 
     .. math::
-        A / \sqrt \sum A^2
+        A / \\sqrt \\sum A^2
 
     Parameters
     ----------
@@ -720,7 +720,7 @@ def cc_coef(x: np.ndarray, y: np.ndarray) -> float:
     Calculate the correlation coefficient between two equal-length vectors:
 
     .. math::
-        \sum_i(x_i y_i) (\sum_i x_i^2 \sum_i y_i^2)^{-1/2}
+        \\sum_i(x_i y_i) (\\sum_i x_i^2 \\sum_i y_i^2)^{-1/2}
 
     Parameters
     ----------
