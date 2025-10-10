@@ -406,14 +406,18 @@ def complete_paired_s_lag_times(
             ccm[n] = utils.fisher_average(cc[ab[0], ab[1], :])
             res[n] = np.sqrt(np.sum(all_dd_res**2) / all_dds.shape[0])
         else:
+            iother = np.full(cc.shape[2], True)
             if method == "cc":
-                ibest = np.argmax(cc[ab[0], ab[1], :])
+                # Ignore zero cc values that arise from triplets containing the
+                # considered event pair
+                iother[ab] = False
+                ibest = np.argmax(cc[ab[0], ab[1], iother])
             elif method == "residual":
                 ibest = np.argmin(all_dd_res)
             else:
                 raise ValueError(f"Unknown 'measure': {method}")
             ddm[n] = all_dds[ibest]
-            ccm[n] = cc[ab[0], ab[1], ibest]
+            ccm[n] = cc[ab[0], ab[1], iother][ibest]
             res[n] = all_dd_res[ibest]
 
     return ev_pair, ddm, ccm, res
