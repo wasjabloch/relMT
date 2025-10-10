@@ -536,7 +536,7 @@ def read_waveform_array_header(
     try:
         wvarr = loader(wvf)
     except FileNotFoundError as e:
-        logger.warning(f"File not found: {wvf}")
+        logger.debug(f"File not found: {wvf}")
         raise e
 
     # Read in default values from default config, if present

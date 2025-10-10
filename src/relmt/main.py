@@ -433,7 +433,7 @@ def main_amplitude(
                     ),
                 )
             except FileNotFoundError as e:
-                logger.warning(e)
+                logger.debug(e)
                 continue
 
             pasbnds[wvid] = {
@@ -467,7 +467,7 @@ def main_amplitude(
                         sta, pha, iteration, directory
                     )
                 except FileNotFoundError as e:
-                    logger.warning(e)
+                    logger.debug(e)
                     continue
 
                 pasbnds[wvid] = phase_passbands(
@@ -497,7 +497,7 @@ def main_amplitude(
             try:
                 arr, hdr = io.read_waveform_array_header(sta, pha, iteration, directory)
             except FileNotFoundError as e:
-                logger.warning(e)
+                logger.debug(e)
                 continue
 
             # Make sure what's excluded is excluded
@@ -612,7 +612,7 @@ def main_amplitude(
             try:
                 arr, hdr = io.read_waveform_array_header(sta, pha, iteration, directory)
             except FileNotFoundError as e:
-                logger.warning(e)
+                logger.debug(e)
                 continue
 
             # Exclude the excluded events
