@@ -1447,9 +1447,14 @@ def main_plot_alignment(
     event_list = np.array(hdr["events_"])
 
     event_dict = {}
-    if config is not None and config["event_file"] is not None:
-        evf = directory / config["event_file"]
-        event_dict = io.read_event_table(evf)
+    station_dict = {}
+    if config is not None:
+        if config["event_file"] is not None:
+            evf = directory / config["event_file"]
+            event_dict = io.read_event_table(evf)
+        if config["station_file"] is not None:
+            stf = directory / config["station_file"]
+            station_dict = io.read_station_table(stf)
 
     dest = (station, phase, iteration, directory)
     arr = np.load(arrf)
@@ -1476,12 +1481,13 @@ def main_plot_alignment(
     plot.alignment(
         arr,
         hdr,
-        event_list,
-        event_dict,
         dt_mccc,
         dt_rms,
         dt_pca,
         ccij,
+        event_list,
+        event_dict,
+        station_dict,
         sort,
         highligh_events,
     )

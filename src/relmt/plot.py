@@ -30,7 +30,7 @@ from matplotlib.figure import Figure
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 import matplotlib.transforms as transforms
 from scipy.linalg import svd
-from relmt import core, mt, amp, qc, signal, utils, align
+from relmt import core, mt, amp, qc, signal, utils, align, angle
 
 plt.ion()
 
@@ -906,12 +906,13 @@ def bootstrap_matrix(
 def alignment(
     arr: np.ndarray,
     hdr: core.Header,
-    event_list: list[int] = None,
-    event_dict: dict[int, core.Event] = {},
     dt_mccc: np.ndarray | None = None,
     dt_rms: np.ndarray | None = None,
     dt_pca: np.ndarray | None = None,
     ccij: np.ndarray | None = None,
+    event_list: list[int] = None,
+    event_dict: dict[int, core.Event] = {},
+    station_dict: dict[int, core.Event] = {},
     sort: str = "pci",
     highlight_events: list[int] = [],
 ) -> tuple[Figure, dict[str, Axes]]:
@@ -1020,8 +1021,8 @@ def alignment(
 
     # Set up subplot arragement
     mosaic = [
-        [".", ".", "pv", ".", "cbar", "."],
-        [".", ".", "pv", ".", ".", "."],
+        ["map", "map", "pv", ".", "cbar", "."],
+        ["map", "map", "pv", ".", ".", "."],
         ["dt", "snr", "wv", "cci", "ccij", "ec"],
     ]
 
@@ -1050,6 +1051,45 @@ def alignment(
         for ax in axs.values():
             for refev in highlight_events:
                 ax.axhline(sevl.index(refev), color="red", zorder=5)
+
+    # Station and event map
+
+    # If we have everything to plot a map
+    if event_dict and station_dict:
+        # Place a polar plot in the existing axis
+        subplotspec = axs["map"].get_subplotspec()
+        axs["map"].remove()
+        axs["map"] = fig.add_subplot(subplotspec, projection="polar")
+        ax = axs["map"]
+        ax.set_theta_zero_location("N")  # theta=0 at the top
+        ax.set_theta_direction(-1)
+        ista = (np.array(list(station_dict.keys())) == hdr["station"]).nonzero()[0][0]
+
+        # Coordinates relative to center of event cloud
+        evxyz = utils.xyzarray(event_dict) * 1e-3
+        orig = np.mean(evxyz, axis=0)
+        evxyz = evxyz - orig
+        staxyz = utils.xyzarray(station_dict) * 1e-3 - orig
+
+        # Station azimuth and distance
+        st0 = np.zeros(staxyz.shape[0]).T
+        staz = angle.azimuth(st0, st0, *staxyz[:, :2].T) * np.pi / 180
+        stad = utils.cartesian_distance(st0, st0, st0, *staxyz[:, :2].T, st0)
+
+        # Event azimuth and distance
+        ev0 = np.zeros(evxyz.shape[0]).T
+        evaz = angle.azimuth(ev0, ev0, *evxyz[:, :2].T) * np.pi / 180
+        evad = utils.cartesian_distance(ev0, ev0, ev0, *evxyz[:, :2].T, ev0)
+
+        ax.scatter(evaz, evad, s=5, color="black")
+        ax.scatter(staz, stad, marker="v", color="gray")
+        ax.scatter(staz[ista], stad[ista], marker="v", color="orange")
+        ax.set_ylim((0, 1.1 * stad[ista]))
+        ax.set_xticks([0, np.pi / 2, np.pi, 3 * np.pi / 2], "NESW")
+        ax.set_yticks([stad[ista]], ["{:.0f}km".format(stad[ista])])
+
+    else:
+        ax.axis("off")
 
     # Time shift plot
     ax = axs["dt"]
