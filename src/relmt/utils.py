@@ -369,12 +369,10 @@ def phase_dict_hash_plunge(
                 event_dict[core.split_phaseid(phid)[0]].depth,
             )
             for phid in phase_dict
-            if phid in phase_dict
         ]
     )
 
     # Distance and depth coordinate vectors
-    # (TODO: if interpolation errors occurr, add a small margin here)
     # Distance is expected to begin at 0, else strange IndexErrors occurr
     maxdist = max(dist_dep[:, 0])
     maxdep = max(dist_dep[:, 1])
@@ -774,6 +772,49 @@ def valid_combinations(
 
     else:
         raise ValueError("Phase must be 'P' or 'S'")
+
+
+def pair_redundancy(triplets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Count of the number of contributing pairs per triplet
+
+    Parameters
+    ----------
+    triplets:
+        ``(n, 3)`` array of event index triplets
+
+    Returns
+    -------
+    Number of pairs contributing to each triplet
+    """
+    # Normalize triangles (sort rows so a<b<c)
+    T = np.sort(triplets, axis=1)  # (n,3)
+
+    # Build all pairs for each triangle: (a,b), (a,c), (b,c) and normalize (u<=v)
+    a, b, c = T[:, 0], T[:, 1], T[:, 2]
+    pairs = np.sort(
+        np.stack(
+            [
+                np.stack([a, b], axis=1),
+                np.stack([a, c], axis=1),
+                np.stack([b, c], axis=1),
+            ],
+            axis=1,
+        ),
+        axis=2,
+    )  # (n,3,2)
+
+    # Flatten to (3n,2)
+    P2 = pairs.reshape(-1, 2)
+
+    # Get counts per unique pair
+    _, inverse, counts = np.unique(P2, axis=0, return_inverse=True, return_counts=True)
+
+    # Map each pair occurrence to its frequency, then sum per triplet
+    pair_freqs = counts[inverse]  # (3n,)
+    freqs_per_triplet = pair_freqs.reshape(-1, 3)  # (n,3)
+    scores = freqs_per_triplet.sum(axis=1)
+
+    return scores
 
 
 def collect_takeoff(

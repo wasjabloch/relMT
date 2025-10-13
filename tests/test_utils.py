@@ -432,3 +432,13 @@ def test_cc_corf3():
         ccijk[k, j, i] = ccs[2]
 
     pytest.approx(cc_batch) == ccijk
+
+
+def test_pair_redundancy():
+    # Test triplets
+    tri = np.array(
+        [(1, 2, 3), (2, 3, 10), (3, 4, 5), (1, 2, 10), (1, 3, 10)], dtype=int
+    )
+    scores = utils.pair_redundancy(tri)
+
+    pytest.approx(scores) == [6, 6, 3, 6, 5]
