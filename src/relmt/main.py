@@ -739,6 +739,7 @@ def main_qc(config: core.Config, directory: Path):
     exclude_events = set(exclude["event"])
 
     evd = io.read_event_table(config["event_file"])
+    std = io.read_station_table(config["station_file"])
     phd = io.read_phase_table(config["phase_file"])
 
     for ph in "PS":
@@ -843,9 +844,50 @@ def main_qc(config: core.Config, directory: Path):
 
     # Make sure we don't have too many equations
     s_equations = len(samps) * (1 + int(keep_other_s_equation))
-    if max_s_equations is not None and s_equations > max_s_equations:
-        logger.info("Reduction of S equation not implemented yet.")
-        pass
+    if max_s_equations is not None:
+        excess_eq = s_equations - max_s_equations
+        logger.info(f"Have {s_equations} S-equations, need to reduce by {excess_eq}")
+
+        batches = 10
+        nex = int(excess_eq // batches + 1)
+
+        while s_equations > max_s_equations:
+            triplets, stas, miss = map(
+                np.array,
+                zip(
+                    *[
+                        (
+                            (samp.event_a, samp.event_b, samp.event_c),
+                            samp.station,
+                            samp.misfit,
+                        )
+                        for samp in samps
+                    ]
+                ),
+            )
+            std_sub = {stn: std[stn] for stn in set(stas)}
+
+            sta_gap = utils.station_gap(std_sub, evd)
+
+            # Redundancy score per observation (highest score least important)
+            red_score = utils.pair_redundancy(triplets)
+
+            # Gap score per observation (lowest score least important)
+            gap_score = np.array([sta_gap[sta] for sta in stas])
+
+            # score sort: from most important to least important
+            ssort = np.lexsort((miss, -gap_score, red_score))
+            samps = [samps[i] for i in ssort[:-nex]]
+
+            # Check once more we have enough equations
+            pamps, samps = qc.clean_by_equation_count_gap(
+                pamps, samps, phd, min_eq, max_gap, keep_other_s_equation
+            )
+
+            s_equations = len(samps) * (1 + int(keep_other_s_equation))
+            logger.debug(f"Reduced to {s_equations} S-equations")
+
+            # TODO: implement variable nex
 
     if len(pamps) + len(samps) == 0:
         raise RuntimeError("No observations left. Relax your QC criteria.")

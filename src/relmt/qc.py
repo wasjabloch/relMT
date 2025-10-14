@@ -304,7 +304,7 @@ def clean_by_equation_count_gap(
         # Count occurrences of each integer over the kept events
         cnt = Counter()
 
-        # P and S indeces
+        # P and S indices
         pin = np.nonzero(keep_p)[0]
         sin = np.nonzero(keep_s)[0]
 
@@ -312,9 +312,12 @@ def clean_by_equation_count_gap(
             cnt.update(p_pairs[i])
 
         for i in sin:
-            cnt.update(s_triplets[i] * sfac)
+            cnt.update(s_triplets[i])
+            if keep_other_s_equation:
+                # Count each occurrence twice.
+                cnt.update(s_triplets[i])
 
-        # Amplitdue subsets
+        # Amplitude subsets
         psub = [p_amplitudes[i] for i in pin]
         ssub = [s_amplitudes[i] for i in sin]
 

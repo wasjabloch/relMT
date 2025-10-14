@@ -817,6 +817,50 @@ def pair_redundancy(triplets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return scores
 
 
+def station_gap(
+    station_dict: dict[str, core.Station], event_dict: dict[int, core.Event]
+) -> dict[str, float]:
+    """Azimuthal gap from center of event clud that would remain if station was removed
+
+    Parameters
+    ----------
+    station_dict:
+        Station table
+    event_dict:
+        The seismic event catalog
+
+    Returns
+    -------
+    Mapping from station name to azimuthal gap (degree)
+    """
+
+    # Center of event cloud
+    evxyz = xyzarray(event_dict)
+    orig = evxyz.mean(axis=0)
+
+    # Stations and corresponding aziumuths
+    stas = np.array(list(station_dict.keys()))
+    azis = np.array(
+        [
+            angle.azimuth(orig[0], orig[1], sta.north, sta.east)
+            for sta in station_dict.values()
+        ]
+    )
+
+    # Sort to get gap
+    azsort = np.argsort(azis)
+    sazis = azis[azsort]
+    azgap = np.diff(list(sazis) + [sazis[0] + 360])
+
+    # Unsort to get names sorted by azimuth
+    sstas = stas[azsort]
+
+    # Add neigboring gaps to get gap if station is removed
+    gap = {sta: azgap[n] + azgap[n - 1] for n, sta in enumerate(sstas)}
+
+    return gap
+
+
 def collect_takeoff(
     phase_dict: dict[str : core.Phase],
     event_index: int,
