@@ -632,7 +632,7 @@ def test_unpack_residuals():
 
     # 2 P residuals, 2 x 2 S residuals, 2 reference residuals
     residuals = [0, 0, 1, 1, 1, 1, 2, 2]
-    p_res, s_res, r_res = ls.unpack_resiudals(residuals, 2, 1, 2)
+    p_res, s_res, r_res = ls.unpack_equation_vector(residuals, 2, 1, 2)
 
     assert pytest.approx(p_res) == [0, 0]
     assert pytest.approx(s_res) == [[1, 1], [1, 1]]

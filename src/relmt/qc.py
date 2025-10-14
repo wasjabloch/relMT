@@ -256,6 +256,7 @@ def clean_by_equation_count_gap(
     phase_dict: dict[str, core.Phase],
     min_equations: int | None,
     max_gap: float | None = None,
+    keep_other_s_equation: bool = True,
 ) -> tuple[list[core.P_Amplitude_Ratio], list[core.S_Amplitude_Ratios]]:
     """Remove observations that occurr in less than `min_equations` iteratively
 
@@ -287,6 +288,9 @@ def clean_by_equation_count_gap(
     if min_equations is None and max_gap is None:
         return p_amplitudes, s_amplitudes
 
+    # Count S twice if we keep the redundant equations
+    sfac = 1 + int(keep_other_s_equation)
+
     p_pairs = np.array([(amp.event_a, amp.event_b) for amp in p_amplitudes])
     s_triplets = np.array(
         [(amp.event_a, amp.event_b, amp.event_c) for amp in s_amplitudes]
@@ -308,7 +312,7 @@ def clean_by_equation_count_gap(
             cnt.update(p_pairs[i])
 
         for i in sin:
-            cnt.update(s_triplets[i])
+            cnt.update(s_triplets[i] * sfac)
 
         # Amplitdue subsets
         psub = [p_amplitudes[i] for i in pin]

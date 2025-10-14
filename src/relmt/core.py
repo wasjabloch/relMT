@@ -858,6 +858,19 @@ Maximum distance (m) between two events to include measurement in linear system 
         """
 Minimum number of equations required to constrain one moment tensor""",
     ),
+    "keep_other_s_equation": (
+        "bool",
+        """
+Use two equations per S-amplitude observation (`False` only includes the one
+with the highest norm of the polarization vector)""",
+    ),
+    "max_s_equations": (
+        "int",
+        """
+Maximum number of S-wave equation in the linear system. If more are available,
+discard those with redundant pair-wise observations, on stations inside a low azimuthal
+gap, and with a higher misfit""",
+    ),
     "max_gap": (
         "float",
         """
@@ -918,6 +931,8 @@ class Config:
         max_s_sigma1: float | None = None,
         max_magnitude_difference: float | None = None,
         max_event_distance: float | None = None,
+        keep_other_s_equation: bool | None = None,
+        max_s_equations: int | None = None,
         min_equations: int | None = None,
         max_gap: float | None = None,
         bootstrap_samples: int | None = None,

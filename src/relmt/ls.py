@@ -341,6 +341,7 @@ def s_equations(
     nmt: int,
     coefficient_indices: tuple[int, int] | None = None,
     return_sparse: bool = False,
+    keep_other_s_equation: bool = True,
 ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
     """
     Two equations with S-wave constraints on the linear system
@@ -367,20 +368,24 @@ def s_equations(
         `None`, chose those with the largest norm
     return_sparse:
         Return values data and column indices compatible with :class:`scipy.sparse.coo_matrix`
-
-    Returns
-    -------
-
-
+    keep_other_s_equation:
+        Keep the second S equation with the lower norm of the polarization vector
 
     Returns
     -------
         ``(2, events * nmt)`` lines of the left hand side of the linear system if
-    return_sparse = False, or
+    return_sparse = False, and keep_second_s_equation = True, or
+
+        ``(1, events * nmt)`` if return_sparse = False, and
+    keep_second_s_equation = False
 
         Tuple of ``(6 * nmt,)`` column indices and ``(6 * nmt,)`` values of the
-    sparse matrix if return_sparse = True. The first set of 3*nmt indices and
-    values corresponds to one line, the second set to the next
+    sparse matrix if return_sparse = True and keep_second_s_equation = False.
+    The first set of 3*nmt indices and values corresponds to one line, the
+    second set to the next.
+
+        Tuple of ``(3 * nmt,)`` column indices and ``(3 * nmt,)`` values of the
+    sparse matrix if return_sparse = True and keep_second_s_equation = False.
     """
 
     def _gamma(ev, sta, pha):
@@ -471,8 +476,15 @@ def s_equations(
         ias = range(nmt * ia, nmt * ia + nmt)
         ibs = range(nmt * ib, nmt * ib + nmt)
         ics = range(nmt * ic, nmt * ic + nmt)
-        colis = np.concatenate((ias, ibs, ics, ias, ibs, ics))
-        valus = np.concatenate((a1, b1, c1, a2, b2, c2))
+
+        if not keep_other_s_equation:
+            colis = np.concatenate((ias, ibs, ics))
+            valus = np.concatenate((a1, b1, c1))
+
+        else:
+            colis = np.concatenate((ias, ibs, ics, ias, ibs, ics))
+            valus = np.concatenate((a1, b1, c1, a2, b2, c2))
+
         return colis, valus
 
     # Return lines of a dense matrix. Elevate intended zeros to EPS, so
@@ -481,6 +493,9 @@ def s_equations(
     line1[nmt * ia : nmt * ia + nmt] = _null_to_eps(a1)
     line1[nmt * ib : nmt * ib + nmt] = _null_to_eps(b1)
     line1[nmt * ic : nmt * ic + nmt] = _null_to_eps(c1)
+
+    if not keep_other_s_equation:
+        return np.array([line1])
 
     line2[nmt * ia : nmt * ia + nmt] = _null_to_eps(a2)
     line2[nmt * ib : nmt * ib + nmt] = _null_to_eps(b2)
@@ -495,6 +510,7 @@ def weight_misfit(
     max_misfit: float,
     min_weight: float,
     phase: str,
+    keep_other_s_equation: bool = True,
 ) -> np.ndarray:
     """Weights [min_weight ... 1] for each row of the amplitude matrix by misfit
 
@@ -525,7 +541,7 @@ def weight_misfit(
 
     Returns
     -------
-    Weight of shape ``(1,)`` if `phase=P`, or ``(2,)`` if `phase=S`
+    Weight of shape ``(1,)`` if `phase=P`, or ``(2,1)`` if `phase=S`
 
     Raises
     ------
@@ -541,12 +557,16 @@ def weight_misfit(
     if phase.upper() == "P":
         return np.array(mis_fun(amplitude.misfit))
     elif phase.upper() == "S":
-        return np.array(2 * [mis_fun(amplitude.misfit)])[:, np.newaxis]
+        if keep_other_s_equation:
+            return np.array(2 * [mis_fun(amplitude.misfit)])[:, np.newaxis]
+        return np.array([mis_fun(amplitude.misfit)])[:, np.newaxis]
     else:
         raise ValueError("'phase' must be 'P' or 'S'")
 
 
-def weight_s_amplitude(s_amplitudes: core.S_Amplitude_Ratios) -> np.ndarray:
+def weight_s_amplitude(
+    s_amplitudes: core.S_Amplitude_Ratios, keep_other_s_equation: bool = True
+) -> np.ndarray:
     """Weights for each row of the amplitude matrix by S-wave amplitdue
 
     Weight is the inverse of the larger amplitude, but not more than 1.
@@ -557,16 +577,21 @@ def weight_s_amplitude(s_amplitudes: core.S_Amplitude_Ratios) -> np.ndarray:
     ----------
     s_amplitudes:
         One pair of S-amplitude ratios
+    keep_other_s_equation:
+        Keep the second S equation with the lower norm of the polarization vector
 
     Returns
     -------
-    ``(2, 1)`` column vector of weights
+    ``(2, 1)`` column vector of weights if keep_other_s_equation is True,
+    else
+    ``(1, 1)`` column vector of weights
     """
 
+    wght = min(1.0, (1 / max(np.abs([s_amplitudes.amp_abc, s_amplitudes.amp_acb]))))
     # There are 2 equations per S amplitude reading.
-    return np.array(
-        2 * [min(1.0, (1 / max(np.abs([s_amplitudes.amp_abc, s_amplitudes.amp_acb]))))]
-    )[:, np.newaxis]
+    if keep_other_s_equation:
+        return np.array(2 * [wght])[:, np.newaxis]
+    return np.array([wght])[:, np.newaxis]
 
 
 def homogenous_amplitude_equations(
@@ -578,6 +603,7 @@ def homogenous_amplitude_equations(
     phase_dictionary: dict[str, core.Phase],
     constraint: str,
     s_coefficients: tuple[int, int] | None = None,
+    keep_other_s_equation: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Homogenous part of the linear system Am = b
 
@@ -603,6 +629,8 @@ def homogenous_amplitude_equations(
     s_coefficients:
         Indices (0, 1, or 2) of S-wave directional coefficients to use. If
         `None`, chose those with the largest norm
+    keep_other_s_equation:
+        Keep the second S equation with the lower norm of the polarization vector
 
     Returns
     -------
@@ -613,10 +641,11 @@ def homogenous_amplitude_equations(
     """
 
     nmt = mt_elements(constraint)
+    sfac = 1 + int(keep_other_s_equation)
 
     # Number of equations
     peq = len(p_amplitudes)  # P observations
-    seq = 2 * len(s_amplitudes)  # S observations
+    seq = sfac * len(s_amplitudes)  # S observations
     neq = peq + seq
 
     nmod = nmt * len(in_events)  # Length of model vector
@@ -640,10 +669,17 @@ def homogenous_amplitude_equations(
 
         # Create two S observations
         lines = s_equations(
-            samp, in_events, station, event_dict, phase_dictionary, nmt, s_coefficients
+            samp,
+            in_events,
+            station,
+            event_dict,
+            phase_dictionary,
+            nmt,
+            s_coefficients,
+            keep_other_s_equation,
         )
 
-        row = peq + 2 * n
+        row = peq + sfac * n
         Ah[[row, row + 1], :] = lines
 
     return Ah, bh
@@ -658,6 +694,7 @@ def homogenous_amplitude_equations_sparse(
     phase_dictionary: dict[str, core.Phase],
     constraint: str,
     s_coefficients: tuple[int, int] | None = None,
+    keep_other_s_equation: bool = True,
     ncpu: int = 1,
 ) -> tuple[csc_array, np.ndarray]:
     """Homogenous part of the linear system Am = b
@@ -687,6 +724,8 @@ def homogenous_amplitude_equations_sparse(
         `None`, chose those with the largest norm
     ncpu:
         Number of parallel processes
+    keep_other_s_equation:
+        Keep the second S equation with the lower norm of the polarization vector
 
     Returns
     -------
@@ -700,7 +739,7 @@ def homogenous_amplitude_equations_sparse(
 
     # Number of equations
     peq = len(p_amplitudes)  # P observations
-    seq = 2 * len(s_amplitudes)  # S observations
+    seq = (1 + int(keep_other_s_equation)) * len(s_amplitudes)  # S observations
     neq = peq + seq
 
     bh = np.zeros((neq, 1))
@@ -734,7 +773,17 @@ def homogenous_amplitude_equations_sparse(
         }
 
         sargs.append(
-            (samp, in_events, station, this_evd, this_phd, nmt, s_coefficients, True)
+            (
+                samp,
+                in_events,
+                station,
+                this_evd,
+                this_phd,
+                nmt,
+                s_coefficients,
+                True,
+                keep_other_s_equation,
+            )
         )
 
     with mp.Pool(ncpu) as pool:
@@ -745,10 +794,16 @@ def homogenous_amplitude_equations_sparse(
 
     vals = np.concatenate([line[1] for line in pcolval + scolval])
     cols = np.concatenate([line[0] for line in pcolval + scolval])
-    rows = np.concatenate(
-        [[p] * (2 * nmt) for p in range(peq)]
-        + [[peq + s] * (3 * nmt) + [peq + s + 1] * (3 * nmt) for s in range(0, seq, 2)]
-    )
+    prows = [[p] * (2 * nmt) for p in range(peq)]
+
+    if keep_other_s_equation:
+        srows = [
+            [peq + s] * (3 * nmt) + [peq + s + 1] * (3 * nmt) for s in range(0, seq, 2)
+        ]
+    else:
+        srows = [[peq + s] * (3 * nmt) for s in range(seq)]
+
+    rows = np.concatenate(prows + srows)
 
     Ah = coo_array((vals, (rows, cols))).tocsc()
 
@@ -1062,15 +1117,20 @@ def solve_lsmr(
     return m * ev_scale, eps
 
 
-def unpack_resiudals(
-    residuals: np.ndarray, p_lines: int, ref_lines: int, nmt: int
+def unpack_equation_vector(
+    eq_vector: np.ndarray,
+    p_lines: int,
+    ref_lines: int,
+    nmt: int,
+    keep_other_s_equation: bool = True,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Split residual vector into P-, S-, and reference MT residuals
+    Split vector pertaining to equations of the amplitude matrix (e.g.
+    residuals, equation norm) into P-, S-, and reference MT parts
 
     Parameters
     ----------
-    residuals:
+    eq_vector:
         Reisdual vector
     p_lines:
         Number of equations with P-information
@@ -1078,18 +1138,31 @@ def unpack_resiudals(
         Number of equations with reference MT information
     nmt:
         Number of elements that parameterize an MT
+    keep_other_s_equation:
+        We kept the second S equation
 
     Returns
     -------
-    p_residuals, s_residuals, ref_residuals: :class:`numpy.ndarray`
-        Vector contianing the residuals of P-, S-, and Reference residuals
+    p_part, s_part, ref_part: :class:`numpy.ndarray`
+        Vector contianing the part pertaining to the P-, S-, and reference equations
     """
 
-    residuals = np.array(residuals)
+    eq_vector = np.array(eq_vector)
 
-    peps = residuals[:p_lines]  #  P-amplitude ...
-    seps = residuals[p_lines : -nmt * ref_lines].reshape(-1, 2)  # S-amplitude ...
-    reps = residuals[-nmt * ref_lines :]  # Reference residuals
+    peps = eq_vector[:p_lines]  #  P-amplitude ...
+
+    # P and S lines combined, as a positive integer (avoid indexing -0)
+    s_lines = len(eq_vector) - p_lines - nmt * ref_lines
+
+    # S amplitude ...
+    if keep_other_s_equation:
+        seps = eq_vector[p_lines : p_lines + s_lines].reshape(-1, 2)
+    else:
+        # If we don't have a second S equation, fille second column with NaN
+        seps = np.full((s_lines, 2), np.nan)
+        seps[:, 0] = eq_vector[p_lines : p_lines + s_lines].flatten()
+
+    reps = eq_vector[p_lines + s_lines :]  # Reference
 
     return peps, seps, reps
 

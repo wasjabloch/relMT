@@ -721,6 +721,8 @@ def main_qc(config: core.Config, directory: Path):
     max_ev_dist = config["max_event_distance"]
     min_eq = config["min_equations"]
     max_gap = config["max_gap"]
+    keep_other_s_equation = config["keep_other_s_equation"]
+    max_s_equations = config["max_s_equations"]
 
     exclude = io.read_yaml(core.file("exclude", directory=directory))
 
@@ -835,7 +837,15 @@ def main_qc(config: core.Config, directory: Path):
             samps = amps.copy()
 
     # Make sure we have enough equations
-    pamps, samps = qc.clean_by_equation_count_gap(pamps, samps, phd, min_eq, max_gap)
+    pamps, samps = qc.clean_by_equation_count_gap(
+        pamps, samps, phd, min_eq, max_gap, keep_other_s_equation
+    )
+
+    # Make sure we don't have too many equations
+    s_equations = len(samps) * (1 + int(keep_other_s_equation))
+    if max_s_equations is not None and s_equations > max_s_equations:
+        logger.info("Reduction of S equation not implemented yet.")
+        pass
 
     if len(pamps) + len(samps) == 0:
         raise RuntimeError("No observations left. Relax your QC criteria.")
@@ -869,6 +879,8 @@ def main_solve(
     constraint = config["mt_constraint"]
     refmt_weight = config["reference_weight"]
     ncpu = config["ncpu"]
+    keep_other_s_equation = config["keep_other_s_equation"]
+    sfac = 1 + int(keep_other_s_equation)
 
     nboot = config["bootstrap_samples"]
 
@@ -915,17 +927,38 @@ def main_solve(
         if all(np.isin([samp.event_a, samp.event_b, samp.event_c], incl_ev))
     ]
 
+    n_p = len(pamp_subset)
+    n_s = len(samp_subset) * sfac
+    n_ref = len(irefs)
+
     # Build homogenos part of linear system
     isparse = True
     if isparse:
         # as sparse array
         Ah, bh = ls.homogenous_amplitude_equations_sparse(
-            pamp_subset, samp_subset, incl_ev, stad, evd, phd, constraint, None, ncpu
+            pamp_subset,
+            samp_subset,
+            incl_ev,
+            stad,
+            evd,
+            phd,
+            constraint,
+            None,
+            keep_other_s_equation,
+            ncpu,
         )
     else:
         # as dense array
         Ah, bh = ls.homogenous_amplitude_equations(
-            pamp_subset, samp_subset, incl_ev, stad, evd, phd, constraint
+            pamp_subset,
+            samp_subset,
+            incl_ev,
+            stad,
+            evd,
+            phd,
+            constraint,
+            None,
+            keep_other_s_equation,
         )
 
     # Normalization applied to columns
@@ -943,17 +976,23 @@ def main_solve(
             for amp in pamp_subset
         ]
         + [
-            ls.weight_misfit(amp, min_misfit, max_misfit, min_weight, "S")
+            ls.weight_misfit(
+                amp, min_misfit, max_misfit, min_weight, "S", keep_other_s_equation
+            )
             for amp in samp_subset
         ]
     )
 
     amp_weights = np.vstack(
-        [1.0 for _ in pamp_subset] + [ls.weight_s_amplitude(amp) for amp in samp_subset]
+        [1.0 for _ in pamp_subset]
+        + [ls.weight_s_amplitude(amp, keep_other_s_equation) for amp in samp_subset]
     )
 
     # Equation norm
     eq_norm = ls.condition_homogenous_matrix_by_norm(Ah)
+    p_norm, s_norm, _ = ls.unpack_equation_vector(
+        eq_norm, n_p, 0, mt_elements, keep_other_s_equation
+    )
 
     # Apply the weights only after measuring the norm
     if isparse:
@@ -992,16 +1031,16 @@ def main_solve(
 
     # save_npz(core.file("amplitude_matrix", directory=directory, suffix=outsuf), A)
 
-    n_p = len(pamp_subset)
-    n_s = len(samp_subset) * 2
-    n_ref = len(irefs)
+    logger.info(
+        f"Solving linear system of {A.shape[1]} variables and {A.shape[0]} equations..."
+    )
 
     # Invert and save results
     m, residuals = ls.solve_lsmr(A, b, ev_scale)
 
     # Moment residuals
-    p_residuals, s_residuals, _ = ls.unpack_resiudals(
-        residuals, n_p, n_ref, mt_elements
+    p_residuals, s_residuals, _ = ls.unpack_equation_vector(
+        residuals, n_p, n_ref, mt_elements, keep_other_s_equation
     )
 
     relmts = {
@@ -1181,7 +1220,7 @@ def main_solve(
                 + np.sum(utils.signed_log(B1res[ievs[evn]]) ** 2)
                 + np.sum(utils.signed_log(B2res[ievs[evn]]) ** 2)
             )
-            / (len(ievp[evn]) + 2 * len(ievs[evn]))
+            / (len(ievp[evn]) + sfac * len(ievs[evn]))
             for evn in relmts
         }
 
@@ -1206,7 +1245,7 @@ def main_solve(
                 Ares,
                 mis_weights[:n_p].flat[:],
                 amp_weights[:n_p].flat[:],
-                eq_norm[:n_p].flat[:],
+                p_norm,
                 Asyn,
                 ppms,
             ],
@@ -1230,6 +1269,7 @@ def main_solve(
             ],
         )
 
+        # Recall: s_residual and eq_norm do not have nan for the 2nd S equation, if we excluded them
         io.save_amplitudes(
             core.file(
                 "amplitude_summary", phase="S", suffix=outsuf, directory=directory
@@ -1240,10 +1280,10 @@ def main_solve(
                 s_residuals[:, 1],
                 B1res,
                 B2res,
-                mis_weights[n_p : n_p + n_s : 2].flat[:],
-                amp_weights[n_p : n_p + n_s : 2].flat[:],
-                eq_norm[n_p : n_p + n_s : 2].flat[:],
-                eq_norm[n_p + 1 : n_p + n_s : 2].flat[:],
+                mis_weights[n_p : n_p + n_s : sfac].flat[:],
+                amp_weights[n_p : n_p + n_s : sfac].flat[:],
+                s_norm[:, 0],
+                s_norm[:, 1],
                 Bsyn[:, 0],
                 Bsyn[:, 1],
                 spms,
