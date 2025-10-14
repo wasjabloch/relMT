@@ -374,18 +374,18 @@ def s_equations(
     Returns
     -------
         ``(2, events * nmt)`` lines of the left hand side of the linear system if
-    return_sparse = False, and keep_second_s_equation = True, or
+    return_sparse = False, and keep_other_s_equation = True, or
 
         ``(1, events * nmt)`` if return_sparse = False, and
-    keep_second_s_equation = False
+    keep_other_s_equation = False
 
         Tuple of ``(6 * nmt,)`` column indices and ``(6 * nmt,)`` values of the
-    sparse matrix if return_sparse = True and keep_second_s_equation = False.
+    sparse matrix if return_sparse = True and keep_other_s_equation = False.
     The first set of 3*nmt indices and values corresponds to one line, the
     second set to the next.
 
         Tuple of ``(3 * nmt,)`` column indices and ``(3 * nmt,)`` values of the
-    sparse matrix if return_sparse = True and keep_second_s_equation = False.
+    sparse matrix if return_sparse = True and keep_other_s_equation = False.
     """
 
     def _gamma(ev, sta, pha):

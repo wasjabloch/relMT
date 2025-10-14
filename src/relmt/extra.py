@@ -153,7 +153,7 @@ def make_waveform_array(
             data = tr.data[ib:ie]
             wvarr[iev, ic, :] = data - data.mean()
 
-    header["events"] = evgood
+    header["events_"] = evgood
 
     return wvarr, header
 
