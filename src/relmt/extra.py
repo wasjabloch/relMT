@@ -494,9 +494,9 @@ def optimal_bandpass(
     fmin: float | None = None,
     fmax: float | None = None,
     min_snr: float = 0,
-) -> tuple[float, float]:
+) -> tuple[float, float] | tuple[None, None]:
     """
-    Find bandpass that with a signal-to-noise ratio above threshold
+    Find bandpass with signal-to-noise ratio above threshold
 
     Parameters
     ----------
@@ -564,6 +564,10 @@ def optimal_bandpass(
     if1 = np.argmin(abs(freqs - fmax))
 
     nfreq = if1 - if0
+
+    if nfreq < 1:
+        logger.warning("No band below threshold. Returning NaN.")
+        return np.nan, np.nan
 
     # Find longest band above SNR threshold
     trialbands = np.zeros((nfreq, nfreq))

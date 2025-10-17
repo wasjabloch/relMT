@@ -414,11 +414,15 @@ def choose_passband(
     -------
     highpass, lowpass:
         Filter corners (Hz), `None` if filter band is below the positive
-        `min_dynamic_range`.
+        `min_dynamic_range`  or any of `highpasses' or 'lowpasses' is not
+        finite.
     """
 
     hpas = np.max(highpasses)
     lpas = np.min(lowpasses)
+
+    if any(~np.isfinite([hpas, lpas])):
+        return None, None
 
     # Positive strict, negative not strict
     strict = bool(np.sign(min_dynamic_range) + 1)
