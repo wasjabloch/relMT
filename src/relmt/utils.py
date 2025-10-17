@@ -1029,11 +1029,24 @@ def subset_list(lst: list, indices: Iterable[int]) -> list:
     return [lst[i] for i in indices]
 
 
-def _ccorf3_from_d_e_f_vectorized(d, e, f, g, t):
+def _ccorf3_from_d_e_f_vectorized(d, e, f, M, trips):
     """
-    Vectorized core of the ccorf3 algorithm using only the three
-    off-diagonal correlations (d=⟨i,j⟩, e=⟨j,k⟩, f=⟨k,i⟩).
-    All inputs are shape (N,), outputs cc3 are shape (N, 3).
+    Vectorized core of the ccorf3 algorithm to compute triplet-wise S-wave
+    correlations. Use combinations of  using only the three off-diagonal
+    elements of the wavefom Gram Matrix M.T.M .
+
+    Parameters
+    ----------
+    d, e, f:
+        ``(N, )`` combinations of off-diagonal elements of the Gram Marix
+        (d=⟨i,j⟩, e=⟨j,k⟩, f=⟨k,i⟩).
+    M:
+        The normalized wavform matrix
+    trips:
+        ``(N, 3)`` event combination triplets to compute
+
+    ..note: Translated to NumPy from M. G. Bostocks code with the help of
+    ChatGPT-o5
     """
     d = np.asarray(d, dtype=np.float64)
     e = np.asarray(e, dtype=np.float64)
@@ -1087,6 +1100,7 @@ def _ccorf3_from_d_e_f_vectorized(d, e, f, g, t):
     with np.errstate(divide="ignore", invalid="ignore"):
         v1a = (lam1 - 1.0 - e * m1) / f
         v2a = (lam2 - 1.0 - e * m2) / f
+
     v1b, v1c = m1, np.ones_like(m1)
     v2b, v2c = m2, np.ones_like(m2)
 
@@ -1103,13 +1117,13 @@ def _ccorf3_from_d_e_f_vectorized(d, e, f, g, t):
     def dot(a, b):
         return np.sum(a * b, axis=0)
 
-    cc3 = np.zeros((t.shape[0], 3))
+    cc3 = np.zeros((trips.shape[0], 3))
 
     for ip, (i, j, k) in enumerate([[0, 1, 2], [1, 2, 0], [2, 0, 1]]):
 
-        ti = t[:, i]
-        tj = t[:, j]
-        tk = t[:, k]
+        ti = trips[:, i]
+        tj = trips[:, j]
+        tk = trips[:, k]
 
         c1 = (v2[:, k] * v1[:, i] - v1[:, k] * v2[:, i]) / (
             v1[:, j] * v2[:, k] - v1[:, k] * v2[:, j]
@@ -1119,27 +1133,29 @@ def _ccorf3_from_d_e_f_vectorized(d, e, f, g, t):
         )
 
         cc3[:, ip] = (
-            c1 * dot(g[:, ti], g[:, tj]) + c2 * dot(g[:, ti], g[:, tk])
-        ) / np.sqrt(c1**2 + c2**2 + 2 * c1 * c2 * dot(g[:, tj], g[:, tk]))
+            c1 * dot(M[:, ti], M[:, tj]) + c2 * dot(M[:, ti], M[:, tk])
+        ) / np.sqrt(c1**2 + c2**2 + 2 * c1 * c2 * dot(M[:, tj], M[:, tk]))
 
     return cc3
 
 
-def ccorf3_all(gmat, batch_size=200000):
+def ccorf3_all(gmat: np.ndarray, batch_size: int = 200000):
     """
-    Generalized and optimized ccorf3 for all column triples.
+    Triplet-wise S-wave correlations of seismogram matrix Generalized and optimized ccorf3 for all column triples.
 
     Parameters
     ----------
-    gmat : (nt, M) array_like (float64)
-        Input matrix. Rows are assumed to be normalized
-    batch_size : int, default 200000
+    gmat:
+        ``(samples, events)``
+        Input matrix. Each event is assumed to be normalized
+    batch_size:
         Process up to this many triples per batch to control memory.
 
     Returns
     -------
-    cc_all : (C(M,3), 3) float64
-        cc3 for each triple, ordered in the same order as the yielded triples.
+    cc_all : (C(event,3), 3) float64
+        ``(events, events, events)`` S-wave cross correlation coefficient per
+        event triplet
     """
     A = np.asarray(gmat, dtype=np.float64)
     M = A.shape[1]
@@ -1163,6 +1179,7 @@ def ccorf3_all(gmat, batch_size=200000):
     # Process in batches to keep memory bounded
     nbatch = int(ncomb // batch_size)
     while True:
+        nbatch -= 1
         logger.debug(f"{nbatch} left...")
 
         # Pull up to batch_size triples
@@ -1192,8 +1209,6 @@ def ccorf3_all(gmat, batch_size=200000):
         ccijk[j, i, k] = cc_batch[:, 0]
         ccijk[k, i, j] = cc_batch[:, 1]
         ccijk[k, j, i] = cc_batch[:, 2]
-
-        nbatch -= 1
 
     return ccijk
 
