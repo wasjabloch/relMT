@@ -26,6 +26,7 @@
 import numpy as np
 from scipy.linalg import svd
 from scipy.interpolate import interpn
+from scipy.special import comb
 from datetime import datetime
 from typing import Iterable
 from relmt import core, mt, signal, qc, angle
@@ -1028,7 +1029,7 @@ def subset_list(lst: list, indices: Iterable[int]) -> list:
     return [lst[i] for i in indices]
 
 
-def _ccorf3_from_d_e_f_vectorized(d, e, f):
+def _ccorf3_from_d_e_f_vectorized(d, e, f, g, t):
     """
     Vectorized core of the ccorf3 algorithm using only the three
     off-diagonal correlations (d=⟨i,j⟩, e=⟨j,k⟩, f=⟨k,i⟩).
@@ -1096,44 +1097,32 @@ def _ccorf3_from_d_e_f_vectorized(d, e, f):
         v1a, v1b, v1c = v1a / n1, v1b / n1, v1c / n1
         v2a, v2b, v2c = v2a / n2, v2b / n2, v2c / n2
 
-    # For each ii = 0(i),1(j),2(k) compute coff = disc @ dvec / den
-    # ii = 0: ij=1, ik=2 → den0 = v1b*v2c - v1c*v2b
-    den0 = v1b * v2c - v1c * v2b
-    c1_0 = (v2c * v1a - v2b * v2a) / den0
-    c2_0 = (-v1c * v1a + v1b * v2a) / den0
+    v1 = np.stack([v1a, v1b, v1c], axis=1)
+    v2 = np.stack([v2a, v2b, v2c], axis=1)
 
-    # ii = 1: ij=2, ik=0 → den1 = v1c*v2a - v1a*v2c
-    den1 = v1c * v2a - v1a * v2c
-    c1_1 = (v2a * v1b - v2c * v2b) / den1
-    c2_1 = (-v1a * v1b + v1c * v2b) / den1
+    def dot(a, b):
+        return np.sum(a * b, axis=0)
 
-    # ii = 2: ij=0, ik=1 → den2 = v1a*v2b - v1b*v2a
-    den2 = v1a * v2b - v1b * v2a
-    c1_2 = (v2b * v1c - v2a * v2c) / den2
-    c2_2 = (-v1b * v1c + v1a * v2c) / den2
+    cc3 = np.zeros((t.shape[0], 3))
 
-    # Numerators: ⟨g_i, a*g_j + b*g_k⟩ = a*⟨g_i,g_j⟩ + b*⟨g_i,g_k⟩
-    num0 = c1_0 * d + c2_0 * f  # ii = i
-    num1 = c1_1 * e + c2_1 * d  # ii = j
-    num2 = c1_2 * f + c2_2 * e  # ii = k
+    for ip, (i, j, k) in enumerate([[0, 1, 2], [1, 2, 0], [2, 0, 1]]):
 
-    # Denominators: ||a*g_j + b*g_k|| = sqrt(a^2 + b^2 + 2ab⟨g_j,g_k⟩)
-    den_cc0 = np.sqrt(
-        c1_0 * c1_0 + c2_0 * c2_0 + 2.0 * c1_0 * c2_0 * e
-    )  # uses ⟨j,k⟩ = e
-    den_cc1 = np.sqrt(
-        c1_1 * c1_1 + c2_1 * c2_1 + 2.0 * c1_1 * c2_1 * f
-    )  # uses ⟨k,i⟩ = f
-    den_cc2 = np.sqrt(
-        c1_2 * c1_2 + c2_2 * c2_2 + 2.0 * c1_2 * c2_2 * d
-    )  # uses ⟨i,j⟩ = d
+        ti = t[:, i]
+        tj = t[:, j]
+        tk = t[:, k]
 
-    with np.errstate(divide="ignore", invalid="ignore"):
-        cc_i = num0 / den_cc0
-        cc_j = num1 / den_cc1
-        cc_k = num2 / den_cc2
+        c1 = (v2[:, k] * v1[:, i] - v1[:, k] * v2[:, i]) / (
+            v1[:, j] * v2[:, k] - v1[:, k] * v2[:, j]
+        )
+        c2 = (-v2[:, j] * v1[:, i] + v1[:, j] * v2[:, i]) / (
+            v1[:, j] * v2[:, k] - v1[:, k] * v2[:, j]
+        )
 
-    return np.stack([cc_i, cc_j, cc_k], axis=1)  # (N, 3)
+        cc3[:, ip] = (
+            c1 * dot(g[:, ti], g[:, tj]) + c2 * dot(g[:, ti], g[:, tk])
+        ) / np.sqrt(c1**2 + c2**2 + 2 * c1 * c2 * dot(g[:, tj], g[:, tk]))
+
+    return cc3
 
 
 def ccorf3_all(gmat, batch_size=200000):
@@ -1162,13 +1151,20 @@ def ccorf3_all(gmat, batch_size=200000):
 
     # Preallocate outputs
     # float32 minimum precission required for Fisher averaging
-    ccijk = np.zeros((M, M, M), dtype=np.float32)
+    ccijk = np.zeros((M, M, M), dtype=np.float64)
 
     # Enumerate all triples of columns (i<j<k)
     comb_iter = combinations(range(M), 3)
 
+    ncomb = int(comb(M, 3))
+
+    logger.info(f"Combuting correlations of {ncomb} combinations...")
+
     # Process in batches to keep memory bounded
+    nbatch = int(ncomb // batch_size)
     while True:
+        logger.debug(f"{nbatch} left...")
+
         # Pull up to batch_size triples
         batch = []
         try:
@@ -1188,15 +1184,16 @@ def ccorf3_all(gmat, batch_size=200000):
         e = G[j, k]  # ⟨j,k⟩
         f = G[k, i]  # ⟨k,i⟩
 
-        cc_batch = _ccorf3_from_d_e_f_vectorized(d, e, f)  # (B, 3)
+        cc_batch = _ccorf3_from_d_e_f_vectorized(d, e, f, gmat, idx)  # (B, 3)
 
-        # Scatter directly into ccijk
         ccijk[i, j, k] = cc_batch[:, 0]
+        ccijk[i, k, j] = cc_batch[:, 1]
+        ccijk[j, k, i] = cc_batch[:, 2]
         ccijk[j, i, k] = cc_batch[:, 0]
-        ccijk[j, k, i] = cc_batch[:, 1]
-        ccijk[k, j, i] = cc_batch[:, 1]
-        ccijk[k, i, j] = cc_batch[:, 2]
-        ccijk[i, k, j] = cc_batch[:, 2]
+        ccijk[k, i, j] = cc_batch[:, 1]
+        ccijk[k, j, i] = cc_batch[:, 2]
+
+        nbatch -= 1
 
     return ccijk
 

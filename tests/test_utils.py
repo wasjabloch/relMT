@@ -410,15 +410,12 @@ def test_source_duration():
 
 
 def test_cc_corf3():
-    # Test if a wavelet correlates with itself
-    n = 12
+    n = 10
 
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(1)
 
     mat = rng.random((n, 512))
     nmat = mat / np.linalg.norm(mat, axis=-1)[:, np.newaxis]
-
-    cc_batch = utils.ccorf3_all(nmat.T)
 
     # Calling Michael's original Fortran routine once per triplet
     ccijk = np.zeros((n, n, n))
@@ -431,14 +428,27 @@ def test_cc_corf3():
         ccijk[j, k, i] = ccs[2]
         ccijk[k, j, i] = ccs[2]
 
-    pytest.approx(cc_batch) == ccijk
+    cc_batch = utils.ccorf3_all(nmat.T)
+
+    # Accuracy of only 1e-3 seems too low.
+    # Is this floating point precission?
+    assert pytest.approx(cc_batch, abs=1e-3) == ccijk
 
 
 def test_pair_redundancy():
     # Test triplets
     tri = np.array(
-        [(1, 2, 3), (2, 3, 10), (3, 4, 5), (1, 2, 10), (1, 3, 10)], dtype=int
+        [
+            (1, 2, 3),
+            (2, 3, 10),
+            (3, 4, 5),
+            (1, 2, 10),
+            (1, 3, 10),
+            (20, 4, 5),
+            (20, 30, 40),
+        ],
+        dtype=int,
     )
     scores = utils.pair_redundancy(tri)
 
-    pytest.approx(scores) == [6, 6, 3, 6, 5]
+    assert pytest.approx(scores) == [6, 6, 4, 6, 6, 4, 3]
