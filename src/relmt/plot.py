@@ -1135,7 +1135,7 @@ def alignment(
         s = np.full(mat.shape[0], np.nan)
         Vh = np.full((mat.shape[0], mat.shape[1]), np.nan)
 
-    phi = align.pca_objective(s, phase)
+    phi = align.pca_objective(s, phase, mat.shape[0])
     section_2d(Vh[icomps, :], **hdr.kwargs(section_2d), ax=ax)
     ax.set_title("$\Phi={:.4f}$".format(phi), pad=12)
     ax.set_ylabel("Principal\nSeismogram")
