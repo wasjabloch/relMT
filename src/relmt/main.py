@@ -832,9 +832,6 @@ def main_qc(config: core.Config, directory: Path):
         if ph == "P":
             pamps = amps.copy()
         else:
-            if False:
-                # Decimate by a factor of 10
-                amps = [amps[iin] for iin in range(0, len(amps), 10)]
             samps = amps.copy()
 
     # Make sure we have enough equations
@@ -852,7 +849,7 @@ def main_qc(config: core.Config, directory: Path):
         nex = int(excess_eq // batches + 1)
 
         while s_equations > max_s_equations:
-            triplets, stas, miss = map(
+            triplets, stas, miss, s1s = map(
                 np.array,
                 zip(
                     *[
@@ -860,6 +857,7 @@ def main_qc(config: core.Config, directory: Path):
                             (samp.event_a, samp.event_b, samp.event_c),
                             samp.station,
                             samp.misfit,
+                            samp.sigma1,
                         )
                         for samp in samps
                     ]
@@ -875,8 +873,13 @@ def main_qc(config: core.Config, directory: Path):
             # Gap score per observation (lowest score least important)
             gap_score = np.array([sta_gap[sta] for sta in stas])
 
+            # Combine misfit and sigma meassure
+            # Prefer disinct S-wave combinations with low misfit
+            # Lower is better
+            mis_sigma = (1 - (max_s1 - s1s)) * (1 - (max_mis - miss))
+
             # score sort: from most important to least important
-            ssort = np.lexsort((miss, -gap_score, red_score))
+            ssort = np.lexsort((mis_sigma, -gap_score, red_score))
             samps = [samps[i] for i in ssort[:-nex]]
 
             # Check once more we have enough equations
@@ -1405,10 +1408,11 @@ def main_solve(
         m_boots = ls.bootstrap_lsmr(A, b, ev_scale, n_p, n_s, nboot, 0, 1)
 
         # Convert to MT dict
-        bootmts = {i: [] for i in range(m_boots.shape[1] // mt_elements)}
+        # bootmts = {i: [] for i in range(m_boots.shape[1] // mt_elements)}
+        bootmts = {i: [] for i in incl_ev}
         for m_boot in m_boots:
             for i, momt in enumerate(mt.mt_tuples(m_boot, constraint)):
-                bootmts[i].append(momt)
+                bootmts[incl_ev[i]].append(momt)
 
         # Make and save a
         io.make_mt_table(
