@@ -1199,3 +1199,104 @@ def ccorf3_all(gmat, batch_size=200000):
         ccijk[i, k, j] = cc_batch[:, 2]
 
     return ccijk
+
+
+def mt_clusters(
+    mt_list: list[core.MT],
+    method: str = "kagan",
+    distance_matrix: np.ndarray | None = None,
+    max_distance: float = 30,
+    min_ev: int = 1,
+    link_method: str = "average",
+):
+    """Cluster moment tensors
+    Parameters
+    ----------
+    mt_list:
+        list of moment tensors to cluster
+    method:
+        Method to compare two events. Choices are:
+        - 'ccp' Correlation coefficient of the P radiation
+        - 'ccs' Correlation coefficient of the S radiation
+        - 'scalar' Normaized scalar product of the tenors
+        - 'kagan' Kagan angle of the DC components
+    distance_matrix:
+        Ignore 'method', but give a pre-computed distance matrix. Can Accalerate
+        the process in finding `max_dist` and `ev_min`. Second return argument
+        from a previous run is suited. See :func:`scipy.spacial.distance.pdist`
+        for format.
+    max_distance:
+        maximum distance for pairs to include in a cluster
+    min_ev:
+        Minimum number of events per cluster. Unclustered events will receive
+        `0` label.
+    link_method:
+        Method of linking events passed on to :func:`scipy.cluster.hirearchy.linkage`
+
+    Returns
+    -------
+    labels:
+        Labels of the event clusters, where 0 is the label for unclustered events
+    distance_matrix:
+        Compressed pairwise distance matrix.
+    representative:
+        The representative element for each label
+    """
+
+    from scipy.spatial.distance import pdist, squareform
+    from scipy.cluster.hierarchy import linkage, fcluster
+
+    if method == "kagan":
+
+        def distance_function(mt1, mt2):
+            return mt.kagan_angle(mt1, mt2)
+
+    elif method == "ccp":
+
+        def distance_function(mt1, mt2):
+            return 1 - mt.correlation(mt1, mt2)[0]
+
+    elif method == "ccs":
+
+        def distance_function(mt1, mt2):
+            return 1 - mt.correlation(mt1, mt2)[1]
+
+    elif method == "scalar":
+
+        def distance_function(mt1, mt2):
+            return 1 - mt.norm_scalar_product(mt1, mt2)
+
+    else:
+        raise ValueError(f"Unknown method: '{method}'")
+
+    if distance_matrix is None:
+        distance_matrix = pdist(mt_list, distance_function)
+
+    links = linkage(distance_matrix, method=link_method)
+    labels = fcluster(links, max_distance, criterion="distance")
+    newlabels = labels.copy()
+
+    uniq, cnt = np.unique(labels, return_counts=True)
+
+    isort = np.argsort(cnt)[::-1]
+
+    # Label by cluster size. If smaller min_ev, set label to 0
+    for n, ul in enumerate(uniq[isort]):
+        il = labels == ul
+        newlabel = n + 1
+        if sum(il) < min_ev:
+            newlabel = 0
+
+        newlabels[il] = newlabel
+
+    # Now find the representative events
+    uls = np.unique(newlabels)
+    members = {ul: (newlabels == ul).nonzero()[0] for ul in uls}
+    repr = {}
+    square = squareform(distance_matrix)
+    for cid, idxs in members.items():
+        sub = square[np.ix_(idxs, idxs)]
+        iclose = idxs[np.argmin(sub.mean(axis=1))]
+        repr[cid] = iclose
+
+    return newlabels, distance_matrix, repr
