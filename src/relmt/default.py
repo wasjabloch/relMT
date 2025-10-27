@@ -50,6 +50,7 @@ config = core.Config(
     min_equations=8,
     keep_other_s_equation=True,
     max_s_equations=1e5,
+    equation_batches=1,
     max_gap=300,
     max_magnitude_difference=float("inf"),
     max_event_distance=float("inf"),

@@ -723,6 +723,7 @@ def main_qc(config: core.Config, directory: Path):
     max_gap = config["max_gap"]
     keep_other_s_equation = config["keep_other_s_equation"]
     max_s_equations = config["max_s_equations"]
+    eq_batches = config["equation_batches"]
 
     exclude = io.read_yaml(core.file("exclude", directory=directory))
 
@@ -832,7 +833,7 @@ def main_qc(config: core.Config, directory: Path):
         if ph == "P":
             pamps = amps.copy()
         else:
-            samps = amps.copy()
+            samps = amps  # No need to copy as we leave the "PS"-loop either way
 
     # Make sure we have enough equations
     pamps, samps = qc.clean_by_equation_count_gap(
@@ -845,8 +846,14 @@ def main_qc(config: core.Config, directory: Path):
         excess_eq = s_equations - max_s_equations
         logger.info(f"Have {s_equations} S-equations, need to reduce by {excess_eq}")
 
-        batches = 10
-        nex = int(excess_eq // batches + 1)
+        if eq_batches is None:
+            eq_batches = 0
+            logger.debug(
+                "'equation_batches' not set. Reducing S equations in one batch."
+            )
+
+        if max_s1 is None:
+            max_s1 = 1.0
 
         while s_equations > max_s_equations:
             triplets, stas, miss, s1s = map(
@@ -878,6 +885,9 @@ def main_qc(config: core.Config, directory: Path):
             # Lower is better
             mis_sigma = (1 - (max_s1 - s1s)) * (1 - (max_mis - miss))
 
+            # Adapt number of exclusion in case some events dropped out
+            nex = int(excess_eq // eq_batches + 1)
+
             # score sort: from most important to least important
             ssort = np.lexsort((mis_sigma, -gap_score, red_score))
             samps = [samps[i] for i in ssort[:-nex]]
@@ -888,9 +898,11 @@ def main_qc(config: core.Config, directory: Path):
             )
 
             s_equations = len(samps) * (1 + int(keep_other_s_equation))
-            logger.debug(f"Reduced to {s_equations} S-equations")
 
-            # TODO: implement variable nex
+            # In case some events dropped out, how many equations are left?
+            excess_eq = s_equations - max_s_equations
+            logger.debug(f"Reduced to {s_equations} S-equations. {excess_eq} left.")
+            eq_batches -= 1
 
     if len(pamps) + len(samps) == 0:
         raise RuntimeError("No observations left. Relax your QC criteria.")

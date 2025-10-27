@@ -871,6 +871,14 @@ Maximum number of S-wave equation in the linear system. If more are available,
 discard those with redundant pair-wise observations, on stations inside a low azimuthal
 gap, and with a higher misfit""",
     ),
+    "equation_batches": (
+        "int",
+        """
+When reducing the number of S-equations, rank observations this many times by
+redundancy and remove the most redundant ones. A higher number is faster, but
+may result in discarding less-redundant observations.
+""",
+    ),
     "max_gap": (
         "float",
         """
@@ -933,6 +941,7 @@ class Config:
         max_event_distance: float | None = None,
         keep_other_s_equation: bool | None = None,
         max_s_equations: int | None = None,
+        equation_batches: int | None = None,
         min_equations: int | None = None,
         max_gap: float | None = None,
         bootstrap_samples: int | None = None,
