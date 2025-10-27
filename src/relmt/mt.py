@@ -209,7 +209,7 @@ def norm_rms(
     Parameters
     ----------
     mt_list:
-        List of MT observations to compatre, or dict of lists
+        List of MT observations to compare, or dict of lists
     mt_true:
         A true MT from which to compute deviation. It None, use mean of `mt_list`
 
@@ -230,6 +230,37 @@ def norm_rms(
         m0 = moment_of_vector(mt_true)
 
     return np.sqrt(np.sum((mt_array - mean) ** 2) / mt_array.size) / m0
+
+
+def kagan_rms(
+    mt_list: list[core.MT] | dict[int, list[core.MT]], mt_true: core.MT | None = None
+) -> float | dict[int, float]:
+    """RMS of the kagan angles between MTs
+
+    Parameters
+    ----------
+    mt_list:
+        List of MT observations to compare, or dict of lists
+    mt_true:
+        A true MT from which to compute deviation. It None, use mean of `mt_list`
+
+    Returns
+    -------
+    RMS of the kagan angles
+    """
+
+    if type(mt_list) == dict:
+        return {evn: norm_rms(mtl) for evn, mtl in mt_list.items()}
+
+    mt_array = np.array(mt_list)
+
+    mean = mt_array.mean(axis=0)
+    if mt_true is not None:
+        mean = np.array(mt_true)
+
+    kagans = np.array([kagan_angle(mean, this) for this in mt_array])
+
+    return np.sqrt(np.sum(kagans**2) / mt_array.size)
 
 
 _pbt2tpb = np.array(((0.0, 0.0, 1.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
