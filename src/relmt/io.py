@@ -397,7 +397,7 @@ def read_event_table(
         raise IndexError(msg)
 
     if unpack:
-        return evids, north, east, depth, time, name
+        return evids, north, east, depth, time, mag, name
 
     return {
         evid: core.Event(no, e, d, t, m, na)

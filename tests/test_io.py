@@ -219,7 +219,7 @@ def test_read_event_table_error(mock_broken_event_table_file):
 def test_read_event_table_unpack(mock_event_table_file):
     result = io.read_event_table(str(mock_event_table_file), unpack=True)
     assert isinstance(result, tuple)
-    assert len(result) == 6  # Assuming 6 columns in the event table
+    assert len(result) == 7  # Assuming 6 columns in the event table
     assert len(result[0]) == 2  # Number of events
 
 
