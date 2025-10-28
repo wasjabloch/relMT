@@ -775,13 +775,15 @@ def valid_combinations(
         raise ValueError("Phase must be 'P' or 'S'")
 
 
-def pair_redundancy(triplets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def pair_redundancy(triplets: np.ndarray, ignore: list[int] = []) -> np.ndarray:
     """Count of the number of contributing pairs per triplet
 
     Parameters
     ----------
     triplets:
         ``(n, 3)`` array of event index triplets
+    ignore:
+        Do not count pairs that contain these event indices
 
     Returns
     -------
@@ -807,12 +809,22 @@ def pair_redundancy(triplets: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     # Flatten to (3n,2)
     P2 = pairs.reshape(-1, 2)
 
+    # (3n,) True where at least one element of the pair is ignored
+    iignore = np.bitwise_or.reduce(np.isin(P2, ignore), axis=1)
+
     # Get counts per unique pair
     _, inverse, counts = np.unique(P2, axis=0, return_inverse=True, return_counts=True)
 
-    # Map each pair occurrence to its frequency, then sum per triplet
+    # Map each pair occurrence to its frequency
     pair_freqs = counts[inverse]  # (3n,)
+
+    # But don't count pairs which have at least one ignored element
+    pair_freqs[iignore] = 0
+
+    # Reshape to pair occurences in triplets
     freqs_per_triplet = pair_freqs.reshape(-1, 3)  # (n,3)
+
+    # And sum all occurences
     scores = freqs_per_triplet.sum(axis=1)
 
     return scores

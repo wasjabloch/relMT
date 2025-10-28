@@ -452,3 +452,13 @@ def test_pair_redundancy():
     scores = utils.pair_redundancy(tri)
 
     assert pytest.approx(scores) == [6, 6, 4, 6, 6, 4, 3]
+
+    # Ignore these events when counting redundancies
+    scores = utils.pair_redundancy(tri, ignore=[10])
+
+    assert pytest.approx(scores) == [6, 2, 4, 2, 2, 4, 3]
+
+    # Ignore these events when counting redundancies
+    scores = utils.pair_redundancy(tri, ignore=[10, 1])
+
+    assert pytest.approx(scores) == [2, 2, 4, 0, 0, 4, 3]
