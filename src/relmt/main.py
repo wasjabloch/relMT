@@ -724,6 +724,7 @@ def main_qc(config: core.Config, directory: Path):
     keep_other_s_equation = config["keep_other_s_equation"]
     max_s_equations = config["max_s_equations"]
     eq_batches = config["equation_batches"]
+    keep_ev = config["keep_events"]
 
     exclude = io.read_yaml(core.file("exclude", directory=directory))
 
@@ -875,7 +876,7 @@ def main_qc(config: core.Config, directory: Path):
             sta_gap = utils.station_gap(std_sub, evd)
 
             # Redundancy score per observation (highest score least important)
-            red_score = utils.pair_redundancy(triplets)
+            red_score = utils.pair_redundancy(triplets, ignore=keep_ev)
 
             # Gap score per observation (lowest score least important)
             gap_score = np.array([sta_gap[sta] for sta in stas])

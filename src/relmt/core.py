@@ -871,6 +871,13 @@ Maximum number of S-wave equation in the linear system. If more are available,
 discard those with redundant pair-wise observations, on stations inside a low azimuthal
 gap, and with a higher misfit""",
     ),
+    "keep_events": (
+        "list",
+        """
+When reducing number of s-equations, increase importance of these events by not
+counting them in the redundancy score. Use to keep many equations e.g. for the
+reference event or specific events of interest.""",
+    ),
     "equation_batches": (
         "int",
         """
@@ -941,6 +948,7 @@ class Config:
         max_event_distance: float | None = None,
         keep_other_s_equation: bool | None = None,
         max_s_equations: int | None = None,
+        keep_events: list[int] | None = None,
         equation_batches: int | None = None,
         min_equations: int | None = None,
         max_gap: float | None = None,
@@ -971,7 +979,7 @@ class Config:
         for attr in self._valid_args:
             if key == "auto_lowpass_stressdrop_range":
                 value = [float(value[0]), float(value[1])]
-            if key == "events_":
+            elif key in ["events_", "keep_events", "reference_mts"]:
                 value = [int(val) for val in value]
             elif key == attr:
                 typ = __builtins__[self._valid_args[attr][0]]

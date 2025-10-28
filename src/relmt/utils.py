@@ -775,7 +775,9 @@ def valid_combinations(
         raise ValueError("Phase must be 'P' or 'S'")
 
 
-def pair_redundancy(triplets: np.ndarray, ignore: list[int] = []) -> np.ndarray:
+def pair_redundancy(
+    triplets: np.ndarray, ignore: list[int] | None = None
+) -> np.ndarray:
     """Count of the number of contributing pairs per triplet
 
     Parameters
@@ -789,6 +791,7 @@ def pair_redundancy(triplets: np.ndarray, ignore: list[int] = []) -> np.ndarray:
     -------
     Number of pairs contributing to each triplet
     """
+
     # Normalize triangles (sort rows so a<b<c)
     T = np.sort(triplets, axis=1)  # (n,3)
 
