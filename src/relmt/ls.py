@@ -676,6 +676,7 @@ def homogenous_amplitude_equations(
             phase_dictionary,
             nmt,
             s_coefficients,
+            False,
             keep_other_s_equation,
         )
 
