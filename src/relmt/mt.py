@@ -25,6 +25,7 @@
 
 import numpy as np
 import math
+from collections import defaultdict
 from relmt import core, ls
 
 
@@ -211,7 +212,7 @@ def norm_rms(
     mt_list:
         List of MT observations to compare, or dict of lists
     mt_true:
-        A true MT from which to compute deviation. It None, use mean of `mt_list`
+        A true MT from which to compute deviation. If None, use mean of `mt_list`
 
     Returns
     -------
@@ -219,7 +220,12 @@ def norm_rms(
     """
 
     if type(mt_list) == dict:
-        return {evn: norm_rms(mtl) for evn, mtl in mt_list.items()}
+
+        if type(mt_true) != dict:
+            # Reutrn the mt_true value on any input
+            mt_true = defaultdict(lambda _: mt_true)
+
+        return {evn: norm_rms(mtl, mt_true[evn]) for evn, mtl in mt_list.items()}
 
     mt_array = np.array(mt_list)
 
@@ -233,7 +239,8 @@ def norm_rms(
 
 
 def kagan_rms(
-    mt_list: list[core.MT] | dict[int, list[core.MT]], mt_true: core.MT | None = None
+    mt_list: list[core.MT] | dict[int, list[core.MT]],
+    mt_true: core.MT | dict[int, core.MT] | None = None,
 ) -> float | dict[int, float]:
     """RMS of the kagan angles between MTs
 
@@ -242,7 +249,7 @@ def kagan_rms(
     mt_list:
         List of MT observations to compare, or dict of lists
     mt_true:
-        A true MT from which to compute deviation. It None, use mean of `mt_list`
+        A true MT from which to compute deviation. If None, use mean of `mt_list`
 
     Returns
     -------
@@ -250,7 +257,12 @@ def kagan_rms(
     """
 
     if type(mt_list) == dict:
-        return {evn: norm_rms(mtl) for evn, mtl in mt_list.items()}
+
+        if type(mt_true) != dict:
+            # Reutrn the mt_true value on any input
+            mt_true = defaultdict(lambda _: mt_true)
+
+        return {evn: kagan_rms(mtl, mt_true[evn]) for evn, mtl in mt_list.items()}
 
     mt_array = np.array(mt_list)
 

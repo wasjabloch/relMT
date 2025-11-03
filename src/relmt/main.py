@@ -995,6 +995,9 @@ def main_solve(
     n_ref = len(irefs)
 
     # Build homogenos part of linear system
+    logger.info(
+        f"Building linear system of {n_p} P, {n_s} S, and {n_ref} reference equations."
+    )
     isparse = True
     if isparse:
         # as sparse array
@@ -1024,6 +1027,7 @@ def main_solve(
             keep_other_s_equation,
         )
 
+    logger.info("Computing norms and weights...")
     # Normalization applied to columns
     ev_norm = ls.norm_event_median_amplitude(Ah, mt_elements)
 
@@ -1408,21 +1412,9 @@ def main_solve(
         # We need predictions to compute the amplitude RMS
         amp_rmss = {evn: np.nan for evn in relmts}
 
-    logger.info("Saving files.")
-    io.save_mt_result_summary(
-        core.file("mt_summary", suffix=outsuf, directory=directory),
-        evd,
-        relmts,
-        gaps,
-        links,
-        avmiss,
-        avccs,
-        mom_rmss,
-        amp_rmss,
-    )
-
     # Bootstrap
     if nboot is not None and nboot > 0:
+        logger.info(f"Computing {nboot} bootstrap samples...")
         m_boots = ls.bootstrap_lsmr(A, b, ev_scale, n_p, n_s, nboot, 0, 1)
 
         # Convert to MT dict
@@ -1437,6 +1429,28 @@ def main_solve(
             bootmts,
             core.file("relative_mt", suffix=outsuf + "_boot", directory=directory),
         )
+
+        boot_rms = mt.norm_rms(bootmts, relmts)
+        boot_kag = mt.kagan_rms(bootmts, relmts)
+    else:
+        boot_rms = {}
+        boot_kag = {}
+
+    sumf = core.file("mt_summary", suffix=outsuf, directory=directory)
+    logger.info(f"Saving full summary to: {sumf}")
+    io.save_mt_result_summary(
+        sumf,
+        evd,
+        relmts,
+        gaps,
+        links,
+        avmiss,
+        avccs,
+        mom_rmss,
+        amp_rmss,
+        boot_rms,
+        boot_kag,
+    )
 
 
 def main_plot_alignment(

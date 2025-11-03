@@ -692,6 +692,8 @@ def save_mt_result_summary(
     correlations: dict[int, float] = {},
     moment_rms: dict[int, float] = {},
     amplitude_rms: dict[int, float] = {},
+    bootstrap_rms: dict[int, float] = {},
+    bootstrap_kagan: dict[int, float] = {},
 ):
     """Combine moment tensor dictionary and event table and write out resut table"""
 
@@ -726,11 +728,13 @@ def save_mt_result_summary(
                     correlations.get(evn, np.nan),
                     moment_rms.get(evn, np.nan),
                     amplitude_rms.get(evn, np.nan),
+                    bootstrap_rms.get(evn, np.nan),
+                    bootstrap_kagan.get(evn, np.nan),
                 )
                 for evn, momt in mt_dict.items()
             ]
         ),
-        14,
+        16,
     )
 
     headers = [
@@ -756,11 +760,13 @@ def save_mt_result_summary(
         "Correlation",
         "MomentRMS",
         "AmplitudeRMS",
+        "BootstrapRMS",
+        "KaganRMS",
     ]
 
     fmts = (
         "%9s %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e %20s %12.3f %12.3f %12.3f "
-        "%18.6f %4.2f %4.2f %4.0f %4.0f %9.0f %9.0f %8.4f %11.5f %9.2e %12.2e"
+        "%18.6f %4.2f %4.2f %4.0f %4.0f %9.0f %9.0f %8.4f %11.5f %9.2e %12.2e %12.6f %8.3f"
     ).split()
 
     write_formatted_table(arrays, fmts, headers, filename)
