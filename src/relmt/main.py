@@ -742,9 +742,9 @@ def main_qc(config: core.Config, directory: Path):
 
     exclude_events = set(exclude["event"])
 
-    evd = io.read_event_table(config["event_file"])
-    std = io.read_station_table(config["station_file"])
-    phd = io.read_phase_table(config["phase_file"])
+    evd = io.read_event_table(directory / config["event_file"])
+    std = io.read_station_table(directory / config["station_file"])
+    phd = io.read_phase_table(directory / config["phase_file"])
 
     for ph in "PS":
         infile = core.file(
