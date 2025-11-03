@@ -31,9 +31,13 @@ from scipy.io import loadmat
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
+from warnings import filterwarnings
 
 logger = core.register_logger(__name__)
 
+# Ignore warnings about changed np.loadtxt behvaior.
+# May be removed in the future, when warning is not issued any more by numpy
+filterwarnings("ignore", "Input line 1 contained no data")
 
 # TODO: Sphinx table not working, likley due to stange indentation somewhe in the docs.
 # https://earth.bsc.es/gitlab/es/autosubmit/-/merge_requests/316#note_199986
