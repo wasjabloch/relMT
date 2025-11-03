@@ -32,6 +32,7 @@ config = core.Config(
     phase_file=core.file("phase"),
     reference_mt_file=core.file("reference_mt"),
     amplitude_suffix="",
+    qc_suffix="",
     result_suffix="",
     loglevel="DEBUG",
     reference_mts=[0],

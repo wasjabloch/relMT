@@ -751,12 +751,18 @@ Path to the reference moment tensor file, e.g. 'data/reference_mt.txt'""",
     "amplitude_suffix": (
         "str",
         """
-Suffix (read/write) of amplitude files of this run""",
+Suffix appended to files, naming the parameters parsed to 'amplitude'""",
+    ),
+    "qc_suffix": (
+        "str",
+        """
+Suffix appended to the amplitude suffix, naming the quality control parameters
+parsed to 'qc'""",
     ),
     "result_suffix": (
         "str",
         """
-Suffix (read/write) of result files of this run""",
+Suffix appended to amplitude and qc suffices indicating the parameter set parsed to 'solve'""",
     ),
     "loglevel": (
         "str",
@@ -929,6 +935,7 @@ class Config:
         phase_file: str | None = None,
         reference_mt_file: str | None = None,
         amplitude_suffix: str = "",
+        qc_suffix: str = "",
         result_suffix: str = "",
         loglevel: str | None = None,
         reference_mts: list[int] | None = None,

@@ -731,6 +731,8 @@ def main_qc(config: core.Config, directory: Path):
     exclude_wvid = exclude["waveform"]
 
     ampsuf = config["amplitude_suffix"]
+    qcsuf = config["qc_suffix"]
+    outsuf = f"{ampsuf}-{qcsuf}"
 
     exclude_phase = set(exclude["phase_manual"]).union(
         exclude["phase_auto_nodata"]
@@ -914,7 +916,7 @@ def main_qc(config: core.Config, directory: Path):
             "amplitude_observation",
             directory=directory,
             phase=ph,
-            suffix=ampsuf + core.clean_amplitude_suffix,
+            suffix=outsuf,
         )
         io.save_amplitudes(outfile, amps)
 
@@ -942,8 +944,11 @@ def main_solve(
 
     nboot = config["bootstrap_samples"]
 
-    insuf = config["amplitude_suffix"] + core.clean_amplitude_suffix
-    outsuf = config["amplitude_suffix"] + config["result_suffix"]
+    ampsuf = config["amplitude_suffix"]
+    qcsuf = config["qc_suffix"]
+    resuf = config["result_suffix"]
+    insuf = f"{ampsuf}-{qcsuf}"
+    outsuf = f"{insuf}-{resuf}"
     synsuf = outsuf + core.synthetic_amplitude_suffix
 
     mt_elements = ls.mt_elements(constraint)
