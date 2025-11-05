@@ -893,7 +893,7 @@ def main_qc(config: core.Config, directory: Path):
 
             # score sort: from most important to least important
             ssort = np.lexsort((mis_sigma, -gap_score, red_score))
-            samps = [samps[i] for i in ssort[:-nex]]
+            samps = [samps[i] for i in ssort[: -nex + 1]]
 
             # Check once more we have enough equations
             pamps, samps = qc.clean_by_equation_count_gap(
