@@ -873,15 +873,17 @@ def main_qc(config: core.Config, directory: Path):
                     ]
                 ),
             )
-            std_sub = {stn: std[stn] for stn in set(stas)}
-
-            sta_gap = utils.station_gap(std_sub, evd)
 
             # Redundancy score per observation (highest score least important)
             red_score = utils.pair_redundancy(triplets, ignore=keep_ev)
 
             # Gap score per observation (lowest score least important)
-            gap_score = np.array([sta_gap[sta] for sta in stas])
+            # Alternative score based on station azimutal gap
+            # std_sub = {stn: std[stn] for stn in set(stas)}
+            # sta_gap = utils.station_gap(std_sub, evd)
+            # gap_score = np.array([sta_gap[sta] for sta in stas])
+
+            sta_count = utils.item_count(stas)
 
             # Combine misfit and sigma meassure
             # Prefer disinct S-wave combinations with low misfit
@@ -892,7 +894,7 @@ def main_qc(config: core.Config, directory: Path):
             nex = int(excess_eq // eq_batches + 1)
 
             # score sort: from most important to least important
-            ssort = np.lexsort((mis_sigma, -gap_score, red_score))
+            ssort = np.lexsort((mis_sigma, sta_count, red_score))
             samps = [samps[i] for i in ssort[: -nex + 1]]
 
             # Check once more we have enough equations
@@ -1312,7 +1314,7 @@ def main_solve(
                 Ares,
                 mis_weights[:n_p].flat[:],
                 amp_weights[:n_p].flat[:],
-                p_norm,
+                p_norm.flat[:],
                 Asyn,
                 ppms,
             ],

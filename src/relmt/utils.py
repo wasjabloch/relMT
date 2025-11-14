@@ -833,6 +833,12 @@ def pair_redundancy(
     return scores
 
 
+def item_count(array: Iterable) -> np.ndarray:
+    """Count of the items in the list"""
+    _, inv, cnt = np.unique(array, return_counts=True, return_inverse=True)
+    return cnt[inv]
+
+
 def station_gap(
     station_dict: dict[str, core.Station], event_dict: dict[int, core.Event]
 ) -> dict[str, float]:
