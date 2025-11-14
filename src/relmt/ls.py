@@ -456,8 +456,6 @@ def s_equations(
         i1 = coefficient_indices[0]
         i2 = coefficient_indices[1]
 
-    logger.debug(f"Selected directional coefficients: {i1}, {i2}")
-
     a1 = -gas[i1]
     b1 = amp_abc * rab * gbs[i1]
     c1 = amp_acb * rac * gcs[i1]
