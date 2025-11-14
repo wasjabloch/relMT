@@ -158,6 +158,7 @@ def test_config_iter():
         bootstrap_samples=99.0,
         amplitude_suffix="amp",
         result_suffix="res",
+        qc_suffix="qc",
     )
     notgiven = [
         key for key in core._config_args_comments.keys() if key not in given.keys()
@@ -174,6 +175,7 @@ def test_config_repr():
         bootstrap_samples=99.0,
         amplitude_suffix="amp",
         result_suffix="res",
+        qc_suffix="qc",
     )
     notgiven = [
         key for key in core._config_args_comments.keys() if key not in given.keys()
