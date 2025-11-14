@@ -731,7 +731,10 @@ _config_args_comments = {
     "event_file": (
         "str",
         """
-Path to the seismic event caltalog""",
+Input files
+-----------
+
+Path to the seismic event catalog, e.g. 'data/events.txt'""",
     ),
     "station_file": (
         "str",
@@ -748,31 +751,162 @@ Path to the phase file, e.g. 'data/phases.txt'""",
         """
 Path to the reference moment tensor file, e.g. 'data/reference_mt.txt'""",
     ),
+    "loglevel": (
+        "str",
+        """
+Runtime options
+---------------
+
+Logging verbosity for relMT modules. One of 'DEBUG', 'INFO', 'WARNING', 'ERROR',
+'CRITICAL', 'NOTSET'""",
+    ),
+    "ncpu": (
+        "int",
+        """
+Number of threads to use in some parallel computations""",
+    ),
     "amplitude_suffix": (
         "str",
         """
+Amplitude parameters
+--------------------
+
 Suffix appended to files, naming the parameters parsed to 'amplitude'""",
+    ),
+    "amplitude_measure": (
+        "str",
+        """
+Method to meassure relative amplitudes. One of:
+- 'indirect': Estimate relative amplitude as the ratio of principal seismogram
+    contributions to each seismogram.
+- 'direct': Compare each event combination seperatly.""",
+    ),
+    "amplitude_filter": (
+        "str",
+        """
+Filter method to apply for amplitude measure. One of:
+- 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
+- 'auto': compute filter corners using the 'auto_' options below""",
+    ),
+    "auto_lowpass_method": (
+        "str",
+        """
+Method to estimate lowpass filter that eliminates the source time function. One
+of:
+- 'fixed': Use the value 'fixed_lowpass' (not implemented)
+- 'corner': Estimate from apparent corner frequency in event spectrum
+- 'duration': Filter by 1/source duration of event magnitude.
+    Requires 'auto_lowpass_stressdrop_range'""",
+    ),
+    #    "fixed_lowpass": (
+    #        "float",
+    #        """
+    # Provide a fixed lowpass filter corner for all events.
+    # (requires auto_lowpass_method: 'fixed')""",
+    #    ),
+    "auto_lowpass_stressdrop_range": (
+        "list",
+        """
+When estimating the lowpass frequency of an event as the corner frequency
+(auto_lowpass_method: 'corner'), assume a stressdrop within this range (Pa).""",
+    ),
+    "auto_bandpass_snr_target": (
+        "float",
+        """
+Include frequencies with this signal-to-noise ratio to optimal bandpass filter.
+Respects lowpass constraint. If not supplied, do not attempt to optimize
+passband.""",
+    ),
+    "min_dynamic_range": (
+        "float",
+        """
+Minimum ratio (dB) of low- / highpass filter bandwidth in an amplitude ratio
+measurement. When positive, discard observation outside dynamic range. When
+negative, extend lower highpass until (positive) dynamic range is reached.""",
     ),
     "qc_suffix": (
         "str",
         """
+Quality control paramters
+-------------------------
+
 Suffix appended to the amplitude suffix, naming the quality control parameters
 parsed to 'qc'""",
+    ),
+    "max_amplitude_misfit": (
+        "float",
+        """
+Discard amplitude measurements with a higher misfit than this.""",
+    ),
+    "max_s_sigma1": (
+        "float",
+        """
+Maximum first normalized singular value to allow for an S-wave reconstruction. A
+value of 1 indicates that S-waveform adheres to rank 1 rather than rank 2 model.
+The relative amplitudes Babc and Bacb are then not linearly independent.""",
+    ),
+    "max_magnitude_difference": (
+        "float",
+        """
+Maximum difference in magnitude between two events to allow an amplitude
+measurement.""",
+    ),
+    "max_event_distance": (
+        "float",
+        """
+Maximum allowed distance (m) between two events.""",
+    ),
+    "min_equations": (
+        "int",
+        """
+Minimum number of equations required to constrain one moment tensor""",
+    ),
+    "max_gap": (
+        "float",
+        """
+Maximum azimuthal gap allowed for one moment tensor""",
+    ),
+    "keep_other_s_equation": (
+        "bool",
+        """
+Use two equations per S-amplitude observation (`False` only includes the one
+with the highest norm of the polarization vector.
+Warning: `False` appears broken)""",
+    ),
+    "max_s_equations": (
+        "int",
+        """
+Maximum number of S-wave equation in the linear system. If more are available,
+iterativley discard those with redundant pair-wise observations, on stations
+with many observations gap, and with a higher misfit""",
+    ),
+    "keep_events": (
+        "list",
+        """
+When reducing number of S-wave equations, increase importance of these events by
+not counting them in the redundancy score. Use to keep many equations e.g. for
+the reference event or specific events of interest.""",
+    ),
+    "equation_batches": (
+        "int",
+        """
+When reducing the number of S-wave equations, rank observations iteratively this
+many times by redundancy and remove the most redundant ones. A higher number is
+faster, but may result in discarding less-redundant observations.""",
     ),
     "result_suffix": (
         "str",
         """
-Suffix appended to amplitude and qc suffices indicating the parameter set parsed to 'solve'""",
-    ),
-    "loglevel": (
-        "str",
-        """
-Logging verbosity for relMT modules. One of 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL', 'NOTSET'""",
+Solve parameters
+----------------
+
+Suffix appended to amplitude and qc suffices indicating the parameter set parsed
+to 'solve'""",
     ),
     "reference_mts": (
         "list",
         """
-Event indices of the reference moment tensors to use""",
+Event indices of the reference moment tensor(s) to use""",
     ),
     "reference_weight": (
         "float",
@@ -784,46 +918,6 @@ Weight of the reference moment tensor""",
         """
 Constrain the moment tensor. 'none' or 'deviatoric'""",
     ),
-    "amplitude_measure": (
-        "str",
-        """
-Method to meassure relative amplitudes. 'indirect': Estimate relative amplitude
-as the ratio of principal seismogram contributions to each seismogram.
-'direct': Compare each event combination seperatly.""",
-    ),
-    "amplitude_filter": (
-        "str",
-        """
-Filter method to apply for amplitude measure. 'manual': Use 'highpass' and
-'lowpass' of the waveform header files. 'auto': compute filter corners using the
-'auto_' options""",
-    ),
-    "auto_lowpass_method": (
-        "str",
-        """
-Method to estimate lowpass filter that eliminates the source time function.
-'duration': Filter by 1/source duration of event magnitude. 'corner':
-estimate corner frequency from stress drop of event magnitude. Requires
-'auto_lowpass_stressdrop_range'""",
-    ),
-    "auto_lowpass_stressdrop_range": (
-        "list",
-        """
-When estimating the lowpass frequency of an event as the corner frequency,
-assume a stressdrop within this range (Pa).""",
-    ),
-    "auto_bandpass_snr_target": (
-        "float",
-        """
-If supplied, include frequencies with this signal-to-noise ratio to optimal
-bandpass filter. If not supplied, do not attempt to optimize passband.""",
-    ),
-    "min_dynamic_range": (
-        "float",
-        """
-Minimum ratio (dB) of low- / highpass filter bandwidth in an amplitude ratio
-measurement""",
-    ),
     "min_amplitude_misfit": (
         "float",
         """
@@ -831,81 +925,16 @@ Minimum misfit to assign a full weight of 1. Weights are scaled lineraly from
 `min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`"
 """,
     ),
-    "max_amplitude_misfit": (
-        "float",
-        """
-Maximum misfit allowed for amplitude reconstruction""",
-    ),
     "min_amplitude_weight": (
         "float",
         """
 Weight assigned to the maxumum amplitude misfit""",
     ),
-    "max_s_sigma1": (
-        "float",
-        """
-Maximum first normalized singular value to allow for an S-wave reconstruction. A
-value of 1 indicates that S-waveform adheres to rank 1 rather than rank 2 model.
-The relative amplitudes Babc and Bacb are then not lineraly independent.""",
-    ),
-    "max_magnitude_difference": (
-        "float",
-        """
-Maximum difference in magnitude between two events to allow an amplitude
-measurement.""",
-    ),
-    "max_event_distance": (
-        "float",
-        """
-Maximum distance (m) between two events to include measurement in linear system """,
-    ),
-    "min_equations": (
-        "int",
-        """
-Minimum number of equations required to constrain one moment tensor""",
-    ),
-    "keep_other_s_equation": (
-        "bool",
-        """
-Use two equations per S-amplitude observation (`False` only includes the one
-with the highest norm of the polarization vector)""",
-    ),
-    "max_s_equations": (
-        "int",
-        """
-Maximum number of S-wave equation in the linear system. If more are available,
-discard those with redundant pair-wise observations, on stations inside a low azimuthal
-gap, and with a higher misfit""",
-    ),
-    "keep_events": (
-        "list",
-        """
-When reducing number of s-equations, increase importance of these events by not
-counting them in the redundancy score. Use to keep many equations e.g. for the
-reference event or specific events of interest.""",
-    ),
-    "equation_batches": (
-        "int",
-        """
-When reducing the number of S-equations, rank observations this many times by
-redundancy and remove the most redundant ones. A higher number is faster, but
-may result in discarding less-redundant observations.
-""",
-    ),
-    "max_gap": (
-        "float",
-        """
-Maximum azimuthal gap allowed for one moment tensor""",
-    ),
     "bootstrap_samples": (
         "int",
         """
-Number of samples to draw for calculating uncertainties""",
-    ),
-    "ncpu": (
-        "int",
-        """
-Number of threads to use for parallel computations""",
+Number of samples to draw for calculating uncertainties. If not given, do not
+bootstrap.""",
     ),
 }
 
