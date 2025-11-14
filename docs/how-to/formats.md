@@ -54,7 +54,151 @@ which yields the file ``config.yaml``:
 ```yaml
 # relMT configuration
 
-# Event indices of the reference moment tensors to use
+# Input files
+# -----------
+#
+# Path to the seismic event catalog, e.g. 'data/events.txt'
+# (str)
+event_file:
+
+# Path to the station location file, e.g. 'data/stations.txt'
+# (str)
+station_file:
+
+# Path to the phase file, e.g. 'data/phases.txt'
+# (str)
+phase_file:
+
+# Path to the reference moment tensor file, e.g. 'data/reference_mt.txt'
+# (str)
+reference_mt_file:
+
+# Runtime options
+# ---------------
+#
+# Logging verbosity for relMT modules. One of 'DEBUG', 'INFO', 'WARNING', 'ERROR',
+# 'CRITICAL', 'NOTSET'
+# (str)
+loglevel:
+
+# Number of threads to use in some parallel computations
+# (int)
+ncpu:
+
+# Amplitude parameters
+# --------------------
+#
+# Suffix appended to files, naming the parameters parsed to 'amplitude'
+# (str)
+amplitude_suffix:
+
+# Method to meassure relative amplitudes. One of:
+# - 'indirect': Estimate relative amplitude as the ratio of principal seismogram
+#     contributions to each seismogram.
+# - 'direct': Compare each event combination seperatly.
+# (str)
+amplitude_measure:
+
+# Filter method to apply for amplitude measure. One of:
+# - 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
+# - 'auto': compute filter corners using the 'auto_' options below
+# (str)
+amplitude_filter:
+
+# Method to estimate lowpass filter that eliminates the source time function. One
+# of:
+# - 'fixed': Use the value 'fixed_lowpass' (not implemented)
+# - 'corner': Estimate from apparent corner frequency in event spectrum
+# - 'duration': Filter by 1/source duration of event magnitude.
+#     Requires 'auto_lowpass_stressdrop_range'
+# (str)
+auto_lowpass_method:
+
+# When estimating the lowpass frequency of an event as the corner frequency
+# (auto_lowpass_method: 'corner'), assume a stressdrop within this range (Pa).
+# (list)
+auto_lowpass_stressdrop_range:
+
+# Include frequencies with this signal-to-noise ratio to optimal bandpass filter.
+# Respects lowpass constraint. If not supplied, do not attempt to optimize
+# passband.
+# (float)
+auto_bandpass_snr_target:
+
+# Minimum ratio (dB) of low- / highpass filter bandwidth in an amplitude ratio
+# measurement. When positive, discard observation outside dynamic range. When
+# negative, extend lower highpass until (positive) dynamic range is reached.
+# (float)
+min_dynamic_range:
+
+# Quality control paramters
+# -------------------------
+#
+# Suffix appended to the amplitude suffix, naming the quality control parameters
+# parsed to 'qc'
+# (str)
+qc_suffix:
+
+# Discard amplitude measurements with a higher misfit than this.
+# (float)
+max_amplitude_misfit:
+
+# Maximum first normalized singular value to allow for an S-wave reconstruction. A
+# value of 1 indicates that S-waveform adheres to rank 1 rather than rank 2 model.
+# The relative amplitudes Babc and Bacb are then not linearly independent.
+# (float)
+max_s_sigma1:
+
+# Maximum difference in magnitude between two events to allow an amplitude
+# measurement.
+# (float)
+max_magnitude_difference:
+
+# Maximum allowed distance (m) between two events.
+# (float)
+max_event_distance:
+
+# Minimum number of equations required to constrain one moment tensor
+# (int)
+min_equations:
+
+# Maximum azimuthal gap allowed for one moment tensor
+# (float)
+max_gap:
+
+# Use two equations per S-amplitude observation (`False` only includes the one
+# with the highest norm of the polarization vector.
+# Warning: `False` appears broken)
+# (bool)
+keep_other_s_equation:
+
+# Maximum number of S-wave equation in the linear system. If more are available,
+# iterativley discard those with redundant pair-wise observations, on stations
+# with many observations gap, and with a higher misfit
+# (int)
+max_s_equations:
+
+# When reducing number of S-wave equations, increase importance of these events by
+# not counting them in the redundancy score. Use to keep many equations e.g. for
+# the reference event or specific events of interest.
+# (list)
+keep_events:
+
+# When reducing the number of S-wave equations, rank observations iteratively this
+# many times by redundancy and remove the most redundant ones. A higher number is
+# faster, but may result in discarding less-redundant observations.
+# (int)
+equation_batches:
+
+# Solve parameters
+# ----------------
+#
+# Suffix appended to amplitude and qc suffices indicating the parameter set parsed
+# to 'solve'
+# (str)
+result_suffix:
+
+# Event indices of the reference moment tensor(s) to use
 # (list)
 reference_mts:
 
@@ -66,21 +210,20 @@ reference_weight:
 # (str)
 mt_constraint:
 
-# Maximum misfit allowed for amplitude reconstruction
+# Minimum misfit to assign a full weight of 1. Weights are scaled lineraly from
+# `min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`"
+#
 # (float)
-max_amplitude_misfit:
+min_amplitude_misfit:
 
-# Number of samples to draw for calculating uncertainties
+# Weight assigned to the maxumum amplitude misfit
+# (float)
+min_amplitude_weight:
+
+# Number of samples to draw for calculating uncertainties. If not given, do not
+# bootstrap.
 # (int)
 bootstrap_samples:
-
-# Number of threads to use for parallel computations
-# (int)
-ncpu:
-
-# Minimum ratio (dB) of low- / highpass filter bandwidth in an amplitude ratio measurement
-# (float)
-min_dynamic_range:
 ```
 
 ### `exclude.yaml` exclude file
@@ -97,11 +240,14 @@ io.save_yaml("exclude.yaml", core.exclude)
 which yields the file:
 
 ```yaml
-event: []
-phase_align: []
-phase_interp: []
 station: []
+event: []
 waveform: []
+phase_manual: []
+phase_auto_nodata: []
+phase_auto_snr: []
+phase_auto_cc: []
+phase_auto_ecn: []
 ```
 
 ### `stations.txt` station file
@@ -123,7 +269,7 @@ subdirectory.
 
 `events.txt` has seven columns:
 
-1. Event index (must be consecutive starting at 0)
+1. Event index
 2. Northing (meter)
 3. Easting (meter)
 4. Depth (meter)
@@ -204,7 +350,12 @@ station:
 # (str)
 phase:
 
-# One-character component names ordered as in the waveform array, as one string (e.g. 'ZNE')
+# Optional variable name that holds the waveform array
+# (str)
+variable_name:
+
+# One-character component names ordered as in the waveform array, as one string
+# (e.g. 'ZNE')
 # (str)
 components:
 
@@ -212,15 +363,13 @@ components:
 # (float)
 sampling_rate:
 
-# Event indices corresponding to the first dimension of the waveform array.
-# (list[int])
-events:
-
-# Time window symmetric about the phase pick (i.e. pick is near the central sample) (seconds)
+# Time window symmetric about the phase pick (i.e. pick is near the central
+# sample) (seconds)
 # (float)
 data_window:
 
-# Start of the phase window before the arrival time pick (negative seconds before pick).
+# Start of the phase window before the arrival time pick (negative seconds before
+# pick).
 # (float)
 phase_start:
 
@@ -228,7 +377,8 @@ phase_start:
 # (float)
 phase_end:
 
-# Combined length of taper that is applied at both ends beyond the phase window. (seconds)
+# Combined length of taper that is applied at both ends beyond the phase window.
+# (seconds)
 # (float)
 taper_length:
 
@@ -240,9 +390,32 @@ highpass:
 # (float)
 lowpass:
 
-# Maximum shift to allow in multi-channel cross correlation (seconds)
+# Regard absolute amplitudes at and below this value as null
 # (float)
-maxshift:
+null_threshold:
+
+# Minimum allowed signal-to-noise ratio (dB) of signals for event exclusion
+# (float)
+min_signal_noise_ratio:
+
+# Minimum allowed absolute averaged correlation coefficient of a waveform for
+# event exclusion
+# (float)
+min_correlation:
+
+# Minimum allowed norm of the principal component expansion coefficients
+# contributing to the waveform reconstruction for event exclusion
+# (float)
+min_expansion_coefficient_norm:
+
+# Read combinations from file names STATION_PHASE-combination.txt
+# (bool)
+combinations_from_file:
+
+# Event indices corresponding to the first dimension of the waveform array. Do not
+# edit.
+# (list)
+events_:
 ```
 
 ### `STATION_PHASE-wvarr.npy` waveform array files
