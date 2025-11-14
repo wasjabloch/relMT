@@ -750,8 +750,8 @@ def save_mt_result_summary(
         "        East",
         "       Depth",
         "              Time",
-        "  Ml",
-        "  Mw",
+        "   Ml",
+        "   Mw",
         "Gap1",
         "Gap2",
         "  P-links",
@@ -766,7 +766,7 @@ def save_mt_result_summary(
 
     fmts = (
         "%9s %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e %20s %12.3f %12.3f %12.3f "
-        "%18.6f %4.2f %4.2f %4.0f %4.0f %9.0f %9.0f %8.4f %11.5f %9.2e %12.2e %12.6f %8.3f"
+        "%18.6f %5.2f %5.2f %4.0f %4.0f %9.0f %9.0f %8.4f %11.5f %9.2e %12.2e %12.6f %8.3f"
     ).split()
 
     write_formatted_table(arrays, fmts, headers, filename)
