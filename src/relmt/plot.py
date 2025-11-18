@@ -40,7 +40,6 @@ norsar_lightblue = (0.0, 145 / 255, 214 / 255)
 norsar_gray = (156 / 255, 188 / 255, 205 / 255)
 
 
-@core._doc_config_args
 def section_3d(
     arr: np.ndarray,
     scale: float = -1.0,
@@ -48,7 +47,7 @@ def section_3d(
     sampling_rate: float | None = None,
     components: str | None = None,
     station: str | None = None,
-    events: list | None = None,
+    events_: list | None = None,
     phase: str | None = None,
     plot_kwargs: dict = {},
 ) -> Axes:
@@ -65,6 +64,14 @@ def section_3d(
         * ``> 0`` then each trace is scaled to that amplitude
     ax:
         When supplied, plot into this axis instead of creating a new figure
+    sampling_rate:
+        Sampling rate of the seismic waveform (Hertz)
+    station:
+        Station code
+    events_:
+        Event names corresponding to the first dimension of the waveform array.
+    phase:
+        Seismic phase type to consider ('P' or 'S')
     plot_kwargs:
         Additional keyword arguments passed to :func:`matplotlib.pyplot.plot`
 
@@ -122,12 +129,12 @@ def section_3d(
     ytl = ["{:d}".format(n) for n in np.arange(ne)]
     left = 0.1
 
-    if events is not None:
-        if len(events) != ne:
+    if events_ is not None:
+        if len(events_) != ne:
             msg = f"Number of events in array ({ne}) unequal length of 'events'"
             raise IndexError(msg)
         yt = np.arange(ne) * nc + 1
-        ytl = ["{:d}".format(ev) for ev in events]
+        ytl = ["{:d}".format(ev) for ev in events_]
 
     # Overwrite defaults with axes from header
     if sampling_rate is not None:

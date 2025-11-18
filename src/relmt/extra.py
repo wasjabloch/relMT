@@ -484,7 +484,7 @@ def apparent_corner_frequency(
     return freqs[if0:if1][np.argmax(specs[if0:if1])][0]
 
 
-@core._doc_config_args
+#@core._doc_config_args
 def optimal_bandpass(
     wvarr: np.ndarray,
     sampling_rate: float,
@@ -495,8 +495,7 @@ def optimal_bandpass(
     fmax: float | None = None,
     min_snr: float = 0,
 ) -> tuple[float, float] | tuple[None, None]:
-    """
-    Find bandpass with signal-to-noise ratio above threshold
+    """Find bandpass with signal-to-noise ratio above threshold
 
     Parameters
     ----------

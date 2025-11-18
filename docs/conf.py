@@ -14,7 +14,10 @@ extensions = [
     "sphinx.ext.mathjax",  # Write math formulas
     "sphinx.ext.napoleon",  # More documentation styles
     "sphinx.ext.viewcode",  # Show link to actual code
-    "sphinx_autodoc_typehints",  # Handle type hints
+    # Handle type hints. Note: This module may fail disgracefully when building
+    # ill-formated documentation. Uncomment and debug Critical, Errors, Warnings
+    # when build of documentation is failing
+    "sphinx_autodoc_typehints",  
     "sphinx_copybutton",  # Copy button for code snippets
 ]
 

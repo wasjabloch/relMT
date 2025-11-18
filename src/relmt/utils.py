@@ -584,7 +584,7 @@ def next_fftw_size(samples: int, devisor: int = 3, odd: bool = True) -> int:
     return nfft[inext & idev & iodd][0]
 
 
-@core._doc_config_args
+#@core._doc_config_args
 def fftw_data_window(
     minimum_time: float, sampling_rate: float, components: str
 ) -> float:
@@ -595,6 +595,11 @@ def fftw_data_window(
     ----------
     minimum_time:
         Minimum length of single-channel time window
+    sampling_rate:
+        Sampling rate of the seismic waveform (Hertz)
+    components:
+        One-character component names ordered as in the waveform array, as one
+        string (e.g. 'ZNE')
 
     Returns
     -------

@@ -52,8 +52,7 @@ def mccc_align(
     combinations: np.ndarray = np.array([]),
     verbose: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Compute time shifts that align the seismogram matrix
+    """Compute time shifts that align the seismogram matrix
 
     Applies the multi-channel cross-correlation method (Bostock et al. 2021, BSSA)
 
@@ -172,13 +171,14 @@ def pca_objective(sigma: np.ndarray, phase: str, ns: int) -> float:
     """Principal component alignment objective function
 
     for `P` phases:
+
     .. math::
-        \phi = s_0^2 / n
+        p = s_0^2 / n
 
     For `S` phases:
 
     .. math::
-        \phi = 1 - s_2 / (s_0 + s_1),
+        p = 1 - s_2 / (s_0 + s_1)
 
     Parameters
     ----------
@@ -208,8 +208,7 @@ def pca_align(
     dphi: float = 0,
     dtime: float = 0,
 ) -> tuple[np.ndarray, float]:
-    """
-    Align waveforms by principal component analysis (Bostock et al. 2021, BSSA).
+    """Align waveforms by principal component analysis (Bostock et al. 2021, BSSA).
 
     For P-waves, we maximize the first of the singular values :math:`s` of
     :math:`n` waveforms:

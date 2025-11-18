@@ -778,7 +778,7 @@ Suffix appended to files, naming the parameters parsed to 'amplitude'""",
         """
 Method to meassure relative amplitudes. One of:
 - 'indirect': Estimate relative amplitude as the ratio of principal seismogram
-    contributions to each seismogram.
+contributions to each seismogram.
 - 'direct': Compare each event combination seperatly.""",
     ),
     "amplitude_filter": (
@@ -795,8 +795,8 @@ Method to estimate lowpass filter that eliminates the source time function. One
 of:
 - 'fixed': Use the value 'fixed_lowpass' (not implemented)
 - 'corner': Estimate from apparent corner frequency in event spectrum
-- 'duration': Filter by 1/source duration of event magnitude.
-    Requires 'auto_lowpass_stressdrop_range'""",
+- 'duration': Filter by 1/source duration of event magnitude. Requires
+'auto_lowpass_stressdrop_range'""",
     ),
     #    "fixed_lowpass": (
     #        "float",
@@ -945,7 +945,8 @@ class Config:
     __doc__ += "----------\n"
     __doc__ += "\n"
     __doc__ += "".join(
-        f"{key}:\n    {doc}\n" for key, (_, doc) in _config_args_comments.items()
+        f"{key}:\n    " + doc.split("\n\n")[-1].strip("\n").replace("\n", "\n    ") + "\n"
+        for key, (_, doc) in _config_args_comments.items()
     )
     __doc__ += "\n"
     __doc__ += "Raises\n"
@@ -1322,7 +1323,8 @@ class Header(Config):
     __doc__ += "----------\n"
     __doc__ += "\n"
     __doc__ += "".join(
-        f"{key}:\n    {doc}\n" for key, (_, doc) in _header_args_comments.items()
+        f"{key}:\n    " + doc.split("\n\n")[-1].strip("\n").replace("\n", "\n    ") + "\n"
+        for key, (_, doc) in _header_args_comments.items()
     )
     __doc__ += "\n"
     __doc__ += "Raises\n"

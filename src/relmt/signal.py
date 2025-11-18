@@ -112,7 +112,7 @@ def norm_power(array: np.ndarray, axis: int = -1) -> np.ndarray:
     return array / np.sqrt(np.sum(array**2, axis=axis, keepdims=True))
 
 
-@core._doc_config_args
+#@core._doc_config_args
 def indices_inside_taper(
     sampling_rate: float,
     taper_length: float,
@@ -124,6 +124,20 @@ def indices_inside_taper(
 
     Parameters
     ----------
+    sampling_rate:
+        Sampling rate of the seismic waveform (Hertz)
+    taper_length:
+        Combined length of taper that is applied at both ends beyond the phase
+        window. (seconds)
+    phase_start:
+        Start of the phase window before the arrival time pick (negative seconds
+        before pick).
+    phase_end:
+        End of the phase window after the arrival time pick (seconds after
+        pick).
+    data_window:
+        Time window symmetric about the phase pick (i.e. pick is near the
+        central sample) (seconds)
 
     Returns
     -------
@@ -138,7 +152,7 @@ def indices_inside_taper(
     return i0, i1
 
 
-@core._doc_config_args
+#@core._doc_config_args
 def indices_signal(
     sampling_rate: float,
     phase_start: float,
@@ -149,6 +163,17 @@ def indices_signal(
 
     Parameters
     ----------
+    sampling_rate:
+        Sampling rate of the seismic waveform (Hertz)
+    phase_start:
+        Start of the phase window before the arrival time pick (negative seconds
+        before pick).
+    phase_end:
+        End of the phase window after the arrival time pick (seconds after
+        pick).
+    data_window:
+        Time window symmetric about the phase pick (i.e. pick is near the
+        central sample) (seconds)
 
     Returns
     -------
@@ -248,7 +273,7 @@ def shift(mtx: np.ndarray, dt: np.ndarray, sampling_rate: float) -> np.ndarray:
     return sfn
 
 
-@core._doc_config_args
+#@core._doc_config_args
 def cosine_taper(
     arr: np.ndarray,
     taper_length: float,
@@ -263,6 +288,17 @@ def cosine_taper(
     ----------
     arr:
         ``(..., N)`` seismogram section, with time aligned along last axis
+    taper_length:
+        Combined length of taper that is applied at both ends beyond the phase
+        window. (seconds)
+    sampling_rate:
+        Sampling rate of the seismic waveform (Hertz)
+    phase_start:
+        Start of the phase window before the arrival time pick (negative seconds
+        before pick).
+    phase_end:
+        End of the phase window after the arrival time pick (seconds after
+        pick).
 
     Returns
     -------
@@ -442,7 +478,7 @@ def choose_passband(
     return hpas, lpas
 
 
-@core._doc_config_args
+#@core._doc_config_args
 def signal_noise_ratio(
     arr: np.ndarray,
     sampling_rate: float,
@@ -458,6 +494,21 @@ def signal_noise_ratio(
     ----------
     arr:
         ``(..., samples)`` Seismogram section, with time aligned along last axis
+    sampling_rate:
+        Sampling rate of the seismic waveform (Hertz)
+    phase_start:
+        Start of the phase window before the arrival time pick (negative seconds
+        before pick).
+    phase_end:
+        End of the phase window after the arrival time pick (seconds after
+        pick).
+    taper_length:
+        Combined length of taper that is applied at both ends beyond the phase
+        window. (seconds)
+    highpass:
+        Common high-pass filter corner of the waveform (Hertz)
+    lowpass:
+        Common low-pass filter corner of the waveform (Hertz)
 
     Returns
     -------
@@ -615,7 +666,7 @@ def filter(
     return lfilter(b, a, wvf)
 
 
-@core._doc_config_args
+#@core._doc_config_args
 def demean_filter_window(
     arr: np.ndarray,
     sampling_rate: float,
@@ -633,6 +684,21 @@ def demean_filter_window(
     ----------
     arr:
         Waveform array to process
+    sampling_rate:
+        Sampling rate of the seismic waveform (Hertz)
+    phase_start:
+        Start of the phase window before the arrival time pick (negative seconds
+        before pick).
+    phase_end:
+        End of the phase window after the arrival time pick (seconds after
+        pick).
+    taper_length:
+        Combined length of taper that is applied at both ends beyond the phase
+        window. (seconds)
+    highpass:
+        Common high-pass filter corner of the waveform (Hertz)
+    lowpass:
+        Common low-pass filter corner of the waveform (Hertz)
     zerophase:
         Apply filter a second time reversed, so that resulting signal has no
         phase shift
@@ -660,7 +726,7 @@ def demean_filter_window(
     return arr
 
 
-@core._doc_config_args
+#@core._doc_config_args
 def subset_filter_align(
     arr: np.ndarray,
     indices: list[int],
@@ -680,8 +746,23 @@ def subset_filter_align(
         ``(events, channels, samples)`` 3-D seismogram array
     indices:
         Event indices to select from `arr`
-    hpas, lpas:
-        Highpass, lowpass filter corners
+    hpas:
+        Highpass, ...
+    lpas:
+        Lowpass filter corners
+    phase:
+        Seismic phase type to consider ('P' or 'S')
+    sampling_rate:
+        Sampling rate of the seismic waveform (Hertz)
+    phase_start:
+        Start of the phase window before the arrival time pick (negative seconds
+        before pick).
+    phase_end:
+        End of the phase window after the arrival time pick (seconds after
+        pick).
+    taper_length:
+        Combined length of taper that is applied at both ends beyond the phase
+        window. (seconds)
 
 
     Returns
