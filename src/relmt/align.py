@@ -34,6 +34,22 @@ logger = core.register_logger(__name__)
 
 
 def _test_phase_shape(phase, mtx):
+    """Validate phase label and number of events in waveform matrix
+
+    Parameters
+    ----------
+    phase:
+        Phase identifier, must be ``'P'`` or ``'S'``
+    mtx:
+        Waveform matrix ``(events, samples)`` or ``(events, components, samples)``
+
+    Raises
+    ------
+    ValueError:
+        If `phase` is not ``'P'`` or ``'S'``
+    IndexError:
+        When not enough events are provided for the chosen phase
+    """
     if phase not in ["P", "S"]:
         raise ValueError("Phase must be either 'P' or 'S'")
 
@@ -69,9 +85,9 @@ def mccc_align(
         Maximum shift to test (seconds)
     ndec:
         Test correlation function at every ndec'th point
-    combinataions:
+    combinations:
         Only combine these indices of mtx. ``(combinations, 2)`` for P-waves,
-        ``(combinations, 3)`` for S-waves
+        ``(combinations, 3)`` for S-waves. When empty, combine all events.
     verbose:
         Print diagnostic output
 
@@ -86,9 +102,9 @@ def mccc_align(
     dd_res: :class:`numpy.ndarray`
         Resiudal when computing time lags from pairwise differential arrival
         times
-    combinations: :class:`numpy.ndarray`
-        Event indices pointing into `mtx` of shape ``(pairs, 2)``, where `pairs`
-        is `events * (events-1) / 2` for P waves and
+    pairs: :class:`numpy.ndarray`
+        Pairwise event combination indices pointing into ``mtx`` of shape
+        ``(C,2)``, where `C` is `events * (events-1) / 2` for P waves and
         `events * (events-1) * (events-2)/ 3` for S waves
 
     Raises
@@ -173,21 +189,21 @@ def pca_objective(sigma: np.ndarray, phase: str, ns: int) -> float:
     for `P` phases:
 
     .. math::
-        p = s_0^2 / n
+        \\phi = s_0^2 / n
 
     For `S` phases:
 
     .. math::
-        p = 1 - s_2 / (s_0 + s_1)
+        \\phi = 1 - s_2 / (s_0 + s_1)
 
     Parameters
     ----------
     sigma:
         Singular value vector of the singular value decompostion
     phase:
-        Seismic phase to consider. 'P' or 'S'
+        Seismic phase to consider. 'P' or 'S'.
     ns:
-        Number of Seismograms
+        Number of seismograms
 
     Returns
     -------
@@ -208,7 +224,9 @@ def pca_align(
     dphi: float = 0,
     dtime: float = 0,
 ) -> tuple[np.ndarray, float]:
-    """Align waveforms by principal component analysis (Bostock et al. 2021, BSSA).
+    """Align waveforms by principal component analysis
+    
+    Implements method of Bostock et al. (2021, BSSA).
 
     For P-waves, we maximize the first of the singular values :math:`s` of
     :math:`n` waveforms:
@@ -352,21 +370,22 @@ def complete_paired_s_lag_times(
     dd_res: np.ndarray,
     method: str = "median",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Pair-wise from triplet-wise lag times
+    """Pair-wise from triplet-wise lag times from complete set.
 
     Compute pair-wise from the triplet-wise lag times ``dd`` returned by
-    :func:`mccc_align`. Assume all combinateions are present.
+    :func:`mccc_align`. Assume all combinations are present, i.e.
+    `npair = events * (events-1) * (events-2) / 3`
 
     Parameters
     ----------
     ev_pair:
-        ``(events * (events-1) * (events-2) / 3, 2)`` event indices
+        ``(npair, 2)`` event indices
     dd:
-        Corresponding pairwise differential arrival times
+        Corresponding ``(npair,)`` pairwise differential arrival times
     cc:
         ``(events, events, events)`` Cross correlation matrix
     dd_res:
-        Residuals of the alignment
+        ``(npair,)`` residuals of the alignment
     method:
        - 'median': take the median of the tripletwise lag times
        - 'residual' choose the one with the lowest residual
@@ -377,13 +396,13 @@ def complete_paired_s_lag_times(
     -------
     ev_pair: :class:`numpy.ndarray`
         ``(events * (events-1) / 2, 2)`` event indices
-    dd: :class:`numpy.ndarray`
+    dd_pair: :class:`numpy.ndarray`
         Corresponding median differential arrival times
-    cc: :class:`numpy.ndarray`
+    cc_pair: :class:`numpy.ndarray`
         Corresponding average cross correlation coefficient
-    residual: :class:`numpy.ndarray`
-        Residuals of the selected differential arrival times. If 'method' is
-        'median', the RMS of all lag times
+    res_pair: :class:`numpy.ndarray`
+        Corresponding residuals of the differential arrival times. If 'method'
+        is 'median', the RMS of all lag times
     """
     logger.debug("Gathering complete pair of S lag times")
 
@@ -452,10 +471,11 @@ def incomplete_paired_s_lag_times(
     combinations: np.ndarray,
     method: str = "cc",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Pair-wise from triplet-wise lag times
+    """Pair-wise from triplet-wise lag times from incomplete set.
 
     Compute pair-wise from the triplet-wise lag times ``dd`` returned by
-    :func:`mccc_align`. Do not attempt to compute implicit combinations
+    :func:`mccc_align` with a `combinations` list parsed. Do not attempt to
+    compute implicit combinations
 
     Parameters
     ----------
@@ -466,9 +486,10 @@ def incomplete_paired_s_lag_times(
     cc:
         ``(events, events, events)`` Cross correlation matrix
     dd_res:
-        Residuals of the alignment
+        ``(npair,)`` residuals of the alignment
     combinations:
-        ``(npair/2, 3)`` triplet combinations that form the incomplete observations
+        ``(npair/2, 3)`` triplet combinations that form the incomplete
+        observations
     method:
        - 'residual' choose the one with the lowest residual
        - 'cc' choose the one with the highest cross-correlation coefficient
@@ -478,12 +499,12 @@ def incomplete_paired_s_lag_times(
     -------
     ev_pair: :class:`numpy.ndarray`
         ``(events * (events-1) / 2, 2)`` event indices
-    dd: :class:`numpy.ndarray`
+    dd_pair: :class:`numpy.ndarray`
         Corresponding median differential arrival times
-    cc: :class:`numpy.ndarray`
+    cc_pair: :class:`numpy.ndarray`
         Corresponding average cross correlation coefficient
-    residual: :class:`numpy.ndarray`
-        Residuals of the selected differential arrival times.
+    res_pair: :class:`numpy.ndarray`
+        Corresponding residuals of the differential arrival times.
     """
     logger.debug("Gathering incomplete pair of S lag times")
 
@@ -603,7 +624,7 @@ def run(
         logger.info("Computing aligned correlation coefficients")
 
         # Recompute correlations with shifted traces
-        ccijk, ccij, *_ = signal.reconstruction_correlation_averages(
+        ccijk, ccij, *_ = signal.correlation_averages(
             wvmat_cc,
             header["phase"],
             set_autocorrelation=False,

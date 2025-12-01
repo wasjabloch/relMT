@@ -279,6 +279,18 @@ _pbt2tpb = np.array(((0.0, 0.0, 1.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
 
 
 def _tpb2q(t, p, b):
+    """Quaternion rotating P, B, T axes into alignment
+
+    Parameters
+    ----------
+    t, p, b:
+        Three orthogonal unit vectors representing the T, P and B axes
+
+    Returns
+    -------
+    :class:`numpy.ndarray`
+        ``(4,)`` quaternion ``[w, x, y, z]`` describing the rotation
+    """
     eps = 0.001
     tqw = 1.0 + t[0] + p[1] + b[2]
     tqx = 1.0 + t[0] - p[1] - b[2]

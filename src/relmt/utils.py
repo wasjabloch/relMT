@@ -48,7 +48,7 @@ def xyzarray(
 
     Returns
     -------
-    ``(rows, 3)`` or ``(3,) north-east-down coordinates"""
+    ``(rows, 3)`` or ``(3,)`` north-east-down coordinates"""
     try:
         # Is it a dictionary?
         return np.array([table[key][:3] for key in table])
@@ -217,12 +217,12 @@ def event_indices(
 
 
 def signed_log(x):
-    """Signed log transform: sign(x) * log(1 + |x|)"""
+    """Signed log transform: sign(x) log(1 + | x |)"""
     return np.sign(x) * np.log1p(np.abs(x))
 
 
 def signed_log_inverse(y):
-    """Inverse of the signed log transform: sign(x) * log(1 + |x|)"""
+    """Inverse of the signed log transform: sign(x) log(1 + | x |)"""
     return np.sign(y) * (np.expm1(np.abs(y)))
 
 
@@ -678,26 +678,27 @@ def concat_components(arr: np.ndarray) -> np.ndarray:
     return arr.reshape(ne, ns * nc)  # events, components * samples
 
 
-def select_events(arr: np.ndarray, select: list[int], events_: list[int]) -> np.ndarray:
+def select_events(arr: np.ndarray, select: list[int], events: list[int]) -> np.ndarray:
     """Return waveforms of specific evetn numbers
 
     arr:
        ``(events, ...)`` or waveform array or matrix
     select:
         List of event numbers to select
-    events_:
+    events:
         List of event numbers in the array
+
     Returns
     -------
     ``(selected_events, ...)`` Waveform array or matrix
     """
 
-    iin = [events_.index(i) for i in select]
+    iin = [events.index(i) for i in select]
     return arr[iin, ...]
 
 
 def valid_combinations(
-    events_: list[int], pairs: set[tuple[int, int]], phase: str
+    events: list[int], pairs: set[tuple[int, int]], phase: str
 ) -> np.ndarray:
     """Indices to the event combinations that are in pairs
 
@@ -760,12 +761,12 @@ def valid_combinations(
 
     ipairs = set(
         (
-            (events_.index(a), events_.index(b))
+            (events.index(a), events.index(b))
             if a < b
-            else (events_.index(b), events_.index(a))
+            else (events.index(b), events.index(a))
         )
         for a, b in pairs
-        if a in events_ and b in events_
+        if a in events and b in events
     )
 
     if phase == "P":
@@ -1248,6 +1249,7 @@ def mt_clusters(
     link_method: str = "average",
 ):
     """Cluster moment tensors
+
     Parameters
     ----------
     mt_list:
@@ -1276,7 +1278,7 @@ def mt_clusters(
     labels:
         Labels of the event clusters, where 0 is the label for unclustered events
     distance_matrix:
-        Compressed pairwise distance matrix.
+        Compressed pairwise distance matrix
     representative:
         The representative element for each label
     """

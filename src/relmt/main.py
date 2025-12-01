@@ -201,7 +201,7 @@ def main_exclude(
                     arr, **hdr.kwargs(signal.demean_filter_window)
                 )
             )
-            cc = signal.reconstruction_correlation_averages(mat, hdr["phase"])[2]
+            cc = signal.correlation_averages(mat, hdr["phase"])[2]
             icc = cc < mincc
             logger.debug(f"{wvid}: {sum(icc)} traces with CC < {mincc}")
 
@@ -1003,7 +1003,7 @@ def main_solve(
     isparse = True
     if isparse:
         # as sparse array
-        Ah, bh = ls.homogenous_amplitude_equations_sparse(
+        Ah, bh = ls.homogenous_equations_sparse(
             pamp_subset,
             samp_subset,
             incl_ev,
@@ -1017,7 +1017,7 @@ def main_solve(
         )
     else:
         # as dense array
-        Ah, bh = ls.homogenous_amplitude_equations(
+        Ah, bh = ls.homogenous_equations(
             pamp_subset,
             samp_subset,
             incl_ev,
@@ -1058,7 +1058,7 @@ def main_solve(
     )
 
     # Equation norm
-    eq_norm = ls.condition_homogenous_matrix_by_norm(Ah)
+    eq_norm = ls.condition_by_norm(Ah)
     p_norm, s_norm, _ = ls.unpack_equation_vector(
         eq_norm, n_p, 0, mt_elements, keep_other_s_equation
     )
@@ -1710,6 +1710,19 @@ Software for computing relative seismic moment tensors"""
 
 
 def main(args=None):
+    """Entry point for the relMT command line interface
+
+    Parameters
+    ----------
+    args:
+        Optional list of command line arguments. If ``None``, use
+        :data:`sys.argv`.
+
+    Returns
+    -------
+    None
+        Executes the selected subcommand and exits
+    """
     # Subdirectory, e.g. A_Muji
     parsed = get_arguments(args)
 

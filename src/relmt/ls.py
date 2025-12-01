@@ -65,7 +65,7 @@ def gamma(azimuth: float, plunge: float) -> np.ndarray:
     return np.array([np.cos(azi) * np.cos(plu), np.sin(azi) * np.cos(plu), np.sin(plu)])
 
 
-def directional_coefficient_general_p(gamma: np.ndarray) -> np.ndarray:
+def dircoeff_general_p(gamma: np.ndarray) -> np.ndarray:
     """
     6-element direction coefficeint vector for unconstrained moment tensor
 
@@ -92,7 +92,7 @@ def directional_coefficient_general_p(gamma: np.ndarray) -> np.ndarray:
     )
 
 
-def directional_coefficient_deviatoric_p(gamma: np.ndarray) -> np.ndarray:
+def dircoeff_deviatoric_p(gamma: np.ndarray) -> np.ndarray:
     """
     5-element direction coefficeint vector for deviatoric moment tensor
 
@@ -118,7 +118,7 @@ def directional_coefficient_deviatoric_p(gamma: np.ndarray) -> np.ndarray:
     )
 
 
-def directional_coefficient_general_s(
+def dircoeff_general_s(
     gamma: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -168,7 +168,7 @@ def directional_coefficient_general_s(
     return gs1, gs2, gs3
 
 
-def directional_coefficient_deviatoric_s(
+def dircoeff_deviatoric_s(
     gamma: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -300,11 +300,11 @@ def p_equation(
 
     rab = distance_ratio(event_dict[ieva], event_dict[ievb], station)
     if nmt == 6:
-        gap = directional_coefficient_general_p(ga)
-        gbp = directional_coefficient_general_p(gb)
+        gap = dircoeff_general_p(ga)
+        gbp = dircoeff_general_p(gb)
     elif nmt == 5:
-        gap = directional_coefficient_deviatoric_p(ga)
-        gbp = directional_coefficient_deviatoric_p(gb)
+        gap = dircoeff_deviatoric_p(ga)
+        gbp = dircoeff_deviatoric_p(gb)
     else:
         raise ValueError(f"'nmt must be '5' or '6', not: '{nmt}'")
 
@@ -426,13 +426,13 @@ def s_equations(
 
     # g[abc]s are 3-tuple. Only two are independent
     if nmt == 6:
-        gas = directional_coefficient_general_s(ga)
-        gbs = directional_coefficient_general_s(gb)
-        gcs = directional_coefficient_general_s(gc)
+        gas = dircoeff_general_s(ga)
+        gbs = dircoeff_general_s(gb)
+        gcs = dircoeff_general_s(gc)
     elif nmt == 5:
-        gas = directional_coefficient_deviatoric_s(ga)
-        gbs = directional_coefficient_deviatoric_s(gb)
-        gcs = directional_coefficient_deviatoric_s(gc)
+        gas = dircoeff_deviatoric_s(ga)
+        gbs = dircoeff_deviatoric_s(gb)
+        gcs = dircoeff_deviatoric_s(gc)
     else:
         raise ValueError(f"'nmt must be '5' or '6', not: '{nmt}'")
 
@@ -592,7 +592,7 @@ def weight_s_amplitude(
     return np.array([wght])[:, np.newaxis]
 
 
-def homogenous_amplitude_equations(
+def homogenous_equations(
     p_amplitudes: list[core.P_Amplitude_Ratio],
     s_amplitudes: list[core.S_Amplitude_Ratios],
     in_events: list[int],
@@ -684,7 +684,7 @@ def homogenous_amplitude_equations(
     return Ah, bh
 
 
-def homogenous_amplitude_equations_sparse(
+def homogenous_equations_sparse(
     p_amplitudes: list[core.P_Amplitude_Ratio],
     s_amplitudes: list[core.S_Amplitude_Ratios],
     in_events: list[int],
@@ -973,9 +973,7 @@ def _reference_mt_data_vector(mt: core.MT, constraint: str) -> np.ndarray:
         )
 
 
-def condition_homogenous_matrix_by_norm(
-    mat: np.ndarray, n_homogenous: int | None = None
-) -> np.ndarray:
+def condition_by_norm(mat: np.ndarray, n_homogenous: int | None = None) -> np.ndarray:
     """
     Weights to condition the homogenous part of the amplitude matrix
 

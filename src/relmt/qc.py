@@ -542,13 +542,13 @@ def expansion_coefficient_norm(arr: np.ndarray, phase: str) -> np.ndarray:
     Parameters
     ----------
     arr:
-        Waveform ``(events, channels, samples)`` array or ``(events, channels *
-        samples)`` matrix
+        Waveform ``(events, channels, samples)`` array or
+        ``(events, channels*samples)`` matrix
     phase:
         `P` or `S` wave type
 
-    Returns:
-    --------
+    Returns
+    -------
     ``(events,)`` score per event
 
     Raises:

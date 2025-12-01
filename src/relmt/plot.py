@@ -455,7 +455,7 @@ def amplitude_connections(
     connections
 
     ..note:
-        Requires :module:`networkx` to be installed.
+        Requires `networkx` to be installed.
 
     Parameters
     ----------
@@ -735,10 +735,10 @@ def bootstrap_matrix(
     moment_tensors:
         List of bootstrap results
     plot_beachball:
-        Plot bootstrap results as beacball plot. Requires :module:`pyrocko`
+        Plot bootstrap results as beacball plot. Requires `pyrocko`
     best_mt:
         Also show the best moment tensor, when `plot_beachball=True` Requires
-        :module:`pyrocko`.
+        `pyrocko`.
     takeoff:
         `(2, N)` array of takeoff azimuth and plunge angles (degree).
     subplot_kwargs:

@@ -447,7 +447,7 @@ def apparent_corner_frequency(
     Parameters
     ----------
     sig:
-        ``(samples, ) seismogram
+        ``(samples,)`` seismogram
     sampling_rate:
         in Hertz
     fmin, fmax:
@@ -584,7 +584,7 @@ def optimal_bandpass(
     return hpas, lpas
 
 
-def focal_mechanism_to_moment_tensor(
+def focal_mechanism_to_mt(
     strike: float | list[float],
     dip: float | list[float],
     rake: float | list[float],

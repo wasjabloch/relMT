@@ -33,6 +33,21 @@ logger = core.register_logger(__name__)
 
 
 def _gauss(n: int, sig: float, de: float):
+    """Gaussian envelope used by :func:`make_wavelet`
+
+    Parameters
+    ----------
+    n:
+        Number of samples
+    sig:
+        Standard deviation of the Gaussian (samples)
+    de:
+        Phase shift of the envelope center (samples)
+
+    Returns
+    -------
+    The specified Gauss envelope
+    """
     return np.exp(-1 / 2 * (np.arange(-n / 2 - de, n / 2 - de) / sig) ** 2)
 
 
@@ -433,8 +448,7 @@ def integrate(arr: np.ndarray, sampling_rate: float) -> np.ndarray:
 def choose_passband(
     highpasses: list[float], lowpasses: list[float], min_dynamic_range: float = 1
 ) -> tuple[float, float] | tuple[None, None]:
-    """
-    Return the highest highpass and the lowest lowpass filter band
+    """Return the highest highpass and the lowest lowpass filter band
 
     Parameters
     ----------
@@ -450,7 +464,7 @@ def choose_passband(
     -------
     highpass, lowpass:
         Filter corners (Hz), `None` if filter band is below the positive
-        `min_dynamic_range`  or any of `highpasses' or 'lowpasses' is not
+        `min_dynamic_range` or any of `highpasses` or `lowpasses` is not
         finite.
     """
 
@@ -824,7 +838,7 @@ def cc_coef(x: np.ndarray, y: np.ndarray) -> float:
     return sum(x * y) / np.sqrt(sum(x**2) * sum(y**2))
 
 
-def reconstruction_correlation_averages(
+def correlation_averages(
     mat: np.ndarray,
     phase: str,
     set_autocorrelation=True,

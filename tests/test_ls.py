@@ -69,39 +69,39 @@ def test_gamma():
 
 def test_directional_coefficient_general_p():
     # Calculated looking in Plourde & Bostock (2019) Eq. A2, not in the code
-    assert pytest.approx((1, 0, 0, 0, 0, 0)) == ls.directional_coefficient_general_p(
+    assert pytest.approx((1, 0, 0, 0, 0, 0)) == ls.dircoeff_general_p(
         [1, 0, 0]
     )
-    assert pytest.approx((0, 1, 0, 0, 0, 0)) == ls.directional_coefficient_general_p(
+    assert pytest.approx((0, 1, 0, 0, 0, 0)) == ls.dircoeff_general_p(
         [0, 1, 0]
     )
-    assert pytest.approx((0, 0, 1, 0, 0, 0)) == ls.directional_coefficient_general_p(
+    assert pytest.approx((0, 0, 1, 0, 0, 0)) == ls.dircoeff_general_p(
         [0, 0, 1]
     )
-    assert pytest.approx((2, 2, 0, 4, 0, 0)) == ls.directional_coefficient_general_p(
+    assert pytest.approx((2, 2, 0, 4, 0, 0)) == ls.dircoeff_general_p(
         [r2, r2, 0]
     )
-    assert pytest.approx((0, 2, 2, 0, 0, 4)) == ls.directional_coefficient_general_p(
+    assert pytest.approx((0, 2, 2, 0, 0, 4)) == ls.dircoeff_general_p(
         [0, r2, r2]
     )
-    assert pytest.approx((2, 0, 2, 0, 4, 0)) == ls.directional_coefficient_general_p(
+    assert pytest.approx((2, 0, 2, 0, 4, 0)) == ls.dircoeff_general_p(
         [r2, 0, r2]
     )
 
 
 def test_directional_coefficient_general_s():
     # Calculated looking in Plourde & Bostock (2019) Eq. A3, not in the code
-    gs1, gs2, gs3 = ls.directional_coefficient_general_s([1, 0, 0])
+    gs1, gs2, gs3 = ls.dircoeff_general_s([1, 0, 0])
     assert pytest.approx((0, 0, 0, 0, 0, 0)) == gs1
     assert pytest.approx((0, 0, 0, 1, 0, 0)) == gs2
     assert pytest.approx((0, 0, 0, 0, 1, 0)) == gs3
 
-    gs1, gs2, gs3 = ls.directional_coefficient_general_s([0, 1, 0])
+    gs1, gs2, gs3 = ls.dircoeff_general_s([0, 1, 0])
     assert pytest.approx((0, 0, 0, 1, 0, 0)) == gs1
     assert pytest.approx((0, 0, 0, 0, 0, 0)) == gs2
     assert pytest.approx((0, 0, 0, 0, 0, 1)) == gs3
 
-    gs1, gs2, gs3 = ls.directional_coefficient_general_s([0, 0, 1])
+    gs1, gs2, gs3 = ls.dircoeff_general_s([0, 0, 1])
     assert pytest.approx((0, 0, 0, 0, 1, 0)) == gs1
     assert pytest.approx((0, 0, 0, 0, 0, 1)) == gs2
     assert pytest.approx((0, 0, 0, 0, 0, 0)) == gs3
@@ -109,39 +109,39 @@ def test_directional_coefficient_general_s():
 
 def test_directional_coefficient_deviatoric_p():
     # Calculated looking in Plourde & Bostock (2019) Eq. A8, not in the code
-    assert pytest.approx((1, 0, 0, 0, 0)) == ls.directional_coefficient_deviatoric_p(
+    assert pytest.approx((1, 0, 0, 0, 0)) == ls.dircoeff_deviatoric_p(
         [1, 0, 0]
     )
-    assert pytest.approx((0, 1, 0, 0, 0)) == ls.directional_coefficient_deviatoric_p(
+    assert pytest.approx((0, 1, 0, 0, 0)) == ls.dircoeff_deviatoric_p(
         [0, 1, 0]
     )
-    assert pytest.approx((-1, -1, 0, 0, 0)) == ls.directional_coefficient_deviatoric_p(
+    assert pytest.approx((-1, -1, 0, 0, 0)) == ls.dircoeff_deviatoric_p(
         [0, 0, 1]
     )
-    assert pytest.approx((2, 2, 4, 0, 0)) == ls.directional_coefficient_deviatoric_p(
+    assert pytest.approx((2, 2, 4, 0, 0)) == ls.dircoeff_deviatoric_p(
         [r2, r2, 0]
     )
-    assert pytest.approx((-2, 0, 0, 0, 4)) == ls.directional_coefficient_deviatoric_p(
+    assert pytest.approx((-2, 0, 0, 0, 4)) == ls.dircoeff_deviatoric_p(
         [0, r2, r2]
     )
-    assert pytest.approx((0, -2, 0, 4, 0)) == ls.directional_coefficient_deviatoric_p(
+    assert pytest.approx((0, -2, 0, 4, 0)) == ls.dircoeff_deviatoric_p(
         [r2, 0, r2]
     )
 
 
 def test_directional_coefficient_deviatoric_s():
     # Calculated looking in Plourde & Bostock (2019) Eq. A9, not in the code
-    gs1, gs2, gs3 = ls.directional_coefficient_deviatoric_s([1, 0, 0])
+    gs1, gs2, gs3 = ls.dircoeff_deviatoric_s([1, 0, 0])
     assert pytest.approx((0, 0, 0, 0, 0)) == gs1
     assert pytest.approx((0, 0, 1, 0, 0)) == gs2
     assert pytest.approx((0, 0, 0, 1, 0)) == gs3
 
-    gs1, gs2, gs3 = ls.directional_coefficient_deviatoric_s([0, 1, 0])
+    gs1, gs2, gs3 = ls.dircoeff_deviatoric_s([0, 1, 0])
     assert pytest.approx((0, 0, 1, 0, 0)) == gs1
     assert pytest.approx((0, 0, 0, 0, 0)) == gs2
     assert pytest.approx((0, 0, 0, 0, 1)) == gs3
 
-    gs1, gs2, gs3 = ls.directional_coefficient_deviatoric_s([0, 0, 1])
+    gs1, gs2, gs3 = ls.dircoeff_deviatoric_s([0, 0, 1])
     assert pytest.approx((0, 0, 0, 1, 0)) == gs1
     assert pytest.approx((0, 0, 0, 0, 1)) == gs2
     assert pytest.approx((0, 0, 0, 0, 0)) == gs3
@@ -329,7 +329,7 @@ def test_homogenous_amplitude_equations():
             scoef2 = np.array((0, 0, 0, 0, 1))
 
         # Call the function
-        A, b = ls.homogenous_amplitude_equations(
+        A, b = ls.homogenous_equations(
             pamps, samps, in_events, stad, evl, phd, constraint
         )
 
@@ -347,14 +347,14 @@ def test_homogenous_amplitude_equations():
         assert pytest.approx(b) == np.zeros(len(evl))[:, np.newaxis]
 
         # Try if the sparse output is the same
-        A_coo, _ = ls.homogenous_amplitude_equations_sparse(
+        A_coo, _ = ls.homogenous_equations_sparse(
             pamps, samps, in_events, stad, evl, phd, constraint
         )
 
         pytest.approx(A_coo) == coo_matrix(A)
 
         # Try setting the coefficients
-        A, b = ls.homogenous_amplitude_equations(
+        A, b = ls.homogenous_equations(
             pamps,
             samps,
             in_events,
@@ -454,12 +454,12 @@ def test_condition_homogenous_matrix_by_norm():
 
     assert pytest.approx(
         np.array([1, 1 / np.sqrt(3), 1 / 6])[:, np.newaxis]
-    ) == ls.condition_homogenous_matrix_by_norm(mat)
+    ) == ls.condition_by_norm(mat)
 
     # Constrain homogenous part
     assert pytest.approx(
         np.array([1, 1 / np.sqrt(3), 1])[:, np.newaxis]
-    ) == ls.condition_homogenous_matrix_by_norm(mat, n_homogenous=2)
+    ) == ls.condition_by_norm(mat, n_homogenous=2)
 
 
 def test_solve_lsmr():
@@ -549,7 +549,7 @@ def test_solve_lsmr():
 
         for iapply in iapply_line_norm:
             # Build homogenos part of linear system
-            Ah, bh = ls.homogenous_amplitude_equations(
+            Ah, bh = ls.homogenous_equations(
                 p_amplitudes, s_amplitudes, in_events, stad, evd, phd, constraint
             )
 
@@ -563,7 +563,7 @@ def test_solve_lsmr():
 
             # Test different weights applied by row
             if iapply == "evnorm":
-                eq_norm = ls.condition_homogenous_matrix_by_norm(Ah)
+                eq_norm = ls.condition_by_norm(Ah)
                 Ah *= eq_norm
 
             elif iapply == "misweight":

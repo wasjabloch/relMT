@@ -68,13 +68,13 @@ def test_reconstruction_correlation_averages():
     n = 512
     mat = np.array([signal.make_wavelet(n, 5, "sin", 30, 0, 0)] * 3)
 
-    cijk, cij, ci, c = signal.reconstruction_correlation_averages(mat, "P")
+    cijk, cij, ci, c = signal.correlation_averages(mat, "P")
     assert np.all(np.isnan(cijk))
     assert pytest.approx(cij) == 1.0
     assert pytest.approx(ci) == 1.0
     assert pytest.approx(c) == 1.0
 
-    cijk, cij, ci, c = signal.reconstruction_correlation_averages(mat, "S")
+    cijk, cij, ci, c = signal.correlation_averages(mat, "S")
     assert pytest.approx(cijk) == 1.0
     assert pytest.approx(cij) == 1.0
     assert pytest.approx(ci) == 1.0

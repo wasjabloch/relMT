@@ -786,7 +786,7 @@ contributions to each seismogram.
         """
 Filter method to apply for amplitude measure. One of:
 - 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
-- 'auto': compute filter corners using the 'auto_' options below""",
+- 'auto': compute filter corners using the "auto" options below""",
     ),
     "auto_lowpass_method": (
         "str",
@@ -922,7 +922,7 @@ Constrain the moment tensor. 'none' or 'deviatoric'""",
         "float",
         """
 Minimum misfit to assign a full weight of 1. Weights are scaled lineraly from
-`min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`"
+`min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`
 """,
     ),
     "min_amplitude_weight": (
@@ -940,8 +940,9 @@ bootstrap.""",
 
 
 class Config:
-    __doc__ = "Configuration for `relMT`\n\n"
-    __doc__ += "Parameters\n"
+    """Configuration for `relMT`"""
+
+    __doc__ += "\n\nParameters\n"
     __doc__ += "----------\n"
     __doc__ += "\n"
     __doc__ += "".join(
@@ -992,11 +993,28 @@ class Config:
         bootstrap_samples: int | None = None,
         ncpu: int | None = None,
     ):
+        """Initialize configuration with validated relMT options"""
         for key, value in locals().items():
             if key != "self":
                 self[key] = value
 
     def __setitem__(self, key, value):
+        """Validate and assign configuration value
+
+        Parameters
+        ----------
+        key:
+            Name of the configuration field
+        value:
+            Value to store; is type-cast to the expected type when possible
+
+        Raises
+        ------
+        TypeError:
+            If a value cannot be cast to the expected type
+        ValueError:
+            If a value violates a set of allowed choices
+        """
         # Only defined keys are allowed
         if key not in self._valid_args:
             msg = f"Found unknown key: '{key}'. Ignoring."
@@ -1036,6 +1054,7 @@ class Config:
             set_loglevel(value)
 
     def __getitem__(self, key):
+        """Return configuration value for ``key``"""
         return self.__getattribute__(key)
 
     def __iter__(self):
@@ -1045,6 +1064,7 @@ class Config:
                 yield key
 
     def __repr__(self):
+        """Machine-readable representation of the configuration"""
         out = f"{__name__}.Config(\n"
         out += "\n".join(f"    {key}={value}," for key, value in self.items())
         out += "\n"
@@ -1052,6 +1072,7 @@ class Config:
         return out
 
     def __str__(self):
+        """Human-readable configuration with inline comments"""
         out = "# relMT configuration\n"
         for key in self._valid_args:
             # Print the comment
@@ -1189,9 +1210,11 @@ class Config:
             self[key] = value
 
     def keys(self):
+        """Return non-empty configuration keys"""
         return [key for key in self.__dict__.keys() if self[key] is not None]
 
     def items(self):
+        """Iterator over key, value pairs where value is set"""
         return [
             (key, value)
             for key, value in self.__dict__.items()
@@ -1199,9 +1222,11 @@ class Config:
         ]
 
     def values(self):
+        """List of configuration values that are not ``None``"""
         return [value for value in self.__dict__.values() if value is not None]
 
     def get(self, value, default):
+        """Return value of key or a default when unset"""
         return_value = self.__dict__.get(value, default)
         if return_value is None and default is not None:
             # We found a None, which Config should only return if explicitly
@@ -1311,15 +1336,16 @@ Read combinations from file names STATION_PHASE-combination.txt""",
     "events_": (
         "list",
         """
-Event indices corresponding to the first dimension of the waveform array. Do not
+Event names corresponding to the first dimension of the waveform array. Do not
 edit.""",
     ),
 }
 
 
 class Header(Config):
-    __doc__ = "Waveform Header for relMT\n\n"
-    __doc__ += "Parameters\n"
+    """Waveform Header for relMT"""
+
+    __doc__ += "\n\nParameters\n"
     __doc__ += "----------\n"
     __doc__ += "\n"
     __doc__ += "".join(
@@ -1356,11 +1382,13 @@ class Header(Config):
         combinations_from_file: bool | None = None,
         events_: list[int] | None = None,
     ):
+        """Initialize waveform header with station- and phase-specific settings"""
         for key, value in locals().items():
             if key != "self":
                 self[key] = value
 
     def __repr__(self):
+        """Machine-readable representation of the header"""
         out = f"{__name__}.Header(\n"
         out += "\n".join(f"    {key}={value}," for key, value in self.items())
         out += "\n"
@@ -1368,6 +1396,7 @@ class Header(Config):
         return out
 
     def __str__(self):
+        """Human-readable header with documentation copied inline"""
         out = "# relMT waveform header\n"
         for key in self._valid_args:
             # Print the comment
