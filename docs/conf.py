@@ -17,7 +17,7 @@ extensions = [
     # Handle type hints. Note: This module may fail disgracefully when building
     # ill-formated documentation. Uncomment and debug Critical, Errors, Warnings
     # when build of documentation is failing
-    "sphinx_autodoc_typehints",  
+    "sphinx_autodoc_typehints",
     "sphinx_copybutton",  # Copy button for code snippets
 ]
 
@@ -42,9 +42,15 @@ exclude_patterns = [
     "CMakeLists.txt",
 ]
 
-# html_theme = "furo"
+html_theme = "pydata_sphinx_theme"
 html_permalinks_icon = "<span>#</span>"
-html_theme = "sphinxawesome_theme"
+html_theme_options = dict(
+    sidebarwidth="22em",
+    pygments_light_style="blinds-light",
+    pygments_dark_style="blinds-dark",
+)
+html_logo = "_static/relMT-alpha.png"
+
 autodoc_member_order = "bysource"  # groupwise, alphabetical
 
 myst_enable_extensions = [

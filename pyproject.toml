@@ -48,7 +48,7 @@ dev = [
   "sphinx-copybutton",
   "sphinx-autodoc-typehints",
   "sphinx-markdown-tables",
-  "sphinxawesome-theme",
+  "pydata_sphinx_theme",
   "relmt[plot]",
   "relmt[extra]",
 ]
