@@ -1,7 +1,5 @@
-(file-formats)=
-# Formats
+# Examples
 
 ```{toctree}
-File formats <file_formats>
-Units and coordinates <units_coordinates>
+Example 1 <example1>
 ```
