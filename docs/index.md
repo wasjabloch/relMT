@@ -2,12 +2,13 @@
 
 ```{toctree}
 :hidden:
+:maxdepth: 3
 
-:caption: Table of contents
-
-Getting started <how-to/setup.md>
-File formats <how-to/formats.md>
-API <api/relmt>
+Home <self>
+Getting started <getting_started/index>
+Formats <formats/index>
+Examples <examples/index>
+API <api/index>
 ```
 
 ![relMT-alpha Logo](../images/relMT-alpha.png)

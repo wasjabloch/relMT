@@ -43,15 +43,18 @@ exclude_patterns = [
 ]
 
 html_theme = "pydata_sphinx_theme"
-html_permalinks_icon = "<span>#</span>"
-html_theme_options = dict(
-    sidebarwidth="22em",
-    pygments_light_style="blinds-light",
-    pygments_dark_style="blinds-dark",
-)
-html_logo = "_static/relMT-alpha.png"
 
-autodoc_member_order = "bysource"  # groupwise, alphabetical
+html_permalinks_icon = "<span>#</span>"
+html_theme_options = {
+    # "sidebarwidth": "22em",
+    "pygments_light_style": "blinds-light",
+    "pygments_dark_style": "blinds-dark",
+    "show_toc_level": 4,
+}
+
+html_logo = "../images/relMT-alpha.png"
+
+# autodoc_member_order = "bysource"  # groupwise, alphabetical
 
 myst_enable_extensions = [
     "colon_fence",  # Nicer tables

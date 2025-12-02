@@ -1,20 +1,6 @@
 (file-formats)=
 # File Formats
 
-## Units and coordinates
-
-All units are SI units. Location in `m`, Seismic moment in `Nm`.
-
-We assume a right-handed Cartesian coordinate system where $x_1, x_2, x_3$ are North, East, Down. Azimuth is in degree east of north ($x_1 \rightarrow x_2$) and plunge in degree down from horizontal ($(x_1,x_2) \rightarrow x_3$).
-
-Time and space coordinates are relative to an arbitrary origin.
-
-Time measurements are required to tie time shifts of seismic traces to an
-absolute reference frame and can be useful when importing and exporting seismic
-traces. They are not required for moment tensor calculation.
-
-## Input file formats
-
 Any lines stating with `#` are ignored.
 
 Trailing columns are ignored.
@@ -37,7 +23,7 @@ root/
 
 The name of the `root/` directory is arbitrary.
 
-### `config.yaml` configuration file
+## `config.yaml` configuration file
 
 The configuration file holds the options that control the runtime behavior of
 `relMT`. It is located in the `root/` directory.
@@ -226,7 +212,7 @@ min_amplitude_weight:
 bootstrap_samples:
 ```
 
-### `exclude.yaml` exclude file
+## `exclude.yaml` exclude file
 
 The exclude file lists the events, stations, phases and waveforms to exclude
 from processing. It is located in the `root/` directory. An empty exclude file can
@@ -250,7 +236,7 @@ phase_auto_cc: []
 phase_auto_ecn: []
 ```
 
-### `stations.txt` station file
+## `stations.txt` station file
 
 The station file holds the station names and locations. It is located in the
 `data/` subdirectory.
@@ -262,7 +248,7 @@ The station file holds the station names and locations. It is located in the
 3. Easting (meter)
 4. Depth (meter)
 
-### `events.txt` event file
+## `events.txt` event file
 
 The event files holds the seismic event catalog. It is located in the `data/`
 subdirectory.
@@ -283,7 +269,7 @@ magnitude can be `nan` if unknown. The event *name* (7.) is an external event
 reference (e.g.  event ID within a larger catalog), which may be used for data
 import and export.
 
-### `phases.txt` phase file
+## `phases.txt` phase file
 
 The phase file holds the arrival times and take-off angles of the seismic phases
 at the stations. It is located in the `data/` subdirectory.
@@ -302,7 +288,7 @@ absolute reference frame and can be useful when importing and exporting seismic
 traces. We recommend to use absolute time in epoch seconds or seconds after
 origin time.
 
-### `reference_mt.txt` reference moment tensor file
+## `reference_mt.txt` reference moment tensor file
 
 The reference moment tensor file holds the components of the reference moment
 tensor(s). It is located in the `data/` subdirectory.
@@ -321,7 +307,7 @@ The components of the moment tensor are given in units of Newton meter.
 Scientific notation (e.g. `1.2e19`) is encouraged for the large floats.
 
 (header-file)=
-### `STATION_PHASE-hdr.yaml` waveform header files
+## `STATION_PHASE-hdr.yaml` waveform header files
 
 The waveform header files hold the meta information about the seismic waveforms.
 Default values are read from `default-hdr.yaml` located in the `data/`
@@ -418,7 +404,7 @@ combinations_from_file:
 events_:
 ```
 
-### `STATION_PHASE-wvarr.npy` waveform array files
+## `STATION_PHASE-wvarr.npy` waveform array files
 
 The waveform array files hold the event waveforms of one phase at one
 station. They are `NumPy` array files that obey the naming convention

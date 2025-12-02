@@ -1,4 +1,4 @@
-# Getting started
+# Setting up a project
 
 ## Set up the input files
 
@@ -66,3 +66,5 @@ See [file formats](project:./formats.md) for details.
     :::
 
 5. From the `default-hdr.yaml`, create the waveform array files and waveform headers.
+
+### With a subsection

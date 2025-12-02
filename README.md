@@ -7,6 +7,7 @@
 <!-- SPHINX-START -->
 
 ## Installation
+ <!-- INSTALLATION-START -->
 
 We recommend to create a conda environment and activate it. Choose any Python version
 greater or equal 3.10
@@ -70,6 +71,7 @@ If you consider contributing to `relmt`, please install the development version
 pip install .[dev]
 ```
 
+<!-- INSTALLATION-END -->
 ## Documentation
 
 The documentation is hosted at: <https://relmt.readthedocs.io/en/latest/>
