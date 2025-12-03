@@ -6,6 +6,7 @@
 
 Home <self>
 Getting started <getting_started/index>
+Usage <usage/usage>
 Formats <formats/index>
 Examples <examples/index>
 API <api/index>

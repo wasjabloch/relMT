@@ -1508,18 +1508,28 @@ def plot_alignment_entry(
     input("Press any key to continue...")
 
 
-def get_arguments(args: list[str] | None = None) -> Namespace:
-    """Collect the command line arguments.
+def make_parser() -> ArgumentParser:
+    """Create the ArgumentParser for the relMT command line interface."""
 
-    Parameters
-    ----------
-    args:
-        List of command line arguments. If ``None``, collect via ArgumentParser.
-
-    Returns
-    -------
-    Parsed arguments
-    """
+    # Common options for various modes
+    option = {
+        "overwrite": (
+            ("-o", "--overwrite"),
+            dict(help="Overwrite existing files", action="store_true"),
+        ),
+        "config": (
+            ("-c", "--config"),
+            dict(
+                type=Path,
+                help="Use this configuration file",
+                default=core.file("config"),
+            ),
+        ),
+        "alignment": (
+            ("-a", "--alignment"),
+            dict(nargs="?", type=int, help="Alignment iteration", default=0),
+        ),
+    }
 
     parser = ArgumentParser(
         description="""
@@ -1538,7 +1548,11 @@ Software for computing relative seismic moment tensors"""
     )
 
     exclude_p = subpars.add_parser(
-        "exclude", help="Exclude phase observations from alignment"
+        "exclude",
+        help=(
+            "Exclude phase observations from alignment based on criteria in "
+            "header files"
+        ),
     )
 
     amp_p = subpars.add_parser(
@@ -1546,7 +1560,11 @@ Software for computing relative seismic moment tensors"""
     )
 
     qc_p = subpars.add_parser(
-        "qc", help="Apply quality control parameters to amplitude measurements"
+        "qc",
+        help=(
+            "Apply quality control parameters from configuration file to "
+            "amplitude measurements"
+        ),
     )
 
     solve_p = subpars.add_parser(
@@ -1563,26 +1581,6 @@ Software for computing relative seismic moment tensors"""
     qc_p.set_defaults(command=qc_entry)
     solve_p.set_defaults(command=solve_entry)
 
-    # Global arguments
-    parser.add_argument(
-        "-c",
-        "--config",
-        type=Path,
-        help="Use this configuration file",
-        default=core.file("config"),
-    )
-
-    parser.add_argument(
-        "-o",
-        "--overwrite",
-        help="Overwrite existing files",
-        action="store_true",
-    )
-
-    parser.add_argument(
-        "-a", "--alignment", nargs="?", type=int, help="Alignment iteration", default=0
-    )
-
     # Subparser arguments
     init_p.add_argument(
         "directory",
@@ -1593,6 +1591,10 @@ Software for computing relative seismic moment tensors"""
     )
 
     # Sub arguments of the alignment routine
+    align_p.add_argument(*option["config"][0], **option["config"][1])
+    align_p.add_argument(*option["alignment"][0], **option["alignment"][1])
+    align_p.add_argument(*option["overwrite"][0], **option["overwrite"][1])
+
     align_p.add_argument(
         "--mccc",
         action="store_true",
@@ -1608,7 +1610,7 @@ Software for computing relative seismic moment tensors"""
 
     # Sub arguments of the exlusion routine
     exclude_p.add_argument(
-        "--no-data",
+        "--nodata",
         action="store_true",
         help="Exlude data with no data or data containing NaNs",
     )
@@ -1640,6 +1642,26 @@ Software for computing relative seismic moment tensors"""
         ),
     )
 
+    exclude_p.add_argument(
+        "--overwrite",
+        "-o",
+        help=(
+            "Overwrite existing entries per category. Never overwrites manually"
+            "exluded phases"
+        ),
+        action="store_true",
+    )
+
+    exclude_p.add_argument(*option["alignment"][0], **option["alignment"][1])
+    exclude_p.add_argument(*option["config"][0], **option["config"][1])
+
+    # Amplitude sub-arguments
+    amp_p.add_argument(*option["alignment"][0], **option["alignment"][1])
+
+    # Sub arguments of the solve routine
+    solve_p.add_argument(*option["config"][0], **option["config"][1])
+    solve_p.add_argument(*option["alignment"][0], **option["alignment"][1])
+    solve_p.add_argument(*option["overwrite"][0], **option["overwrite"][1])
     solve_p.add_argument(
         "--predict",
         action="store_true",
@@ -1649,6 +1671,8 @@ Software for computing relative seismic moment tensors"""
         ),
     )
 
+    # Plot arguments
+    plot_p.add_argument(*option["config"][0], **option["config"][1])
     plot_p.add_argument(
         "what",
         choices=["alignment"],
@@ -1685,6 +1709,24 @@ Software for computing relative seismic moment tensors"""
         help="Event IDs to highligh in the plot",
         default=[],
     )
+
+    return parser
+
+
+def get_arguments(args: list[str] | None = None) -> Namespace:
+    """Collect the command line arguments.
+
+    Parameters
+    ----------
+    args:
+        List of command line arguments. If ``None``, collect via ArgumentParser.
+
+    Returns
+    -------
+    Parsed arguments
+    """
+
+    parser = make_parser()
 
     parsed = parser.parse_args(args)
 

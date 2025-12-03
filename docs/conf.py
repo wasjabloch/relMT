@@ -14,6 +14,7 @@ extensions = [
     "sphinx.ext.mathjax",  # Write math formulas
     "sphinx.ext.napoleon",  # More documentation styles
     "sphinx.ext.viewcode",  # Show link to actual code
+    "sphinxarg.ext",  # Document command line arguments
     # Handle type hints. Note: This module may fail disgracefully when building
     # ill-formated documentation. Uncomment and debug Critical, Errors, Warnings
     # when build of documentation is failing
