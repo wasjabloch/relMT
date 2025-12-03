@@ -62,8 +62,8 @@ def hash_plunge_table(
     nray:
         Number of rays traced
 
-    Retruns:
-    --------
+    Returns
+    -------
     ``(distance, depth)`` lookup table of takeoff plunge angles
     """
 

@@ -23,7 +23,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Main relMT executables"""
+"""Entry points for relMT command line interface."""
 
 from relmt import io, utils, align, core, signal, extra, amp, ls, mt, qc, angle, plot
 from scipy import sparse
@@ -33,21 +33,41 @@ import numpy as np
 import sys
 import multiprocessing as mp
 from multiprocessing import shared_memory as sm
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 
 logger = core.register_logger(__name__)
 
 
-def main_align(
+def align_entry(
     config: core.Config,
-    directory: Path,
-    iteration: int,
+    directory: Path = Path(),
+    iteration: int = 0,
     do_mccc: bool = True,
     do_pca: bool = True,
     overwrite: bool = False,
-):
+) -> None:
     """
-    Align waveform files and write results into next alignment directory
+    Align waveform files and write results into next alignment directory.
+
+    This function is called when executing 'relmt align' from the command line.
+
+    Parameters
+    ----------
+    config:
+        Configuration object with alignment parameters. Content of the file read
+        by the '--config' option.
+    directory:
+        Root directory of the project, containing the 'data/' and 'align?/'
+        subfolders. Path of the file referenced by the '--config' option.
+    iteration:
+        Current alignment iteration number. `0`: read from 'data/', `>0` read from
+        alignment iteration folder. Number parsed to the '--alignment' option.
+    do_mccc:
+        Align by multi-channel cross-correlation. Activated by '--mccc'
+    do_pca:
+        Align by principal component analysis. Activated by '--pca'
+    overwrite:
+        Overwrite existing aligned waveform files. Activated by '--overwrite'
     """
 
     stf = directory / config["station_file"]
@@ -129,17 +149,50 @@ def main_align(
             align.run(*arg)
 
 
-def main_exclude(
+def exclude_entry(
     config: core.Config,
-    iteration: int,
-    overwrite: bool,
+    iteration: int = 0,
+    append: bool = True,
     directory: Path = Path("."),
     do_nodata: bool = False,
     do_snr: bool = False,
     do_cc: bool = False,
     do_ecn: bool = False,
-):
-    """Exclude observations from alignment procedure"""
+) -> None:
+    """Exclude phase observations based on waveform quality criteria.
+
+    Thresholds are read from the resective waveform header files and can be
+    different for each phase. Default values from a `default-hdr.yaml` are
+    respected. `None` thresholds are ignored.
+
+    This function is called when executing 'relmt exclude' from the command line.
+
+    Parameters
+    ----------
+    config:
+        Configuration object with station file. Content of the file read
+        by the '--config' option.
+    iteration:
+        Current alignment iteration number. `0`: read from 'data/', `>0` read from
+        alignment iteration folder. Number parsed to the '--alignment' option.
+    append:
+        Overwrite existing entry exclude file. Deactivated by '--overwrite'
+    directory:
+        Root directory of the project, containing the 'data/' and 'align?/'
+        subfolders. Path of the file referenced by the '--config' option.
+    do_nodata:
+        Exclude traces with `NaN` data, null data or data with all values below
+        absolute 'null_threshold'. Activated by '--nodata'
+    do_snr:
+        Exclude traces with signal-to-noise ratio below 'min_signal_noise_ratio'.
+        Activated by '--snr'
+    do_cc:
+        Exclude traces with average cross-correlation below 'min_correlation'.
+        Activated by '--cc'
+    do_ecn:
+        Exclude traces with expansion coefficient norm below
+        'min_expansion_coefficient_norm'. Activated by '--ecn'
+    """
 
     exf = core.file("exclude", directory=directory)
 
@@ -201,6 +254,7 @@ def main_exclude(
                     arr, **hdr.kwargs(signal.demean_filter_window)
                 )
             )
+            # TODO: allow to read cc from file instead
             cc = signal.correlation_averages(mat, hdr["phase"])[2]
             icc = cc < mincc
             logger.debug(f"{wvid}: {sum(icc)} traces with CC < {mincc}")
@@ -221,7 +275,7 @@ def main_exclude(
         excludes["ecn"] += [core.join_phaseid(iev, sta, pha) for iev in events[iecn]]
 
     # Add the exludes already present, in case we don't want to overwrite
-    if not overwrite:
+    if append:
         excludes["no_data"] += excl["phase_auto_nodata"]
         excludes["snr"] += excl["phase_auto_snr"]
         excludes["cc"] += excl["phase_auto_cc"]
@@ -248,150 +302,30 @@ def main_exclude(
     io.save_yaml(exf, excl)
 
 
-@core._doc_config_args
-def phase_passbands(
-    arr: np.ndarray,
-    hdr: core.Header,
-    evd: dict[int, core.Event],
-    exclude: core.Exclude | None = None,
-    auto_lowpass_method: str | None = None,
-    auto_lowpass_stressdrop_range: tuple[float, float] = [1.0e6, 1.0e6],
-    auto_bandpass_snr_target: float | None = None,
-) -> dict[str, list[float]]:
-    """Compute the bandpass filter corners for a waveform array.
-
-    This function computes the bandpass filter corners for each event in the
-    waveform array. The following logic is applied:
-
-    The lowpass corner should be the corner frequency of the phase spectrum. We
-    estimate it as:
-
-    - 1/source duration of the event magnitude when `lowpass_method` is 'duration'.
-    - Based on the corner frequency pertaining to a stressdrop (Pa) within
-    `lowpass_stressdrop_range` when `lowpass_method` is 'corner':
-      - If the upper bound is smaller or equal the lower bound (i.e. no range is
-        given), estimate the corner frequency using
-        :func:`utils.corner_frequency` with an S-wave velocity of 4 km/s.
-      - If a range is given, we convert it to a corner frequency range as above
-      and search the apparent corner frequency as the maximum of the phase
-      velocity spectrum within this range using
-      :func:`extra.apparent_corner_frequency`
-
-    The default highpass corner is chosen as 1/phase length.
-
-    When `bandpass_snr_target` is given, we determine the frequency band in the
-    signal and noise spectra for which the signal-to-noise ratio is larger than
-    `bandpass_snr_target` (dB), compare with the above estimates, and return the
-    highest highpass and the lowest lowpass corner.
-
-    Parameters
-    ----------
-    arr:
-        The waveform array with shape ``(events, channels, samples)``.
-    hdr:
-        The header containing metadata about the waveform array, including
-        phase phase start and end times, sampling rate, included events.
-    evd:
-        The seismic event catalog.
-    exclude:
-        An optional exclude object with observations to be excluded from the
-        computation. If None, all observatinos are included.
-
-    Returns
-    -------
-    Dictionary mapping phaseIDs (event ID, station, phase) to filter corners
-    [highpass, lowpass].
-
-    Raises
-    ------
-    ValueError:
-        If an unknown lowpass method is specified.
-    """
-
-    ievs, evns = qc.included_events(exclude, **hdr.kwargs(qc.included_events))
-
-    pha = hdr["phase"]
-
-    # At least one period within window
-    fwin = 1.0 / (hdr["phase_end"] - hdr["phase_start"])
-
-    # One sample more than the Nyquist frequency
-    fnyq = (arr.shape[-1] - 1.0) / hdr["data_window"] / 2
-
-    bpd = {}
-    for iev, evn in zip(ievs, evns):
-        print("{:02d} events to go   ".format(len(evns) - iev), end="\r")
-
-        ev = evd[evn]
-
-        phase_arr = arr[iev, :, :]
-
-        # First get the corner frequency
-        if auto_lowpass_method == "duration":
-            # Corner frequency from duration
-            fc = 1 / utils.source_duration(ev.mag)
-
-        elif auto_lowpass_method == "corner":
-            # Corner frequency from stress drop
-
-            if auto_lowpass_stressdrop_range[0] >= auto_lowpass_stressdrop_range[1]:
-                fc = utils.corner_frequency(
-                    ev.mag, pha, auto_lowpass_stressdrop_range[0], 4000
-                )
-
-            else:
-                # Convert stressdrop range to possile corner frequencies
-                fcmin = utils.corner_frequency(
-                    ev.mag, pha, auto_lowpass_stressdrop_range[0], 4000
-                )
-                fcmax = utils.corner_frequency(
-                    ev.mag, pha, auto_lowpass_stressdrop_range[1], 4000
-                )
-
-                # Isolate the signal
-                isig, _ = signal.indices_signal(**hdr.kwargs(signal.indices_signal))
-                sig = signal.demean(phase_arr[:, isig:])
-
-                # Try to compute the corner frequency
-                try:
-                    fc = extra.apparent_corner_frequency(
-                        sig, hdr["sampling_rate"], fmin=fcmin, fmax=fcmax
-                    )
-                except ValueError:
-                    # It might be outside the range of the signal
-                    fc = fcmax
-        else:
-            raise ValueError(f"Unknown lowpass method: {auto_lowpass_method}")
-
-        # No SNR optimization, use the corner frequency
-        hpas = min(fwin, fnyq)
-        lpas = min(fc, fnyq)
-
-        if auto_bandpass_snr_target is not None and hpas < lpas:
-            # Try to optimize bandpass within range
-            hpas, lpas = extra.optimal_bandpass(
-                phase_arr,
-                fmin=hpas,
-                fmax=lpas,
-                min_snr=auto_bandpass_snr_target,
-                **hdr.kwargs(extra.optimal_bandpass),
-            )
-
-        # Return the filter corners
-        bpd[evn] = [float(hpas), float(lpas)]
-
-    return bpd
-
-
-def main_amplitude(
+def amplitude_entry(
     config: core.Config,
     directory: Path = Path(),
     iteration: int = 0,
     overwrite: bool = False,
-):
-    """
-    Compute relative amplitudes using options in config. Assemble path directory
-    and iteration. Choose 'overwrite' to overwrite existing files.
+) -> None:
+    """Compute relative amplitude measurements and save to file.
+
+    This function is called when executing 'relmt amplitude' from the command line.
+
+    Parameters
+    ----------
+    config:
+        Configuration object with amplitude measurement parameters. Content of
+        the file read by the '--config' option.
+    directory:
+        Root directory of the project, containing the 'align?/' and 'amplitude/'
+        subfolders. Path of the file referenced by the '--config' option.
+    iteration:
+        Read waveforms from this alignment iteration. `0`: read from 'data/',
+        `>0` read from 'align?'. Number parsed to the '--alignment' option.
+    overwrite:
+        Overwrite existing amplitude measurement and passband files. Activated
+        by '--overwrite'
     """
 
     ampdir = directory / "amplitude"
@@ -470,11 +404,11 @@ def main_amplitude(
                     logger.debug(e)
                     continue
 
-                pasbnds[wvid] = phase_passbands(
+                pasbnds[wvid] = signal.phase_passbands(
                     arr,
                     hdr,
                     event_dict,
-                    **config.kwargs(phase_passbands),
+                    **config.kwargs(signal.phase_passbands),
                     exclude=exclude,
                 )
 
@@ -707,11 +641,19 @@ def main_amplitude(
         shm.unlink()
 
 
-def main_qc(config: core.Config, directory: Path):
-    """Read amplitudes and discard according to criteria in config
+def qc_entry(config: core.Config, directory: Path = Path()) -> None:
+    """Quality control amplitude measurements
 
-    Before constructing the system, apply amplitude exlusion criteria and
-    minumum number of equation constraints.
+    This function is called when executing 'relmt qc' from the command line.
+
+    Parameters
+    ----------
+    config:
+        Configuration object with QC parameters. Content of the file read
+        by the '--config' option.
+    directory:
+        Root directory of the project, containing the 'amplitude/' subfolder.
+        Path of the file referenced by the '--config' option.
     """
 
     # A-priori meassures
@@ -923,11 +865,29 @@ def main_qc(config: core.Config, directory: Path):
         io.save_amplitudes(outfile, amps)
 
 
-def main_solve(
-    config: core.Config, directory: Path = Path(), iteration: int = 0, do_predict=False
-):
-    """Construct and validate linear system from amplitude measurement. Solve
-    for moment tensors."""
+def solve_entry(
+    config: core.Config, directory: Path = Path(), do_predict=False, iteration: int = 0
+) -> None:
+    """Construct linear system ans solve for moment tensors.
+
+    This function is called when executing 'relmt solve' from the command line.
+
+    Parameters
+    ----------
+    config:
+        Configuration object with solver parameters. Content of the file read
+        by the '--config' option.
+    directory:
+        Root directory of the project, containing the 'amplitude/' and 'result/'
+        subfolders. Path of the file referenced by the '--config' option.
+    do_predict:
+        If `True`, additionaly predict amplitudes of the found solution. This
+        option is slow.
+    iteration:
+        Current alignment iteration number. `0`: read from 'data/', `>0` read from
+        alignment iteration folder. Number parsed to the '--alignment' option.
+        Only required when do_predict is `True`
+    """
 
     evf = directory / config["event_file"]
     stf = directory / config["station_file"]
@@ -1455,14 +1415,29 @@ def main_solve(
     )
 
 
-def main_plot_alignment(
+def plot_alignment_entry(
     arrf: Path,
-    config: core.Config = None,
-    do_exclude=False,
+    config: core.Config | None = None,
+    do_exclude: bool = False,
     sort: str = "pci",
     highligh_events: list[int] = [],
-):
-    """Plot the waveform array with parameters relevant to judging the alignment"""
+) -> None:
+    """Plot the waveform array and parameters relevant to judging the alignment
+
+    Parameters
+    ----------
+    arrf:
+        Path to the waveform array file to plot
+    config:
+        Configuration object. If given, event and station tables are read from
+        files specified in the configuration.
+    do_exclude:
+        Read the exclude file and only plot events that are not excluded.
+    sort:
+        Sorting method for events. See `plot.alignment` for options.
+    highligh_events:
+        List of event IDs to highlight in the plot.
+    """
 
     # Find where we are
     subdir = arrf.parts[-2]
@@ -1507,6 +1482,7 @@ def main_plot_alignment(
     except FileNotFoundError:
         dt_pca = None
 
+    # TODO: allow ccij to be computed instead
     try:
         ccij = np.loadtxt(core.file("cc_matrix", *dest))
     except FileNotFoundError:
@@ -1532,8 +1508,18 @@ def main_plot_alignment(
     input("Press any key to continue...")
 
 
-def get_arguments(args=None):
-    """Get command line options for :func:`main_align()`"""
+def get_arguments(args: list[str] | None = None) -> Namespace:
+    """Collect the command line arguments.
+
+    Parameters
+    ----------
+    args:
+        List of command line arguments. If ``None``, collect via ArgumentParser.
+
+    Returns
+    -------
+    Parsed arguments
+    """
 
     parser = ArgumentParser(
         description="""
@@ -1571,11 +1557,11 @@ Software for computing relative seismic moment tensors"""
 
     # Now set the functions to be called
     init_p.set_defaults(command=core.init)
-    align_p.set_defaults(command=main_align)
-    exclude_p.set_defaults(command=main_exclude)
-    amp_p.set_defaults(command=main_amplitude)
-    qc_p.set_defaults(command=main_qc)
-    solve_p.set_defaults(command=main_solve)
+    align_p.set_defaults(command=align_entry)
+    exclude_p.set_defaults(command=exclude_entry)
+    amp_p.set_defaults(command=amplitude_entry)
+    qc_p.set_defaults(command=qc_entry)
+    solve_p.set_defaults(command=solve_entry)
 
     # Global arguments
     parser.add_argument(
@@ -1594,7 +1580,7 @@ Software for computing relative seismic moment tensors"""
     )
 
     parser.add_argument(
-        "-n", "--n_align", nargs="?", type=int, help="Alignment iteration", default=0
+        "-a", "--alignment", nargs="?", type=int, help="Alignment iteration", default=0
     )
 
     # Subparser arguments
@@ -1770,7 +1756,7 @@ def main(args=None):
 
     if parsed.mode == "plot":
         if parsed.what == "alignment":
-            main_plot_alignment(
+            plot_alignment_entry(
                 parsed.file,
                 config,
                 parsed.exclude,

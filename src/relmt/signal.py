@@ -27,7 +27,7 @@ import numpy as np
 from scipy.signal import bessel, butter, lfilter, filtfilt
 import scipy.fft as fft
 from typing import Iterable
-from relmt import utils, core, align
+from relmt import utils, core, align, extra, qc
 
 logger = core.register_logger(__name__)
 
@@ -127,7 +127,7 @@ def norm_power(array: np.ndarray, axis: int = -1) -> np.ndarray:
     return array / np.sqrt(np.sum(array**2, axis=axis, keepdims=True))
 
 
-#@core._doc_config_args
+# @core._doc_config_args
 def indices_inside_taper(
     sampling_rate: float,
     taper_length: float,
@@ -167,7 +167,7 @@ def indices_inside_taper(
     return i0, i1
 
 
-#@core._doc_config_args
+# @core._doc_config_args
 def indices_signal(
     sampling_rate: float,
     phase_start: float,
@@ -288,7 +288,7 @@ def shift(mtx: np.ndarray, dt: np.ndarray, sampling_rate: float) -> np.ndarray:
     return sfn
 
 
-#@core._doc_config_args
+# @core._doc_config_args
 def cosine_taper(
     arr: np.ndarray,
     taper_length: float,
@@ -492,7 +492,7 @@ def choose_passband(
     return hpas, lpas
 
 
-#@core._doc_config_args
+# @core._doc_config_args
 def signal_noise_ratio(
     arr: np.ndarray,
     sampling_rate: float,
@@ -680,7 +680,7 @@ def filter(
     return lfilter(b, a, wvf)
 
 
-#@core._doc_config_args
+# @core._doc_config_args
 def demean_filter_window(
     arr: np.ndarray,
     sampling_rate: float,
@@ -740,7 +740,7 @@ def demean_filter_window(
     return arr
 
 
-#@core._doc_config_args
+# @core._doc_config_args
 def subset_filter_align(
     arr: np.ndarray,
     indices: list[int],
@@ -921,3 +921,141 @@ def correlation_averages(
         ccij[np.diag_indices_from(ccij)] = 1.0
 
     return ccijk, ccij, cci, cc
+
+
+def phase_passbands(
+    arr: np.ndarray,
+    hdr: core.Header,
+    evd: dict[int, core.Event],
+    exclude: core.Exclude | None = None,
+    auto_lowpass_method: str | None = None,
+    auto_lowpass_stressdrop_range: tuple[float, float] = [1.0e6, 1.0e6],
+    auto_bandpass_snr_target: float | None = None,
+) -> dict[str, list[float]]:
+    """Compute the bandpass filter corners for a waveform array.
+
+    This function computes the bandpass filter corners for each event in the
+    waveform array. The following logic is applied:
+
+    The lowpass corner should be the corner frequency of the phase spectrum. We
+    estimate it as:
+
+    - 1/source duration of the event magnitude when `lowpass_method` is
+      'duration'.
+
+    - Based on the corner frequency pertaining to a stressdrop (Pa) within
+      `lowpass_stressdrop_range` when `lowpass_method` is 'corner':
+
+    - If the upper bound is smaller or equal the lower bound (i.e. no range is
+      given), estimate the corner frequency using :func:`utils.corner_frequency`
+      with an S-wave velocity of 4 km/s.
+
+    - If a range is given, we convert it to a corner frequency range as above
+      and search the apparent corner frequency as the maximum of the phase
+      velocity spectrum within this range using
+      :func:`extra.apparent_corner_frequency`
+
+    The default highpass corner is chosen as 1/phase length.
+
+    When `bandpass_snr_target` is given, we determine the frequency band in the
+    signal and noise spectra for which the signal-to-noise ratio is larger than
+    `bandpass_snr_target` (dB), compare with the above estimates, and return the
+    highest highpass and the lowest lowpass corner.
+
+    Parameters
+    ----------
+    arr:
+        The waveform array with shape ``(events, channels, samples)``.
+    hdr:
+        The header containing metadata about the waveform array, including
+        phase phase start and end times, sampling rate, included events.
+    evd:
+        The seismic event catalog.
+    exclude:
+        An optional exclude object with observations to be excluded from the
+        computation. If None, all observatinos are included.
+
+    Returns
+    -------
+    Dictionary mapping phaseIDs (event ID, station, phase) to filter corners
+    [highpass, lowpass].
+
+    Raises
+    ------
+    ValueError:
+        If an unknown lowpass method is specified.
+    """
+
+    ievs, evns = qc.included_events(exclude, **hdr.kwargs(qc.included_events))
+
+    pha = hdr["phase"]
+
+    # At least one period within window
+    fwin = 1.0 / (hdr["phase_end"] - hdr["phase_start"])
+
+    # One sample more than the Nyquist frequency
+    fnyq = (arr.shape[-1] - 1.0) / hdr["data_window"] / 2
+
+    bpd = {}
+    for iev, evn in zip(ievs, evns):
+        print("{:02d} events to go   ".format(len(evns) - iev), end="\r")
+
+        ev = evd[evn]
+
+        phase_arr = arr[iev, :, :]
+
+        # First get the corner frequency
+        if auto_lowpass_method == "duration":
+            # Corner frequency from duration
+            fc = 1 / utils.source_duration(ev.mag)
+
+        elif auto_lowpass_method == "corner":
+            # Corner frequency from stress drop
+
+            if auto_lowpass_stressdrop_range[0] >= auto_lowpass_stressdrop_range[1]:
+                fc = utils.corner_frequency(
+                    ev.mag, pha, auto_lowpass_stressdrop_range[0], 4000
+                )
+
+            else:
+                # Convert stressdrop range to possile corner frequencies
+                fcmin = utils.corner_frequency(
+                    ev.mag, pha, auto_lowpass_stressdrop_range[0], 4000
+                )
+                fcmax = utils.corner_frequency(
+                    ev.mag, pha, auto_lowpass_stressdrop_range[1], 4000
+                )
+
+                # Isolate the signal
+                isig, _ = indices_signal(**hdr.kwargs(indices_signal))
+                sig = demean(phase_arr[:, isig:])
+
+                # Try to compute the corner frequency
+                try:
+                    fc = extra.apparent_corner_frequency(
+                        sig, hdr["sampling_rate"], fmin=fcmin, fmax=fcmax
+                    )
+                except ValueError:
+                    # It might be outside the range of the signal
+                    fc = fcmax
+        else:
+            raise ValueError(f"Unknown lowpass method: {auto_lowpass_method}")
+
+        # No SNR optimization, use the corner frequency
+        hpas = min(fwin, fnyq)
+        lpas = min(fc, fnyq)
+
+        if auto_bandpass_snr_target is not None and hpas < lpas:
+            # Try to optimize bandpass within range
+            hpas, lpas = extra.optimal_bandpass(
+                phase_arr,
+                fmin=hpas,
+                fmax=lpas,
+                min_snr=auto_bandpass_snr_target,
+                **hdr.kwargs(extra.optimal_bandpass),
+            )
+
+        # Return the filter corners
+        bpd[evn] = [float(hpas), float(lpas)]
+
+    return bpd

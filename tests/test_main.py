@@ -83,7 +83,7 @@ def test_main_amplitdue(synthetic_aligned_waveforms):
     config = default.config
     config["amplitude_filter"] = "manual"
 
-    main.main_amplitude(config, path, 0)
+    main.amplitude_entry(config, path, 0)
 
     # Read the created amplitude observation
     pamps = io.read_amplitudes(
