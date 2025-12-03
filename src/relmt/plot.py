@@ -1144,7 +1144,7 @@ def alignment(
 
     phi = align.pca_objective(s, phase, mat.shape[0])
     section_2d(Vh[icomps, :], **hdr.kwargs(section_2d), ax=ax)
-    ax.set_title("$\Phi={:.4f}$".format(phi), pad=12)
+    ax.set_title("$\\Phi={:.4f}$".format(phi), pad=12)
     ax.set_ylabel("Principal\nSeismogram")
     ax.set_yticks(icomps)
     ax.set_xlabel("")
@@ -1167,7 +1167,7 @@ def alignment(
     ax = axs["cci"]
     ax.plot(cci, range(nin), color="red")
     ax.axvline(0, color="silver")
-    ax.set_xlabel("$\hat{{{C}}}_i$")
+    ax.set_xlabel("$\\hat{{{C}}}_i$")
     ax.grid(axis="y")
 
     if (mincc := hdr["min_correlation"]) is not None:
@@ -1180,7 +1180,7 @@ def alignment(
 
     # Cross correlation coefficient matrix
     ax = axs["ccij"]
-    ax.set_title("$\hat{{{|C|}}}$ = " + "{:.3f}".format(cc))
+    ax.set_title("$\\hat{{{|C|}}}$ = " + "{:.3f}".format(cc))
     cmap = ax.imshow(
         ccij, vmin=-1, vmax=1, cmap="RdGy", interpolation="nearest", aspect="auto"
     )
