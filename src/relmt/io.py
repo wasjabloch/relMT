@@ -48,7 +48,7 @@ filterwarnings("ignore", "Input line 1 contained no data")
 #    |(code) |(meter)  | (meter) | (meter)|
 
 
-def make_station_table(station_dict: dict, filename: Path | str | None = None) -> str:
+def write_station_table(station_dict: dict, filename: Path | str | None = None) -> str:
     """Convert station dictionary to relMT compliant station table
 
     The resulting table has one line per station. Columns are:
@@ -182,7 +182,7 @@ def read_yaml(filename: str) -> dict:
     return buf
 
 
-def make_event_table(
+def write_event_table(
     event_dict: dict[int, core.Event], filename: Path | str | None = None
 ) -> str:
     """
@@ -221,7 +221,7 @@ def make_event_table(
     return out
 
 
-def make_mt_table(
+def write_mt_table(
     mt_dict: dict[int, core.MT] | dict[int, list[core.MT]],
     filename: Path | str | None = None,
 ) -> str:
@@ -409,7 +409,7 @@ def read_event_table(
     }
 
 
-def make_phase_table(
+def write_phase_table(
     phase_dict: dict[str, core.Phase], filename: Path | str | None = None
 ) -> str:
     """
@@ -942,7 +942,7 @@ def read_amplitudes(filename: str, phase: str, unpack: bool = False):
         raise ValueError("'phase' must be 'P' or 'S'")
 
 
-def make_gmt_meca_table(
+def write_gmt_meca_table(
     moment_tensors: list[core.MT] | dict[int, core.MT],
     event_dict: dict[int, core.Event] | None = None,
     geoconverter: Callable | None = None,
@@ -1004,7 +1004,7 @@ def make_gmt_meca_table(
     return outarr
 
 
-def make_hypodd_cc_table(
+def _make_hypodd_cc_table(
     evpair_dd: dict[str, np.ndarray],
     cc: dict[str, np.ndarray],
     filename: str | Path | None = None,

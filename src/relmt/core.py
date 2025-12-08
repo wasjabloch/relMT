@@ -822,7 +822,7 @@ passband.""",
         """
 Minimum ratio (dB) of low- / highpass filter bandwidth in an amplitude ratio
 measurement. When positive, discard observation outside dynamic range. When
-negative, extend lower highpass until (positive) dynamic range is reached.""",
+negative, lower the highpass until the (positive) dynamic range is reached.""",
     ),
     "qc_suffix": (
         "str",
@@ -878,7 +878,7 @@ Warning: `False` appears broken)""",
         """
 Maximum number of S-wave equation in the linear system. If more are available,
 iterativley discard those with redundant pair-wise observations, on stations
-with many observations gap, and with a higher misfit""",
+with many observations, and with a higher misfit""",
     ),
     "keep_events": (
         "list",
@@ -891,7 +891,7 @@ the reference event or specific events of interest.""",
         "int",
         """
 When reducing the number of S-wave equations, rank observations iteratively this
-many times by redundancy and remove the most redundant ones. A higher number is
+many times by redundancy and remove the most redundant ones. A lower number is
 faster, but may result in discarding less-redundant observations.""",
     ),
     "result_suffix": (
@@ -928,7 +928,7 @@ Minimum misfit to assign a full weight of 1. Weights are scaled lineraly from
     "min_amplitude_weight": (
         "float",
         """
-Weight assigned to the maxumum amplitude misfit""",
+Lowest weight assigned to the maximum amplitude misfit""",
     ),
     "bootstrap_samples": (
         "int",
@@ -946,7 +946,9 @@ class Config:
     __doc__ += "----------\n"
     __doc__ += "\n"
     __doc__ += "".join(
-        f"{key}:\n    " + doc.split("\n\n")[-1].strip("\n").replace("\n", "\n    ") + "\n"
+        f"{key}:\n    "
+        + doc.split("\n\n")[-1].strip("\n").replace("\n", "\n    ")
+        + "\n"
         for key, (_, doc) in _config_args_comments.items()
     )
     __doc__ += "\n"
@@ -1349,7 +1351,9 @@ class Header(Config):
     __doc__ += "----------\n"
     __doc__ += "\n"
     __doc__ += "".join(
-        f"{key}:\n    " + doc.split("\n\n")[-1].strip("\n").replace("\n", "\n    ") + "\n"
+        f"{key}:\n    "
+        + doc.split("\n\n")[-1].strip("\n").replace("\n", "\n    ")
+        + "\n"
         for key, (_, doc) in _header_args_comments.items()
     )
     __doc__ += "\n"

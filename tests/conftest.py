@@ -169,8 +169,8 @@ def synthetic_aligned_waveforms(tmp_path):
         datadir = tmp_path / "data"
         datadir.mkdir()
 
-        io.make_event_table(event_dict, core.file("event", directory=tmp_path))
-        io.make_station_table(station_dict, core.file("station", directory=tmp_path))
+        io.write_event_table(event_dict, core.file("event", directory=tmp_path))
+        io.write_station_table(station_dict, core.file("station", directory=tmp_path))
         io.save_yaml(core.file("exclude", directory=tmp_path), core.exclude)
 
         for wvid in core.iterate_waveid(station_dict):

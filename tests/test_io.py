@@ -38,7 +38,7 @@ def test_make_read_station_table():
     # Test if a station table is read correctly
     evdin = {"A": (0.0, 0.0, 0.0, "A"), "B": (1.0, 1.0, 1.0, "B")}
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
-        tab = io.make_station_table(evdin, fid.name)
+        tab = io.write_station_table(evdin, fid.name)
         fid.close()
         evdout = io.read_station_table(fid.name)
         codes, ns, es, ds = io.read_station_table(fid.name, unpack=True)
@@ -85,7 +85,7 @@ def test_make_read_event_table():
         1: core.Event(1.0, 1.0, 1.0, 1.0, 1.0, "Event1"),
     }
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
-        tab = io.make_event_table(evd1, fid.name)
+        tab = io.write_event_table(evd1, fid.name)
         fid.close()
         evlist2 = io.read_event_table(fid.name)
     os.remove(fid.name)
@@ -145,7 +145,7 @@ def test_make_mt_table():
     # Test if a station table is read correctly
     mtin = {0: core.MT(0.0, 1.0, 2.0, 3.0, 4.0, 5.0)}
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
-        tab = io.make_mt_table(mtin, fid.name)
+        tab = io.write_mt_table(mtin, fid.name)
         fid.close()
         mtout = io.read_mt_table(fid.name)
     os.remove(fid.name)
@@ -169,7 +169,7 @@ def test_make_mt_table_list():
     }
 
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
-        tab = io.make_mt_table(mtin, fid.name)
+        tab = io.write_mt_table(mtin, fid.name)
         fid.close()
         mtout = io.read_mt_table(fid.name)
     os.remove(fid.name)
@@ -287,7 +287,7 @@ def test_make_read_phase_table():
         core.join_phaseid(1, "STA2", "S"): core.Phase(0.0, 0.0, 0.0),
     }
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
-        tab = io.make_phase_table(phd1, fid.name)
+        tab = io.write_phase_table(phd1, fid.name)
         fid.close()
         phd2 = io.read_phase_table(fid.name)
         phids, times, azs, incs = io.read_phase_table(fid.name, unpack=True)
@@ -549,7 +549,7 @@ def test_make_phase_table(iprint=False):
     fn = pwd / "data" / "test.hyp"
     evid = "1511061812"
     phd = io.read_phase_nll_hypfile(fn, evid, False, False)
-    tab = io.make_phase_table(phd)
+    tab = io.write_phase_table(phd)
 
     if iprint:
         print(tab)
@@ -564,7 +564,7 @@ def test_read_phase_table():
     fn = pwd / "data" / "test.hyp"
     evid = "1511061812"
     phd = io.read_phase_nll_hypfile(fn, evid, False, False)
-    tab = io.make_phase_table(phd)
+    tab = io.write_phase_table(phd)
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
         fid.write(tab)
         fid.close()
@@ -598,8 +598,8 @@ def test_make_gmt_meca_input():
         return n * 1e-3, e * 1e-4, d * 1e-5
 
     with tempfile.NamedTemporaryFile("w") as fid:
-        tab1 = io.make_gmt_meca_table(mtl, evd, geoconverter, fid.name)
-        tab2 = io.make_gmt_meca_table(mtd, evd, geoconverter, fid.name)
+        tab1 = io.write_gmt_meca_table(mtl, evd, geoconverter, fid.name)
+        tab2 = io.write_gmt_meca_table(mtd, evd, geoconverter, fid.name)
 
     mtcomps0 = np.array(mt.ned2rtf(*mtl[0]))
     mtcomps1 = np.array(mt.ned2rtf(*mtl[1])) / 1e3

@@ -9,8 +9,15 @@
 ## Installation
  <!-- INSTALLATION-START -->
 
-We recommend to create a conda environment and activate it. Choose any Python version
-greater or equal 3.10
+Installation of *relMT* is easy. The basic installation requires:
+
+* The *FFTW* library (often provided via the system package manager)
+* The Python packages *NumPy*, *SciPy*, *PyYAML*
+
+### Based on Conda and Pip
+
+We recommend to create a conda environment or to install into an existing one.
+Choose any Python version greater or equal 3.10
 
 ```sh
 # Create and activate the environment
@@ -21,7 +28,7 @@ conda activate relmt
 conda install -c conda-forge fftw
 ```
 
-Now install `relMT` locally
+Now install *relMT* locally
 
 ```sh
 git clone https://github.com/wasjabloch/relMT
@@ -31,9 +38,9 @@ pip install .
 
 For plotting, we require:
 
-* `matplotlib` for all plotting
-* `networkx` to visualize connections of equations in the linear system
-* `pyrocko` to plot moment tensors
+* *Matplotlib* for all plotting
+* *networkx* to visualize connections of equations in the linear system
+* *Pyrocko* to plot moment tensors
 
 Consider installing these packages using the `plot` optional dependency:
 
@@ -43,9 +50,9 @@ pip install .[plot]
 
 Some additional functionality requires community packages:
 
-* Import of waveforms and station inventories via `obspy`
-* Computation of spectra with `multitaper`
-* Conversion to and from Cartesian coordinates with `utm`
+* Import of waveforms and station inventories via *ObsPy*`
+* Computation of spectra with *Multitaper*
+* Conversion to and from Cartesian coordinates with *UTM*
 
 Consider installing these packages using the `extra` optional dependency:
 
@@ -53,7 +60,7 @@ Consider installing these packages using the `extra` optional dependency:
 pip install .[extra]
 ```
 
-If you are working in `IPython`, or `Jupyter`, install the package in the same `conda` environment to avoid version conflicts
+If you are working in *IPython*, or *Jupyter*, install the package in the same Conda environment to avoid version conflicts
 
 ```sh
 conda install ipython
@@ -65,7 +72,7 @@ or
 conda install jupyter
 ```
 
-If you consider contributing to `relmt`, please install the development version
+If you consider contributing to *relMT*, please install the development version
 
 ```sh
 pip install .[dev]

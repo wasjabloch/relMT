@@ -287,15 +287,15 @@ def exclude_entry(
         excl["phase_auto_nodata"] = excludes["no_data"]
 
     if do_snr:
-        logger.info(f"Excluding {len(excludes['snr'])} traces with SNR < {minsnr}")
+        logger.info(f"Excluding {len(excludes['snr'])} traces due to high SNR")
         excl["phase_auto_snr"] = excludes["snr"]
 
     if do_cc:
-        logger.info(f"Excluding {len(excludes['cc'])} traces with CC < {mincc}")
+        logger.info(f"Excluding {len(excludes['cc'])} traces due to low CC")
         excl["phase_auto_cc"] = excludes["cc"]
 
     if do_ecn:
-        logger.info(f"Excluding {len(excludes['ecn'])} traces with ECN < {minecn}")
+        logger.info(f"Excluding {len(excludes['ecn'])} traces due to low ECN")
         excl["phase_auto_ecn"] = excludes["ecn"]
 
     # Save it to file
@@ -1079,7 +1079,7 @@ def solve_entry(
     }
 
     # Save the results right away
-    io.make_mt_table(
+    io.write_mt_table(
         relmts, core.file("relative_mt", suffix=outsuf, directory=directory)
     )
 
@@ -1387,9 +1387,9 @@ def solve_entry(
                 bootmts[incl_ev[i]].append(momt)
 
         # Make and save a
-        io.make_mt_table(
+        io.write_mt_table(
             bootmts,
-            core.file("relative_mt", suffix=outsuf + "_boot", directory=directory),
+            core.file("relative_mt", suffix=outsuf + "-boot", directory=directory),
         )
 
         boot_rms = mt.norm_rms(bootmts, relmts)
@@ -1656,7 +1656,11 @@ Software for computing relative seismic moment tensors"""
     exclude_p.add_argument(*option["config"][0], **option["config"][1])
 
     # Amplitude sub-arguments
+    amp_p.add_argument(*option["config"][0], **option["config"][1])
     amp_p.add_argument(*option["alignment"][0], **option["alignment"][1])
+
+    # QC sub-arguments
+    qc_p.add_argument(*option["config"][0], **option["config"][1])
 
     # Sub arguments of the solve routine
     solve_p.add_argument(*option["config"][0], **option["config"][1])

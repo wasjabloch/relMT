@@ -46,12 +46,16 @@ exclude_patterns = [
 html_theme = "pydata_sphinx_theme"
 
 html_permalinks_icon = "<span>#</span>"
+
 html_theme_options = {
-    # "sidebarwidth": "22em",
     "pygments_light_style": "blinds-light",
     "pygments_dark_style": "blinds-dark",
     "show_toc_level": 4,
+    "primary_sidebar_end": [],
 }
+
+# Force sidebar disappear on some pages
+html_sidebars = {"usage/*": []}
 
 html_logo = "../images/relMT-alpha.png"
 
