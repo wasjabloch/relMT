@@ -152,7 +152,7 @@ def align_entry(
 def exclude_entry(
     config: core.Config,
     iteration: int = 0,
-    append: bool = True,
+    overwrite: bool = False,
     directory: Path = Path("."),
     do_nodata: bool = False,
     do_snr: bool = False,
@@ -175,8 +175,9 @@ def exclude_entry(
     iteration:
         Current alignment iteration number. `0`: read from 'data/', `>0` read from
         alignment iteration folder. Number parsed to the '--alignment' option.
-    append:
-        Overwrite existing entry exclude file. Deactivated by '--overwrite'
+    overwrite:
+        Overwrite existing entry exclude file. Activated by '--overwrite'. If
+        False, append to existing lists instead.
     directory:
         Root directory of the project, containing the 'data/' and 'align?/'
         subfolders. Path of the file referenced by the '--config' option.
@@ -275,7 +276,7 @@ def exclude_entry(
         excludes["ecn"] += [core.join_phaseid(iev, sta, pha) for iev in events[iecn]]
 
     # Add the exludes already present, in case we don't want to overwrite
-    if append:
+    if not overwrite:
         excludes["no_data"] += excl["phase_auto_nodata"]
         excludes["snr"] += excl["phase_auto_snr"]
         excludes["cc"] += excl["phase_auto_cc"]
@@ -1658,6 +1659,7 @@ Software for computing relative seismic moment tensors"""
     # Amplitude sub-arguments
     amp_p.add_argument(*option["config"][0], **option["config"][1])
     amp_p.add_argument(*option["alignment"][0], **option["alignment"][1])
+    amp_p.add_argument(*option["overwrite"][0], **option["overwrite"][1])
 
     # QC sub-arguments
     qc_p.add_argument(*option["config"][0], **option["config"][1])
@@ -1767,9 +1769,11 @@ def main(args=None):
     config = io.read_config(conff)
 
     # Let's parse the keyword arguments explicitly
-    n_align = parsed.n_align
-    overwrite = parsed.overwrite
     parent = conff.parent
+
+    if parsed.mode != "plot":
+        n_align = parsed.alignment
+        overwrite = parsed.overwrite
 
     # Convert parsers to function kwargs
     kwargs = dict(directory=parent)
@@ -1793,7 +1797,7 @@ def main(args=None):
     if parsed.mode == "exclude":
         kwargs.update(
             dict(
-                do_nodata=parsed.no_data,
+                do_nodata=parsed.nodata,
                 do_snr=parsed.snr,
                 do_cc=parsed.cc,
                 do_ecn=parsed.ecn,
