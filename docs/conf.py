@@ -57,7 +57,7 @@ html_theme_options = {
 # Force sidebar disappear on some pages
 html_sidebars = {"usage/*": []}
 
-html_logo = "../images/relMT-alpha.png"
+html_logo = "../images/relMT-beta.png"
 
 # autodoc_member_order = "bysource"  # groupwise, alphabetical
 

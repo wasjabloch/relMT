@@ -12,7 +12,7 @@ API <api/index>
 Examples <examples/index>
 ```
 
-![relMT-alpha Logo](../images/relMT-alpha.png)
+![relMT-beta Logo](../images/relMT-beta.png)
 
 Software to determine relative earthquake moment tensors
 
