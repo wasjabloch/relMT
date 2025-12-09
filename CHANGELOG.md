@@ -7,12 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- Bug template
-- Changelog
-- Code of Conduct
 
 ## [0.3.0-beta] - 2025-12-09
 
 ### Added
 
+- Bug template
+- Changelog
+- Code of Conduct
 - Initial versioned commit of the project
