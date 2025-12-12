@@ -1528,7 +1528,23 @@ def make_parser() -> ArgumentParser:
         ),
         "alignment": (
             ("-a", "--alignment"),
-            dict(nargs="?", type=int, help="Alignment iteration", default=0),
+            dict(type=int, nargs="?", help="Alignment iteration", default=0),
+        ),
+        "highlight": (
+            ("--highlight",),
+            dict(
+                type=int,
+                nargs="+",
+                help="Event IDs to highligh in the plot",
+                default=[],
+            ),
+        ),
+        "exclude": (
+            ("--exclude",),
+            dict(
+                action="store_true",
+                help="Exclude events listed in the exclude file",
+            ),
         ),
     }
 
@@ -1571,8 +1587,6 @@ Software for computing relative seismic moment tensors"""
     solve_p = subpars.add_parser(
         "solve", help="Compute moment tensors from amplitude measurements"
     )
-
-    plot_p = subpars.add_parser("plot", help="Plot results to screen")
 
     # Now set the functions to be called
     init_p.set_defaults(command=core.init)
@@ -1677,24 +1691,21 @@ Software for computing relative seismic moment tensors"""
         ),
     )
 
-    # Plot arguments
-    plot_p.add_argument(*option["config"][0], **option["config"][1])
-    plot_p.add_argument(
-        "what",
-        choices=["alignment"],
-        help=(
-            "What kind of plot to make: \n"
-            "* alignment: Plot alignment diagnostics. Give path to a -wvarr.npy file."
-        ),
+    # Plot alignment
+    plot_align_p = subpars.add_parser(
+        "plot-alignment", help="Plot waveform alignment resuts to screen"
     )
+    plot_align_p.set_defaults(command=plot_alignment_entry)
 
-    plot_p.add_argument(
+    plot_align_p.add_argument(*option["config"][0], **option["config"][1])
+
+    plot_align_p.add_argument(
         "file",
         type=Path,
-        help="The file to be plotted",
+        help="Path to -wvarr.npy file",
     )
 
-    plot_p.add_argument(
+    plot_align_p.add_argument(
         "--sort",
         type=str,
         help="The sorting to apply: 'pci' (default), 'magnitude', 'none'",
@@ -1702,19 +1713,9 @@ Software for computing relative seismic moment tensors"""
         default="pci",
     )
 
-    plot_p.add_argument(
-        "--exclude",
-        action="store_true",
-        help="Exclude events listed in the exclude file",
-    )
+    plot_align_p.add_argument(*option["highlight"][0], **option["highlight"][1])
+    plot_align_p.add_argument(*option["exclude"][0], **option["exclude"][1])
 
-    plot_p.add_argument(
-        "--highlight",
-        type=int,
-        nargs="+",
-        help="Event IDs to highligh in the plot",
-        default=[],
-    )
 
     return parser
 
@@ -1771,7 +1772,7 @@ def main(args=None):
     # Let's parse the keyword arguments explicitly
     parent = conff.parent
 
-    if parsed.mode != "plot":
+    if not parsed.mode.startswith("plot-"):
         n_align = parsed.alignment
         overwrite = parsed.overwrite
 
@@ -1804,16 +1805,15 @@ def main(args=None):
             )
         )
 
-    if parsed.mode == "plot":
-        if parsed.what == "alignment":
-            plot_alignment_entry(
-                parsed.file,
-                config,
-                parsed.exclude,
-                parsed.sort,
-                parsed.highlight,
-            )
-            return
+    if parsed.mode == "plot-alignment":
+        plot_alignment_entry(
+            parsed.file,
+            config,
+            parsed.exclude,
+            parsed.sort,
+            parsed.highlight,
+        )
+        return
 
     # The command to be executed is defined above for each of the subparsers
     parsed.command(config, **kwargs)
