@@ -980,6 +980,8 @@ def alignment(
     if event_list is None:
         event_list = hdr["events_"]
 
+    event_list = np.asarray(event_list)
+
     nin = len(event_list)
     ievs = np.array(range(nin))
 
