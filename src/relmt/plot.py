@@ -1055,9 +1055,13 @@ def alignment(
     if len(highlight_events) > 0:
         # Sorted event list for indexing
         sevl = list(event_list[isort])
-        for ax in axs.values():
+        for iax in ["dt", "snr", "cci", "ec"]:
+            ax = axs[iax]
             for refev in highlight_events:
-                ax.axhline(sevl.index(refev), color="red", zorder=5)
+                if refev in sevl:
+                    ax.axhline(sevl.index(refev), color="red", zorder=0)
+                else:
+                    logger.warning(f"Event {refev} not in file. Cannot highlight.")
 
     # Station and event map
 

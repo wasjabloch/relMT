@@ -6,7 +6,7 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "relmt"
 
-version = "0.3.0-beta"
+version = "0.3.1-beta"
 
 description = "Software to compute relative earthquake moment tensors."
 
