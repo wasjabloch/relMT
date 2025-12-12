@@ -25,7 +25,7 @@
 
 """Entry points for relMT command line interface."""
 
-from relmt import io, utils, align, core, signal, extra, amp, ls, mt, qc, angle, plot
+from relmt import io, utils, align, core, signal, amp, ls, mt, qc, angle, plot
 from scipy import sparse
 from pathlib import Path
 import yaml
@@ -1509,6 +1509,54 @@ def plot_alignment_entry(
     input("Press any key to continue...")
 
 
+def plot_spectra_entry(
+    arrf: Path,
+    bandpf: str | None = None,
+    highlight: list[int] = [],
+    integrate: bool = False,
+) -> None:
+    """Plot spectra of the waveform array. Highlight events or filter bands
+
+    Parameters
+    ----------
+    arrf:
+        Path to the waveform array file to plot
+    bandpf:
+        Path to the bandpass filter file
+    highlight:
+        List of event IDs to highlight in the plot.
+    integrate:
+        Integrate waveforms
+    """
+
+    # Find where we are
+    subdir = arrf.parts[-2]
+    directory = Path(*arrf.parts[:-2])
+
+    iteration = 0
+    if subdir.startswith("align"):
+        iteration = int(subdir.replace("align", ""))
+
+    # Load the header first
+    hdrf = arrf.with_name(arrf.stem.replace("-wvarr", "-hdr.yaml"))
+    hdr = io.read_header(
+        hdrf,
+        default_name=core.file(
+            "waveform_header", n_align=iteration, directory=directory
+        ),
+    )
+
+    arr = np.load(arrf)
+
+    bandpassd = {}
+    if bandpf is not None:
+        bandpassd = io.read_yaml(bandpf)
+
+    plot.spectra(arr, hdr, bandpassd, highlight, integrate)
+
+    input("Press any key to continue...")
+
+
 def make_parser() -> ArgumentParser:
     """Create the ArgumentParser for the relMT command line interface."""
 
@@ -1716,6 +1764,28 @@ Software for computing relative seismic moment tensors"""
     plot_align_p.add_argument(*option["highlight"][0], **option["highlight"][1])
     plot_align_p.add_argument(*option["exclude"][0], **option["exclude"][1])
 
+    # Plot spectra
+    plot_spec_p = subpars.add_parser(
+        "plot-spectra", help="Plot waveform spectra to screen"
+    )
+    plot_spec_p.add_argument(*option["config"][0], **option["config"][1])
+    plot_spec_p.add_argument(
+        "waveformfile",
+        type=Path,
+        help="Path to -wvarr.npy file",
+    )
+    plot_spec_p.add_argument(
+        "bandpassfile",
+        nargs="?",
+        default=None,
+        help="Path to bandpass.yaml file",
+    )
+    plot_spec_p.add_argument(*option["highlight"][0], **option["highlight"][1])
+    plot_spec_p.add_argument(
+        "--integrate",
+        action="store_true",
+        help="Integrate waveforms (e.g. velocity to displacement)",
+    )
 
     return parser
 
@@ -1812,6 +1882,15 @@ def main(args=None):
             parsed.exclude,
             parsed.sort,
             parsed.highlight,
+        )
+        return
+
+    if parsed.mode == "plot-spectra":
+        plot_spectra_entry(
+            parsed.waveformfile,
+            parsed.bandpassfile,
+            parsed.highlight,
+            parsed.integrate,
         )
         return
 

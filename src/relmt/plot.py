@@ -30,7 +30,7 @@ from matplotlib.figure import Figure
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 import matplotlib.transforms as transforms
 from scipy.linalg import svd
-from relmt import core, mt, amp, qc, signal, utils, align, angle
+from relmt import core, mt, amp, qc, signal, utils, align, angle, extra
 
 plt.ion()
 
@@ -1218,3 +1218,180 @@ def alignment(
     ax.tick_params(labelleft=False, labelright=True)
 
     return fig, axs
+
+
+def spectra(
+    arr: np.ndarray,
+    hdr: core.Header,
+    bandpassd: dict[str, dict[str, tuple]] = {},
+    highlight: list[int] = [],
+    integrate: bool = False,
+    ax=None,
+):
+    """Plot spectra of waveform array
+
+    Parameters
+    ----------
+    arr:
+        ``(events, components, samples)`` Waveform array
+    hdr:
+        Header of the waveform array
+    evd:
+        Event dictionary
+    bandpasd:
+        Dictionary of wavelet bandpasses per waveform id and event id
+    highlight:
+        Highlight these event IDs with discrete colors
+    ax:
+        Plot into this axis. If `None`, create one.
+    """
+
+    if ax is None:
+        _, ax = plt.subplots(1, 1, layout="constrained")
+
+    ievs = hdr["events_"]
+    sr = hdr["sampling_rate"]
+    sta = hdr["station"]
+    pha = hdr["phase"]
+
+    kind = "Velocity"
+    if integrate:
+        arr = signal.integrate(arr, sr)
+        kind = "Displacement"
+
+    ax.set_title(sta + " " + pha)
+
+    wvid = core.join_waveid(sta, pha)
+
+    # At least one period within window
+    fmin = 1 / (hdr["phase_end"] - hdr["phase_start"])
+
+    # We choose as long a time window as possible
+    # Everything before the signal start is noise, everything after is signal
+    isig, _ = signal.indices_signal(**hdr.kwargs(signal.indices_signal))
+
+    # Highlight colors
+    highc = {}
+    if highlight:
+        high_pal = plt.cm.tab10(np.linspace(0, 1, len(highlight)))
+        highc = {h: high_pal[i] for i, h in enumerate(highlight)}
+
+    for iiev, iev in enumerate(ievs):
+
+        sig = signal.demean(signal.destep(np.sum(arr[iiev, :, isig:], axis=0)))
+        noi = signal.demean(signal.destep(np.sum(arr[iiev, :, :isig], axis=0)))
+
+        fsig, ssig = extra.spectrum(sig, sr)
+        fnoi, snoi = extra.spectrum(noi, sr)
+
+        ifreq = True
+        try:
+            fmin, fmax = bandpassd[wvid][iev]
+        except KeyError:
+            fmin = fmax = np.nan
+            ifreq = False
+
+        ihigh = iev in highlight
+
+        # Color grays if not highlighted
+        signal_color = "darkgray"
+        noise_color = "lightgray"
+        lw = 0.5
+        zfore = 0
+
+        # Color highligted
+        label = None
+        if ihigh:
+            signal_color = highc[iev]
+            noise_color = highc[iev]
+            lw = 1
+            zfore = len(ievs)
+            label = f"{iev} ({signal.dB(fmax/fmin) :.0f} dB)"
+
+        # The Noise spectra
+        ax.loglog(
+            fnoi,
+            snoi,
+            color=noise_color,
+            zorder=-1 + zfore,
+            lw=lw,
+            linestyle="--",
+        )
+
+        # The Signal spectra
+        ax.loglog(
+            fsig,
+            ssig,
+            color=signal_color,
+            zorder=0 + zfore,
+            lw=lw,
+            label=label,
+        )
+
+        # Event number
+        ax.text(
+            fsig[1],
+            ssig[1],
+            str(iev),
+            color=signal_color,
+            va="bottom",
+            ha="left",
+        )
+
+        if not ifreq:
+            logger.debug(f"No bandpass for event {iev}")
+            continue
+
+        # Amplitude ant min and max frequency
+        ismin = np.argmin(abs(fmin - fsig))
+        ismax = np.argmin(abs(fmax - fsig))
+
+        inmin = np.argmin(abs(fmin - fnoi))
+        inmax = np.argmin(abs(fmax - fnoi))
+
+        ax.scatter(
+            fmax,
+            ssig[ismax],
+            marker="o",
+            s=70,
+            ec="white",
+            lw=2,
+            fc=signal_color,
+            zorder=1 + zfore,
+        )
+
+        ax.scatter(
+            fmin,
+            ssig[ismin],
+            marker="v",
+            s=70,
+            ec="white",
+            lw=2,
+            fc=signal_color,
+            zorder=1 + zfore,
+        )
+
+        if ihigh:
+            # The Signal spectra
+            ax.loglog(
+                fsig[ismin:ismax],
+                ssig[ismin:ismax],
+                color=highc[iev],
+                zorder=1 + 2 * ihigh,
+                lw=3,
+            )
+
+            # The Noise spectra
+            ax.loglog(
+                fnoi[inmin:inmax],
+                snoi[inmin:inmax],
+                color=highc[iev],
+                zorder=0 + 2 * ihigh,
+                lw=3,
+                linestyle="--",
+            )
+
+    ax.set_xlabel("Frequency (Hz)")
+    ax.set_ylabel(f"{kind} Amplitude")
+    if highlight:
+        ax.legend(title="Events (dynamic range)")
