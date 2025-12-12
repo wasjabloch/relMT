@@ -153,11 +153,12 @@ def exclude_entry(
     config: core.Config,
     iteration: int = 0,
     overwrite: bool = False,
-    directory: Path = Path("."),
+    directory: Path = Path(),
     do_nodata: bool = False,
     do_snr: bool = False,
     do_cc: bool = False,
     do_ecn: bool = False,
+    cc_from_file: bool = False,
 ) -> None:
     """Exclude phase observations based on waveform quality criteria.
 
@@ -193,6 +194,10 @@ def exclude_entry(
     do_ecn:
         Exclude traces with expansion coefficient norm below
         'min_expansion_coefficient_norm'. Activated by '--ecn'
+    cc_from_file:
+        Read cross-correlation values from alignment produre. Changes in
+        time window and frequency band are then not considerd in the exclusion
+        based on cc.
     """
 
     exf = core.file("exclude", directory=directory)
@@ -214,8 +219,6 @@ def exclude_entry(
     excludes = {"no_data": [], "snr": [], "cc": [], "ecn": []}
 
     for wvid in core.iterate_waveid(stas):
-
-        print(f"Working on: {wvid}")
 
         sta, pha = core.split_waveid(wvid)
 
@@ -250,13 +253,22 @@ def exclude_entry(
 
         icc = np.full_like(ind, False)
         if (mincc := hdr["min_correlation"]) is not None and do_cc:
-            mat = utils.concat_components(
-                signal.demean_filter_window(
-                    arr, **hdr.kwargs(signal.demean_filter_window)
+
+            if cc_from_file:
+                # Read cc from file
+                ccij = np.loadtxt(
+                    core.file("cc_matrix", sta, pha, iteration, directory)
                 )
-            )
-            # TODO: allow to read cc from file instead
-            cc = signal.correlation_averages(mat, hdr["phase"])[2]
+                cc = utils.fisher_average(ccij)
+            else:
+                # Recompute cc based on header values
+                mat = utils.concat_components(
+                    signal.demean_filter_window(
+                        arr, **hdr.kwargs(signal.demean_filter_window)
+                    )
+                )
+                _, _, cc, _ = signal.correlation_averages(mat, hdr["phase"], False)
+
             icc = cc < mincc
             logger.debug(f"{wvid}: {sum(icc)} traces with CC < {mincc}")
 
@@ -1422,6 +1434,7 @@ def plot_alignment_entry(
     do_exclude: bool = False,
     sort: str = "pci",
     highligh_events: list[int] = [],
+    cc_from_file: bool = False,
 ) -> None:
     """Plot the waveform array and parameters relevant to judging the alignment
 
@@ -1438,6 +1451,9 @@ def plot_alignment_entry(
         Sorting method for events. See `plot.alignment` for options.
     highligh_events:
         List of event IDs to highlight in the plot.
+    cc_from_file:
+        Read cross-correlation values from alignment produre. changes in
+        timewindow and frequency band are then not reflected in the cc plot
     """
 
     # Find where we are
@@ -1459,6 +1475,7 @@ def plot_alignment_entry(
     phase = hdr["phase"]
     station = hdr["station"]
     event_list = np.array(hdr["events_"])
+    iin = np.arange(len(event_list), dtype=int)
 
     event_dict = {}
     station_dict = {}
@@ -1483,15 +1500,23 @@ def plot_alignment_entry(
     except FileNotFoundError:
         dt_pca = None
 
-    # TODO: allow ccij to be computed instead
-    try:
-        ccij = np.loadtxt(core.file("cc_matrix", *dest))
-    except FileNotFoundError:
-        ccij = None
-
     if do_exclude:
         excl = io.read_exclude_file(core.file("exclude", directory=directory))
-        _, event_list = qc.included_events(excl, **hdr.kwargs(qc.included_events))
+        iin, event_list = qc.included_events(excl, **hdr.kwargs(qc.included_events))
+
+    # Get cc from file or recompute
+    if cc_from_file:
+        try:
+            ccij = np.loadtxt(core.file("cc_matrix", *dest))
+        except FileNotFoundError:
+            ccij = None
+    else:
+        mat = utils.concat_components(
+            signal.demean_filter_window(
+                arr[iin, :, :], **hdr.kwargs(signal.demean_filter_window)
+            )
+        )
+        _, ccij, _, _ = signal.correlation_averages(mat, hdr["phase"], False)
 
     plot.alignment(
         arr,
@@ -1718,6 +1743,15 @@ Software for computing relative seismic moment tensors"""
     exclude_p.add_argument(*option["alignment"][0], **option["alignment"][1])
     exclude_p.add_argument(*option["config"][0], **option["config"][1])
 
+    exclude_p.add_argument(
+        "--cc_from_file",
+        action="store_true",
+        help=(
+            "Use cross-correlation values from alignment procedure. Faster, "
+            "but cc values do not reflect changes in time window or filter band."
+        ),
+    )
+
     # Amplitude sub-arguments
     amp_p.add_argument(*option["config"][0], **option["config"][1])
     amp_p.add_argument(*option["alignment"][0], **option["alignment"][1])
@@ -1756,6 +1790,7 @@ Software for computing relative seismic moment tensors"""
     plot_align_p.add_argument(
         "--sort",
         type=str,
+        nargs=1,
         help="The sorting to apply: 'pci' (default), 'magnitude', 'none'",
         choices=["pci", "magnitude", "none"],
         default="pci",
@@ -1763,6 +1798,14 @@ Software for computing relative seismic moment tensors"""
 
     plot_align_p.add_argument(*option["highlight"][0], **option["highlight"][1])
     plot_align_p.add_argument(*option["exclude"][0], **option["exclude"][1])
+    plot_align_p.add_argument(
+        "--cc_from_file",
+        action="store_true",
+        help=(
+            "Use cross-correlation values from alignment procedure. Faster, "
+            "but cc values do not reflect changes in time window or filter band."
+        ),
+    )
 
     # Plot spectra
     plot_spec_p = subpars.add_parser(
@@ -1872,6 +1915,7 @@ def main(args=None):
                 do_snr=parsed.snr,
                 do_cc=parsed.cc,
                 do_ecn=parsed.ecn,
+                cc_from_file=parsed.cc_from_file,
             )
         )
 
@@ -1882,6 +1926,7 @@ def main(args=None):
             parsed.exclude,
             parsed.sort,
             parsed.highlight,
+            parsed.cc_from_file,
         )
         return
 

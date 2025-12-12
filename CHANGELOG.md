@@ -7,7 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 
 ### Added
-- `relmt plot-spectra waveform_file` with option to look at diofferent bandpass files
+- Alignment plot and event exlusion allows to read or compute cc values
+- `relmt plot-spectra waveform_file` with option to look at different bandpass files
 
 ## [0.3.1-beta] - 2025-12-12
 
