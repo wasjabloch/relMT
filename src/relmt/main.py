@@ -1582,6 +1582,28 @@ def plot_spectra_entry(
     input("Press any key to continue...")
 
 
+def plot_mt_entry(
+    mtfile: Path, highlight: list[int] = [], overlay_dc_at: float = 1.0
+) -> None:
+    """Plot moment tensors
+
+    Parameters
+    ----------
+    mtfile:
+        Path to the moment tensor file to plot
+    highlight:
+        List of event IDs to highlight in the plot.
+    overlay_dc_at:
+        Overlay DC component at this fraction of the full moment
+    """
+
+    mtd = io.read_mt_table(mtfile)
+
+    plot.mt_matrix(mtd, highlight, overlay_dc_at=overlay_dc_at)
+
+    input("Press any key to continue...")
+
+
 def make_parser() -> ArgumentParser:
     """Create the ArgumentParser for the relMT command line interface."""
 
@@ -1830,6 +1852,22 @@ Software for computing relative seismic moment tensors"""
         help="Integrate waveforms (e.g. velocity to displacement)",
     )
 
+    # Plot MTs
+    plot_mt_p = subpars.add_parser("plot-mt", help="Plot waveform spectra to screen")
+    plot_mt_p.add_argument(*option["config"][0], **option["config"][1])
+    plot_mt_p.add_argument(
+        "mtfile",
+        type=Path,
+        help="Path to mt summary file",
+    )
+    plot_mt_p.add_argument(
+        "--dc",
+        type=float,
+        nargs=1,
+        help="Overlay DC component at this fraction of the full moment",
+    )
+    plot_mt_p.add_argument(*option["highlight"][0], **option["highlight"][1])
+
     return parser
 
 
@@ -1936,6 +1974,14 @@ def main(args=None):
             parsed.bandpassfile,
             parsed.highlight,
             parsed.integrate,
+        )
+        return
+
+    if parsed.mode == "plot-mt":
+        plot_mt_entry(
+            parsed.mtfile,
+            parsed.highlight,
+            parsed.dc,
         )
         return
 
