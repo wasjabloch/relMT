@@ -836,7 +836,14 @@ parsed to 'qc'""",
     "max_amplitude_misfit": (
         "float",
         """
-Discard amplitude measurements with a higher misfit than this.""",
+Discard amplitude measurements with a higher misfit than this. Applies only to P
+amplitudes if 'max_s_amplitude_misfit' is given.""",
+    ),
+    "max_s_amplitude_misfit": (
+        "float",
+        """
+If given, discard S amplitude measurements with a higher misfit.
+'max_amp_misfit' then only applies to P amplitudes.""",
     ),
     "max_s_sigma1": (
         "float",
@@ -982,6 +989,7 @@ class Config:
         min_dynamic_range: float | None = None,
         min_amplitude_misfit: float | None = None,
         max_amplitude_misfit: float | None = None,
+        max_s_amplitude_misfit: float | None = None,
         min_amplitude_weight: float | None = None,
         max_s_sigma1: float | None = None,
         max_magnitude_difference: float | None = None,

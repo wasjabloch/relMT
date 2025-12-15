@@ -671,6 +671,7 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
 
     # A-priori meassures
     max_mis = config["max_amplitude_misfit"]
+    max_smis = config["max_s_amplitude_misfit"] or max_mis
     max_mag_diff = config["max_magnitude_difference"]
     max_s1 = config["max_s_sigma1"]
     max_ev_dist = config["max_event_distance"]
@@ -698,7 +699,6 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
     exclude_events = set(exclude["event"])
 
     evd = io.read_event_table(directory / config["event_file"])
-    std = io.read_station_table(directory / config["station_file"])
     phd = io.read_phase_table(directory / config["phase_file"])
 
     for ph in "PS":
@@ -759,10 +759,16 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
 
         # Misfit
         nout = sum(iout)
-        if max_mis is not None:
+        if max_mis is not None and ph == "P":
             iout |= ~(mis < max_mis)  # Exclude also nans
             logger.info(
-                f"Excluded {sum(iout) - nout} more {ph}-observations due to high misfit"
+                f"Excluded {sum(iout) - nout} more P-observations due to high misfit"
+            )
+
+        if max_smis is not None and ph == "S":
+            iout |= ~(mis < max_smis)  # Exclude also nans
+            logger.info(
+                f"Excluded {sum(iout) - nout} more S-observations due to high misfit"
             )
 
         # Sigma1
@@ -843,7 +849,7 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
             # Combine misfit and sigma meassure
             # Prefer disinct S-wave combinations with low misfit
             # Lower is better
-            mis_sigma = (1 - (max_s1 - s1s)) * (1 - (max_mis - miss))
+            mis_sigma = (1 - (max_s1 - s1s)) * (1 - (max_smis - miss))
 
             # Adapt number of exclusion in case some events dropped out
             nex = int(excess_eq // eq_batches + 1)
@@ -907,8 +913,9 @@ def solve_entry(
     phf = directory / config["phase_file"]
     refmtf = directory / config["reference_mt_file"]
 
-    max_misfit = config["max_amplitude_misfit"]
-    min_misfit = config["min_amplitude_misfit"]
+    max_mis = config["max_amplitude_misfit"]
+    max_smis = config["max_s_amplitude_misfit"] or max_mis
+    min_mis = config["min_amplitude_misfit"]
     min_weight = config["min_amplitude_weight"]
     irefs = config["reference_mts"]
     constraint = config["mt_constraint"]
@@ -1014,12 +1021,12 @@ def solve_entry(
     # Weight applied by row
     mis_weights = np.vstack(
         [
-            ls.weight_misfit(amp, min_misfit, max_misfit, min_weight, "P")
+            ls.weight_misfit(amp, min_mis, max_mis, min_weight, "P")
             for amp in pamp_subset
         ]
         + [
             ls.weight_misfit(
-                amp, min_misfit, max_misfit, min_weight, "S", keep_other_s_equation
+                amp, min_mis, max_smis, min_weight, "S", keep_other_s_equation
             )
             for amp in samp_subset
         ]
