@@ -1057,13 +1057,14 @@ def alignment(
     if len(highlight_events) > 0:
         # Sorted event list for indexing
         sevl = list(event_list[isort])
-        for iax in ["dt", "snr", "cci", "ec"]:
-            ax = axs[iax]
-            for refev in highlight_events:
-                if refev in sevl:
-                    ax.axhline(sevl.index(refev), color="red", zorder=0)
-                else:
-                    logger.warning(f"Event {refev} not in file. Cannot highlight.")
+        for refev in highlight_events:
+            if refev in sevl:
+                iev = sevl.index(refev)
+                for iax in ["dt", "snr", "cci", "ec"]:
+                    ax = axs[iax]
+                    ax.axhline(iev, color="red", zorder=0)
+            else:
+                logger.warning(f"Event {refev} not in file. Cannot highlight.")
 
     # Station and event map
 
@@ -1395,5 +1396,5 @@ def spectra(
 
     ax.set_xlabel("Frequency (Hz)")
     ax.set_ylabel(f"{kind} Amplitude")
-    if highlight:
+    if any(np.isin(ievs, highlight)):
         ax.legend(title="Events (dynamic range)")
