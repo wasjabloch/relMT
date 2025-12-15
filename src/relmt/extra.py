@@ -447,7 +447,7 @@ def apparent_corner_frequency(
     Parameters
     ----------
     sig:
-        ``(samples,)`` seismogram
+        ``(samples,)`` velocity seismogram
     sampling_rate:
         in Hertz
     fmin, fmax:
@@ -484,7 +484,7 @@ def apparent_corner_frequency(
     return freqs[if0:if1][np.argmax(specs[if0:if1])][0]
 
 
-#@core._doc_config_args
+# @core._doc_config_args
 def optimal_bandpass(
     wvarr: np.ndarray,
     sampling_rate: float,

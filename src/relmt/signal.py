@@ -1013,6 +1013,7 @@ def phase_passbands(
             # Corner frequency from stress drop
 
             if auto_lowpass_stressdrop_range[0] >= auto_lowpass_stressdrop_range[1]:
+                # If no range is given, don't look into the spectrum
                 fc = utils.corner_frequency(
                     ev.mag, pha, auto_lowpass_stressdrop_range[0], 4000
                 )

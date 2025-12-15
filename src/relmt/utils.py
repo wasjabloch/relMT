@@ -584,7 +584,7 @@ def next_fftw_size(samples: int, devisor: int = 3, odd: bool = True) -> int:
     return nfft[inext & idev & iodd][0]
 
 
-#@core._doc_config_args
+# @core._doc_config_args
 def fftw_data_window(
     minimum_time: float, sampling_rate: float, components: str
 ) -> float:
@@ -1201,7 +1201,7 @@ def ccorf3_all(gmat: np.ndarray, batch_size: int = 200000):
 
     ncomb = int(comb(M, 3))
 
-    logger.info(f"Combuting correlations of {ncomb} combinations...")
+    logger.info(f"Computing correlations of {ncomb} combinations...")
 
     # Process in batches to keep memory bounded
     nbatch = int(ncomb // batch_size)
