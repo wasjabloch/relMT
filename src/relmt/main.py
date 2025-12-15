@@ -1885,7 +1885,7 @@ def main(args=None):
     # Let's parse the keyword arguments explicitly
     parent = conff.parent
 
-    if not parsed.mode.startswith("plot-"):
+    if not parsed.mode.startswith("plot-") and parsed.mode != "qc":
         n_align = parsed.alignment
         overwrite = parsed.overwrite
 
