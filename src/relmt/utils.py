@@ -327,6 +327,7 @@ def phase_dict_hash_plunge(
     station_dict: dict[str, core.Station],
     vmodel: np.ndarray,
     overwrite: bool = False,
+    strict: bool = False,
     nquerry: int = 100,
     nray=1000,
 ) -> dict[str, core.Phase]:
@@ -348,6 +349,9 @@ def phase_dict_hash_plunge(
         ``(layers, 3)`` array of depth (m), P- and S-wave velocities (m/s)
     overwrite:
         Overwrite existing plunge values (`False`: only replace `NaN` values)
+    strict:
+        Raise `KeyError` when an event or station is missing. If `False`, check
+        phase_dict for missing events and stations.
     nquerry:
         Number of distance and depth querry points for plunge lookup table
     nray:
@@ -357,6 +361,15 @@ def phase_dict_hash_plunge(
     -------
     New phase dictionary containing computed plunges
     """
+
+    if not strict:
+        logger.debug("Checking phase_dict for missing events or stations")
+        phase_dict = {
+            phid: ph
+            for phid, ph in phase_dict.items()
+            if core.split_phaseid(phid)[1] in station_dict
+            and core.split_phaseid(phid)[0] in event_dict
+        }
 
     dist_dep = np.array(
         [
