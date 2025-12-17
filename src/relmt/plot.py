@@ -1103,6 +1103,7 @@ def alignment(
         ax.set_yticks([stad[ista]], ["{:.0f}km".format(stad[ista])])
 
     else:
+        ax = axs["map"]
         ax.axis("off")
 
     # Time shift plot

@@ -278,7 +278,7 @@ def phase_dict_azimuth(
     overwrite: bool = False,
 ) -> dict[str, core.Phase]:
     """
-    Fill phase dictionary with azimuth from trigonometry
+    Fill phase dictionary with azimuth using trigonometry
 
     Parameters
     ----------
@@ -293,7 +293,7 @@ def phase_dict_azimuth(
 
     Returns
     -------
-    New phase dictionary containing computed plunges
+    New phase dictionary containing computed azimuths
     """
 
     azis = np.array(

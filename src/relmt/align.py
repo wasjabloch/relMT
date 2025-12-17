@@ -225,7 +225,7 @@ def pca_align(
     dtime: float = 0,
 ) -> tuple[np.ndarray, float]:
     """Align waveforms by principal component analysis
-    
+
     Implements method of Bostock et al. (2021, BSSA).
 
     For P-waves, we maximize the first of the singular values :math:`s` of
@@ -298,12 +298,10 @@ def pca_align(
     # Concentrate energy on first principal component.
     phi_old = pca_objective(s, phase, ns)
 
-    logger.info("Singular values are:")
     logger.info(f"Starting pca_align for {phase} Phase")
-    logger.info("Objective Function: {:1.1e}".format(phi_old))
+    logger.debug(f"Phi {phase} = {phi_old :1.1e}")
 
     iter = 0
-    logger.info(f"{iter == 0}, {dtime < max(abs(tshift))}")
     while (
         iter < iterations
         and dphi < this_dphi
