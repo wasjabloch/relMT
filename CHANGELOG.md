@@ -14,6 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - `relmt plot alignment --highlight` handles absent events
+- `relmt plot alignment` handles absent event and station file
+- Improved documentation
+- Fixed list formatting in Config documentation
+- Improved log messages
+- `relmt exclude` handles 'waveform' entry in exclude file
 
 
 ## [0.3.0-beta] - 2025-12-09
