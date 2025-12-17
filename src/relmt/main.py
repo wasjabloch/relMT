@@ -718,7 +718,11 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
         # Direct exlusions using numpy
 
         # Stations
-        iout = np.isin(sta, exclude_stations)
+        iout = np.isin(sta, list(exclude_stations))
+        logger.info(
+            f"Excluded {(nout := sum(iout))} {ph}-observations because stations "
+            "or waveforms are excluded"
+        )
 
         # Phases
         iout |= [
@@ -736,7 +740,7 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
         ]
 
         logger.info(
-            f"Excluded {(nout := sum(iout))} {ph}-observations from exclude file"
+            f"Excluded {sum(iout) - nout} more {ph}-observations from exclude file"
         )
 
         # Valid amplitude
