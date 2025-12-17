@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Config option 'max_s_amplitude_misfit' to set a different misfit cutoff for
   S amplitudes
 - `utils.phse_dict_hash_plugin()` has new 'strict' option
+- `relmt plot-mt` with many coloring and sorting options
 
 ## [0.3.1-beta] - 2025-12-12
 

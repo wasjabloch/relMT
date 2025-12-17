@@ -1596,8 +1596,28 @@ def plot_spectra_entry(
     input("Press any key to continue...")
 
 
+# Mapping of sorting/coloring keys to their description
+_attr_keys = {
+    "number": "Event ID",
+    "name": "Event Name",
+    "mag": "Input magnitude",
+    "mw": "Relative moment magnitude",
+    "gap": "Azimuthal gap (deg)",
+    "links": "Total links",
+    "p-links": "P links",
+    "s-links": "S links",
+    "moment-rms": "Moment RMS (scaled Nm)",
+    "amplitude-rms": "Amplitude RMS",
+}
+
+
 def plot_mt_entry(
-    mtfile: Path, highlight: list[int] = [], overlay_dc_at: float = 1.0
+    mtfile: Path,
+    config: core.Config,
+    highlight: list[int] = [],
+    overlay_dc_at: float = 1.0,
+    sort_by: str | None = None,
+    color_by: str | None = None,
 ) -> None:
     """Plot moment tensors
 
@@ -1605,17 +1625,94 @@ def plot_mt_entry(
     ----------
     mtfile:
         Path to the moment tensor file to plot
+    config:
+        Configuration object
     highlight:
         List of event IDs to highlight in the plot.
     overlay_dc_at:
         Overlay DC component at this fraction of the full moment
     """
 
-    mtd = io.read_mt_table(mtfile)
+    # Attributes only found in sumary file
+    summary_atts = ["gap", "links", "p-links", "s-links", "moment-rms", "amplitude-rms"]
 
-    plot.mt_matrix(mtd, highlight, overlay_dc_at=overlay_dc_at)
+    mtd = io.read_mt_table(mtfile)
+    evd = io.read_event_table(config["event_file"])
+
+    evns = np.array(list(mtd))
+    names = [evd[evn].name for evn in mtd]
+    mags = [evd[evn].mag for evn in mtd]
+    mws = [mt.magnitude_of_moment(mt.moment_of_vector(momt)) for momt in mtd.values()]
+
+    if sort_by in summary_atts or color_by in summary_atts:
+        try:
+            gap, plinks, slinks, mrms, arms = np.loadtxt(
+                mtfile, usecols=(14, 16, 17, 20, 21), unpack=True
+            )
+        except IndexError:
+            msg = "Too few columns in mtfile. Please give a 'mt_summary' file."
+            raise IndexError(msg)
+    else:
+        gap = plinks = slinks = mrms = arms = np.full(len(mtd), np.nan)
+
+    keys = {
+        None: np.arange(len(mtd)),
+        "number": evns,
+        "name": names,
+        "mag": mags,
+        "mw": mws,
+        "gap": gap,
+        "links": plinks + slinks,
+        "p-links": plinks,
+        "s-links": slinks,
+        "moment-rms": mrms,
+        "amplitude-rms": arms,
+    }
+
+    try:
+        isort = np.argsort(keys[sort_by])
+    except KeyError:
+        raise ValueError(f"Unknown sort attribute: {sort_by}")
+
+    colord = {}
+    colorn = None
+    if color_by is not None:
+        try:
+            colord = {evn: val for evn, val in zip(evns, keys[color_by])}
+            colorn = _attr_keys[color_by]
+        except KeyError:
+            raise ValueError(f"Unknown coloring attribute: {color_by}")
+
+    # Apply sorting
+    mtd = {iev: mtd[iev] for iev in np.array(list(mtd))[isort]}
+
+    plot.mt_matrix(
+        mtd,
+        highlight,
+        values=colord,
+        valuename=colorn,
+        overlay_dc_at=overlay_dc_at,
+    )
 
     input("Press any key to continue...")
+
+
+plot_mt_entry.__doc__ += f"""
+sort_by:
+    Sorting method for MTs. One of:
+
+   - None: as in file
+   - {'\n   - '.join(f"'{key}': {_attr_keys[key]}" for key in _attr_keys)}
+"""
+
+plot_mt_entry.__doc__ += f"""
+color_by:
+    Color MTs by attribute. One of:
+
+   - None: no coloring
+   - {'\n   - '.join(f"'{key}': {_attr_keys[key]}" for key in _attr_keys)}
+
+"""
 
 
 def make_parser() -> ArgumentParser:
@@ -1877,10 +1974,30 @@ Software for computing relative seismic moment tensors"""
     plot_mt_p.add_argument(
         "--dc",
         type=float,
-        nargs=1,
-        help="Overlay DC component at this fraction of the full moment",
+        help="Overlay DC component at this fraction of the full moment (0-1)",
+        default=1.0,
     )
     plot_mt_p.add_argument(*option["highlight"][0], **option["highlight"][1])
+    plot_mt_p.add_argument(
+        "--sort-by",
+        type=str,
+        help=(
+            "Sorting method for MTs. One of: "
+            "* " + "\n* ".join(f"'{key}': {desc}" for key, desc in _attr_keys.items())
+        ),
+        choices=list(_attr_keys.keys()),
+        default=None,
+    )
+    plot_mt_p.add_argument(
+        "--color-by",
+        type=str,
+        help=(
+            "Coloring method for MTs. One of: "
+            "* " + "\n* ".join(f"'{key}': {desc}" for key, desc in _attr_keys.items())
+        ),
+        choices=list(_attr_keys.keys()),
+        default=None,
+    )
 
     return parser
 
@@ -1994,8 +2111,11 @@ def main(args=None):
     if parsed.mode == "plot-mt":
         plot_mt_entry(
             parsed.mtfile,
+            config,
             parsed.highlight,
             parsed.dc,
+            parsed.sort_by,
+            parsed.color_by,
         )
         return
 
