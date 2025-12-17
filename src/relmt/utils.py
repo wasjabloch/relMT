@@ -278,7 +278,7 @@ def phase_dict_azimuth(
     overwrite: bool = False,
 ) -> dict[str, core.Phase]:
     """
-    Fill phase dictionary with azimuth from trigonometry
+    Fill phase dictionary with azimuth using trigonometry
 
     Parameters
     ----------
@@ -293,7 +293,7 @@ def phase_dict_azimuth(
 
     Returns
     -------
-    New phase dictionary containing computed plunges
+    New phase dictionary containing computed azimuths
     """
 
     azis = np.array(
@@ -584,7 +584,7 @@ def next_fftw_size(samples: int, devisor: int = 3, odd: bool = True) -> int:
     return nfft[inext & idev & iodd][0]
 
 
-#@core._doc_config_args
+# @core._doc_config_args
 def fftw_data_window(
     minimum_time: float, sampling_rate: float, components: str
 ) -> float:

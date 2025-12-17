@@ -777,26 +777,29 @@ Suffix appended to files, naming the parameters parsed to 'amplitude'""",
         "str",
         """
 Method to meassure relative amplitudes. One of:
-- 'indirect': Estimate relative amplitude as the ratio of principal seismogram
-contributions to each seismogram.
-- 'direct': Compare each event combination seperatly.""",
+
+   - 'indirect': Estimate relative amplitude as the ratio of principal seismogram
+     contributions to each seismogram.
+   - 'direct': Compare each event combination seperatly.""",
     ),
     "amplitude_filter": (
         "str",
         """
 Filter method to apply for amplitude measure. One of:
-- 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
-- 'auto': compute filter corners using the "auto" options below""",
+
+   - 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
+   - 'auto': compute filter corners using the "auto" options below""",
     ),
     "auto_lowpass_method": (
         "str",
         """
 Method to estimate lowpass filter that eliminates the source time function. One
 of:
-- 'fixed': Use the value 'fixed_lowpass' (not implemented)
-- 'corner': Estimate from apparent corner frequency in event spectrum
-- 'duration': Filter by 1/source duration of event magnitude. Requires
-'auto_lowpass_stressdrop_range'""",
+
+   - 'fixed': Use the value 'fixed_lowpass' (not implemented)
+   - 'corner': Estimate from apparent corner frequency in event spectrum.
+     Requires 'auto_lowpass_stressdrop_range'
+   - 'duration': Filter by 1/source duration of event magnitude. """,
     ),
     #    "fixed_lowpass": (
     #        "float",
@@ -805,10 +808,12 @@ of:
     # (requires auto_lowpass_method: 'fixed')""",
     #    ),
     "auto_lowpass_stressdrop_range": (
-        "list",
+        "[float, float]",
         """
 When estimating the lowpass frequency of an event as the corner frequency
-(auto_lowpass_method: 'corner'), assume a stressdrop within this range (Pa).""",
+(auto_lowpass_method: 'corner'), assume a stressdrop within this range (Pa).
+When second value is less or equal first value, use a fixed stressdrop of first
+value.""",
     ),
     "auto_bandpass_snr_target": (
         "float",
