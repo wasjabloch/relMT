@@ -34,6 +34,7 @@ import sys
 import multiprocessing as mp
 from multiprocessing import shared_memory as sm
 from argparse import ArgumentParser, Namespace
+from collections import defaultdict
 
 logger = core.register_logger(__name__)
 
@@ -1580,8 +1581,14 @@ def plot_spectra_entry(
 
     arr = np.load(arrf)
 
-    bandpassd = {}
-    if bandpf is not None:
+    if bandpf is None:
+        # Single band from header
+        bandpassd = {
+            core.join_waveid(hdr["station"], hdr["phase"]): defaultdict(
+                lambda: (hdr["highpass"], hdr["lowpass"])
+            )
+        }
+    else:
         bandpassd = io.read_yaml(bandpf)
 
     plot.spectra(arr, hdr, bandpassd, highlight, integrate)
