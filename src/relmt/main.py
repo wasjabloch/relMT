@@ -488,11 +488,6 @@ def amplitude_entry(
 
                     # Passband is within dynamic range
                     if hpas is not None:
-                        # Old: Copy the arrays
-                        # pargs.append(
-                        #    (xarr[[a, b], :], hdr, hpas, lpas, evns[a], evns[b])
-                        # )
-                        # New: Using shared memory
                         pargs.append(
                             (
                                 (a, b),
@@ -517,19 +512,6 @@ def amplitude_entry(
 
                     # Passband is within dynamic range
                     if hpas is not None:
-                        # Old: Copy the arrays
-                        # sargs.append(
-                        #    (
-                        #        xarr[[a, b, c], :],
-                        #        hdr,
-                        #        hpas,
-                        #        lpas,
-                        #        evns[a],
-                        #        evns[b],
-                        #        evns[c],
-                        #    )
-                        # )
-                        # New: Using shared memory
                         sargs.append(
                             (
                                 (a, b, c),
@@ -546,13 +528,10 @@ def amplitude_entry(
                         )
 
         # Argumets above pertain to these functions
-        # p_amp_fun = amp.paired_p_amplitude_copies
-        # s_amp_fun = amp.triplet_s_amplitude_copies
         p_amp_fun = amp.paired_p_amplitudes
         s_amp_fun = amp.triplet_s_amplitudes
 
     elif compare_method == "indirect":
-        # TODO: implement shared memory
 
         for wvid in wvids:
             sta, pha = core.split_waveid(wvid)
