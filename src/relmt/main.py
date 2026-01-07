@@ -572,7 +572,19 @@ def amplitude_entry(
     else:
         raise ValueError(f"Unknown 'amplitude_measure': {compare_method}")
 
-    logger.info(f"Collected {len(pargs)} P- and {len(sargs)} S-combinations")
+    # Number of P and S combinations
+    npc = len(pargs)
+    nsc = len(sargs)
+    if compare_method == "indirect":
+        # n choose 2
+        npc = sum([(nev := arg[0].shape[0]) * (nev - 1) // 2 - 1 for arg in pargs])
+
+        # n choose 3
+        nsc = sum(
+            [(nev := arg[0].shape[0]) * (nev - 1) * (nev - 2) // 6 - 1 for arg in pargs]
+        )
+
+    logger.info(f"Collected {npc} P- and {nsc} S-combinations")
     logger.info("Computing relative P-amplitudes...")
     # First process and save P ...
     if ncpu > 1:
