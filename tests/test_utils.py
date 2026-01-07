@@ -192,7 +192,7 @@ def test_phase_dict_hash_plunge():
     std = {name: core.Station(n, e, d, name) for name, n, e, d in zip(stas, sn, se, sd)}
 
     # Only one event in list
-    evl = [core.Event(en[0], ee[0], ed[0], -1, -1, "0")]
+    evd = {0: core.Event(en[0], ee[0], ed[0], -1, -1, "0")}
 
     # Make a phase dictionary
     phd = {
@@ -210,7 +210,7 @@ def test_phase_dict_hash_plunge():
     # Table has Depth, Vp, Vs
     vmodel = io.read_velocity_model(vmodf, has_kilometer=True)
 
-    newphd = utils.phase_dict_hash_plunge(phd, evl, std, vmodel)
+    newphd = utils.phase_dict_hash_plunge(phd, evd, std, vmodel)
 
     for sta, plunge in zip(stas, plunges):
         pp = newphd[core.join_phaseid(0, sta, "P")].plunge
@@ -225,7 +225,7 @@ def test_phase_dict_hash_plunge():
     phd["0_BARR_S"] = core.Phase(-1, -1, 101.0)
 
     # Let's try not to overwrite the set value
-    newphd = utils.phase_dict_hash_plunge(phd, evl, std, vmodel, overwrite=False)
+    newphd = utils.phase_dict_hash_plunge(phd, evd, std, vmodel, overwrite=False)
     assert newphd["0_BARR_S"].plunge == 101.0
 
 
