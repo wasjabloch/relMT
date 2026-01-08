@@ -348,9 +348,7 @@ def read_mt_table(
         return {int(iev): core.MT(*mtarr[ievs == iev, :][0]) for iev in ievs}
 
 
-def read_event_table(
-    filename: str | Path, unpack=False
-) -> (
+def read_event_table(filename: str | Path, unpack=False) -> (
     dict[int, core.Event]
     | tuple[
         np.ndarray,
@@ -1103,6 +1101,12 @@ def read_ext_event_table(
     loadtxt_kwargs: dict
         Additional keyword arguments are passed on to :func:`numpy.loadtxt`
 
+    .. note:
+        *name_index* and *time_index* can be tuples if they are to be
+        transformed using *nameconverter* and *timeconverter*, respecitvely.
+        Create the converters such that they accept the tuples in order as
+        arguments and return a single value.
+
     Returns
     -------
     The seismic event catalog
@@ -1118,13 +1122,20 @@ def read_ext_event_table(
         msg = f"loadtxt_kwargs: {', '.join(kwargs)} are reserved."
         raise KeyError(msg)
 
-    name, time = np.loadtxt(
+    name = np.loadtxt(
         filename,
-        usecols=(name_index, time_index),
-        unpack=True,
+        usecols=name_index,
         dtype=str,
         **loadtxt_kwargs,
     )
+
+    time = np.loadtxt(
+        filename,
+        usecols=time_index,
+        dtype=str,
+        **loadtxt_kwargs,
+    )
+
     north, east, depth, mag = np.loadtxt(
         filename,
         usecols=(north_index, east_index, depth_index, magnitude_index),
