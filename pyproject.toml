@@ -42,6 +42,7 @@ extra = ["obspy", "multitaper", "utm", "pyrocko"]
 dev = [
   "pytest",
   "coverage",
+  "nbmake",
   "pre_commit",
   "myst_parser >=0.13",
   "sphinx >=4.0",
