@@ -205,9 +205,9 @@ def write_event_table(
 
     # Header
     out = "#Number     Northing      Easting       Depth"
-    out += "               Origintime Magnitude                 Name\n"
+    out += "         Origintime Magnitude                 Name\n"
     out += "# (int)      (meter)      (meter)     (meter)          (seconds)"
-    out += "       (-)            (str)\n"
+    out += "       (-)                (str)\n"
 
     form = "{:>7d} {:>12.3f} {:>12.3f} {:>11.3f} {: 18.6f} {:>9.4f} {:>20s}\n"
 
