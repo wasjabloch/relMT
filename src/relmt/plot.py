@@ -1232,7 +1232,7 @@ def spectra(
     highlight: list[int] = [],
     integrate: bool = False,
     ax=None,
-):
+) -> Axes:
     """Plot spectra of waveform array
 
     Parameters
@@ -1252,7 +1252,9 @@ def spectra(
     """
 
     if ax is None:
-        _, ax = plt.subplots(1, 1, layout="constrained")
+        fig, ax = plt.subplots(1, 1, layout="constrained")
+    else:
+        fig = ax.get_figure()
 
     ievs = hdr["events_"]
     sr = hdr["sampling_rate"]
@@ -1400,3 +1402,5 @@ def spectra(
     ax.set_ylabel(f"{kind} Amplitude")
     if any(np.isin(ievs, highlight)):
         ax.legend(title="Events (dynamic range)")
+
+    return fig, ax
