@@ -23,7 +23,7 @@
 
 import numpy as np
 from typing import Callable, Iterable
-from relmt import core, signal
+from relmt import core, signal, utils
 
 logger = core.register_logger(__name__)
 
@@ -356,7 +356,7 @@ def read_station_inventory(
         :func:`relmt.io.read_event_table`.
     strict:
         Raise a KeyError for repeated station codes with unequal coordinates. If
-        False, last occurrence overwrites previeous occurrences
+        False, last occurrence overwrites previous occurrences
 
     Returns
     -------
@@ -396,6 +396,47 @@ def read_station_inventory(
                     )
 
     return station_dict
+
+
+def read_catalog_picks(
+    catalog, event_dict: dict[str, core.Event], include_at: float = np.inf
+) -> dict[str, core.Phase]:
+    """Read arrival times from ObsPy Catalog object
+
+    Parameters
+    ----------
+    catalog: :class:`obspy.core.event.catalog.Catalog`
+        Must contain station codes, phases, and arrival times.
+    event_dict:
+        The seismic event catalog
+    include_at:
+        Include picks within this time difference between event_dict and
+        catalog origin times (seconds)
+
+    Returns
+    -------
+    Phase dictionary
+
+    Attention
+    ---------
+    Depends on ``obspy``
+    """
+
+    cattimes = [ev.origins[0].time.timestamp for ev in catalog]
+    evtimes = {ev.time: evn for evn, ev in event_dict.items()}
+
+    lut = utils.approx_time_lookup(cattimes, evtimes, include_at=include_at)
+
+    phase_dict = dict()
+    for ev in catalog:
+        evn = evtimes[lut[ev.origins[0].time.timestamp]]
+        for pick in ev.picks:
+            sta = pick.waveform_id.station_code
+            pha = pick.phase_hint
+            phid = core.join_phaseid(evn, sta, pha)
+            phase_dict.update({phid: core.Phase(pick.time.timestamp, np.nan, np.nan)})
+
+    return phase_dict
 
 
 def spectrum(
