@@ -417,13 +417,13 @@ station. They are `NumPy` array files that obey the naming convention
 the phase type (`P` or `S`). The files are located in the `data/` subdirectory.
 
 Arrays are three dimensional, with events sorted along the first dimension,
-components along the second dimension and seismogram samples along the
-third dimension. The resulting shape is ``(n_events, n_channels, n_samples)``,
-where ``n_events`` and ``n_channels`` are the length of the ``events`` and
-``channels`` values in the [header file](#header-file), and ``n_samples`` is `data_window`
+components along the second dimension and seismogram samples along the third
+dimension. The resulting shape is ``(n_events, n_channels, n_samples)``, where
+``n_events`` and ``n_channels`` are the length of ``events_`` and ``channels``
+values in the [header file](#header-file), and ``n_samples`` is `data_window`
 multiplied by `sampling_rate`.
 
-Event indices stored in the `events:` keyword of the waveform header must
+Event indices stored in the `events_:` keyword of the waveform header must
 correspond to the seismic traces stored in the first array dimension. Component
 names stored in the `components:` keyword of the waveform header must correspond
 to the seismogram components in the second dimension of the waveform array.
