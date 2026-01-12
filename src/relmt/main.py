@@ -1438,6 +1438,7 @@ def plot_alignment_entry(
     sort: str = "pci",
     highligh_events: list[int] = [],
     cc_from_file: bool = False,
+    saveas: str | None = None,
 ) -> None:
     """Plot the waveform array and parameters relevant to judging the alignment
 
@@ -1457,6 +1458,8 @@ def plot_alignment_entry(
     cc_from_file:
         Read cross-correlation values from alignment produre. changes in
         timewindow and frequency band are then not reflected in the cc plot
+    saveas:
+        If given, save the figure to the given path instead of showing it
     """
 
     # Find where we are
@@ -1521,7 +1524,7 @@ def plot_alignment_entry(
         )
         _, ccij, _, _ = signal.correlation_averages(mat, hdr["phase"], False)
 
-    plot.alignment(
+    fig, _ = plot.alignment(
         arr,
         hdr,
         dt_mccc,
@@ -1534,7 +1537,11 @@ def plot_alignment_entry(
         sort,
         highligh_events,
     )
-    input("Press any key to continue...")
+
+    if saveas is not None:
+        fig.savefig(saveas)
+    else:
+        input("Press any key to continue...")
 
 
 def plot_spectra_entry(
@@ -1542,6 +1549,7 @@ def plot_spectra_entry(
     bandpf: str | None = None,
     highlight: list[int] = [],
     integrate: bool = False,
+    saveas: Path | str | None = None,
 ) -> None:
     """Plot spectra of the waveform array. Highlight events or filter bands
 
@@ -1555,6 +1563,8 @@ def plot_spectra_entry(
         List of event IDs to highlight in the plot.
     integrate:
         Integrate waveforms
+    saveas:
+        If given, save the figure to the given path instead of showing it
     """
 
     # Find where we are
@@ -1586,9 +1596,12 @@ def plot_spectra_entry(
     else:
         bandpassd = io.read_yaml(bandpf)
 
-    plot.spectra(arr, hdr, bandpassd, highlight, integrate)
+    fig, _ = plot.spectra(arr, hdr, bandpassd, highlight, integrate)
 
-    input("Press any key to continue...")
+    if saveas is not None:
+        fig.savefig(saveas)
+    else:
+        input("Press any key to continue...")
 
 
 # Mapping of sorting/coloring keys to their description
@@ -1613,6 +1626,7 @@ def plot_mt_entry(
     overlay_dc_at: float = 1.0,
     sort_by: str | None = None,
     color_by: str | None = None,
+    saveas: Path | str | None = None,
 ) -> None:
     """Plot moment tensors
 
@@ -1626,6 +1640,8 @@ def plot_mt_entry(
         List of event IDs to highlight in the plot.
     overlay_dc_at:
         Overlay DC component at this fraction of the full moment
+    saveas:
+        If given, save the figure to this path instead of showing it interactively
     """
 
     # Attributes only found in sumary file
@@ -1681,7 +1697,7 @@ def plot_mt_entry(
     # Apply sorting
     mtd = {iev: mtd[iev] for iev in np.array(list(mtd))[isort]}
 
-    plot.mt_matrix(
+    fig, _ = plot.mt_matrix(
         mtd,
         highlight,
         values=colord,
@@ -1689,7 +1705,10 @@ def plot_mt_entry(
         overlay_dc_at=overlay_dc_at,
     )
 
-    input("Press any key to continue...")
+    if saveas is not None:
+        fig.savefig(saveas)
+    else:
+        input("Press any key to continue...")
 
 
 plot_mt_entry.__doc__ += f"""
@@ -1745,6 +1764,13 @@ def make_parser() -> ArgumentParser:
             dict(
                 action="store_true",
                 help="Exclude events listed in the exclude file",
+            ),
+        ),
+        "saveas": (
+            ("--saveas", "-s"),
+            dict(
+                type=Path,
+                help="Save the figure to file",
             ),
         ),
     }
@@ -1934,6 +1960,7 @@ Software for computing relative seismic moment tensors"""
             "but cc values do not reflect changes in time window or filter band."
         ),
     )
+    plot_align_p.add_argument(*option["saveas"][0], **option["saveas"][1])
 
     # Plot spectra
     plot_spec_p = subpars.add_parser(
@@ -1957,6 +1984,7 @@ Software for computing relative seismic moment tensors"""
         action="store_true",
         help="Integrate waveforms (e.g. velocity to displacement)",
     )
+    plot_spec_p.add_argument(*option["saveas"][0], **option["saveas"][1])
 
     # Plot MTs
     plot_mt_p = subpars.add_parser("plot-mt", help="Plot waveform spectra to screen")
@@ -1993,6 +2021,7 @@ Software for computing relative seismic moment tensors"""
         choices=list(_attr_keys.keys()),
         default=None,
     )
+    plot_mt_p.add_argument(*option["saveas"][0], **option["saveas"][1])
 
     return parser
 
@@ -2091,6 +2120,7 @@ def main(args=None):
             parsed.sort,
             parsed.highlight,
             parsed.cc_from_file,
+            parsed.saveas,
         )
         return
 
@@ -2100,6 +2130,7 @@ def main(args=None):
             parsed.bandpassfile,
             parsed.highlight,
             parsed.integrate,
+            parsed.saveas,
         )
         return
 
@@ -2111,6 +2142,7 @@ def main(args=None):
             parsed.dc,
             parsed.sort_by,
             parsed.color_by,
+            parsed.saveas,
         )
         return
 

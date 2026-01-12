@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   S amplitudes
 - `utils.phse_dict_hash_plugin()` has new 'strict' option
 - `relmt plot-mt` with many coloring and sorting options
+- Option to save figures created on the commandline to file
 
 ## [0.3.1-beta] - 2025-12-12
 
