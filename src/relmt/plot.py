@@ -144,7 +144,8 @@ def section_3d(
 
     if ax is None:
         _, ax = plt.subplots(
-            gridspec_kw={"top": 0.99, "bottom": 0.1, "right": 0.95, "left": left}
+            gridspec_kw={"top": 0.95, "bottom": 0.05, "right": 0.95, "left": left},
+            figsize=(8, ne * 0.15 + 1),
         )
 
     if station is not None:
