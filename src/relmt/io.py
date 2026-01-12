@@ -70,8 +70,8 @@ def write_station_table(station_dict: dict, filename: Path | str | None = None) 
     """
 
     # Header
-    out = "#Station      Northing       Easting        Depth\n"
-    out += "# (code)       (meter)       (meter)      (meter) \n"
+    out = "#Station     Northing      Easting       Depth\n"
+    out += "# (code)      (meter)      (meter)     (meter) \n"
     form = "{:>8s} {:>12.3f} {:>12.3f} {:>11.3f}\n"
 
     for north, east, depth, code in station_dict.values():
@@ -430,7 +430,7 @@ def write_phase_table(
     """
 
     out = "#     EventIndex Station Phase        Arrivaltime  Azimuth "
-    out += "Plunge\n"
+    out += "     Plunge\n"
     out += "#          (int)   (str) (P/S)          (seconds) (degree)    "
     out += "(degree)\n"
 
