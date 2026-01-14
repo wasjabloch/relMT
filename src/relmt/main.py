@@ -1436,9 +1436,10 @@ def plot_alignment_entry(
     config: core.Config | None = None,
     do_exclude: bool = False,
     sort: str = "pci",
-    highligh_events: list[int] = [],
-    cc_from_file: bool = False,
+    highlight_events: list[int] = [],
+    cc_method: str = "calculate",
     saveas: str | None = None,
+    confirm: bool = True,
 ) -> None:
     """Plot the waveform array and parameters relevant to judging the alignment
 
@@ -1455,9 +1456,13 @@ def plot_alignment_entry(
         Sorting method for events. See `plot.alignment` for options.
     highligh_events:
         List of event IDs to highlight in the plot.
-    cc_from_file:
-        Read cross-correlation values from alignment produre. changes in
-        timewindow and frequency band are then not reflected in the cc plot
+    cc_method:
+        Method to obtain the cross-correlation matrix:
+
+        * 'calculate': Re-calculate using current header values.
+        * 'file': Use cross-correlation values from alignment procedure. Faster,
+          but cc values do not reflect changes in time window or filter band
+        * 'none': Do not show cc values.
     saveas:
         If given, save the figure to the given path instead of showing it
     """
@@ -1511,18 +1516,26 @@ def plot_alignment_entry(
         iin, event_list = qc.included_events(excl, **hdr.kwargs(qc.included_events))
 
     # Get cc from file or recompute
-    if cc_from_file:
+    if cc_method == "file":
         try:
-            ccij = np.loadtxt(core.file("cc_matrix", *dest))
+            ccf = core.file("cc_matrix", *dest)
+            ccij = np.loadtxt(ccf)
         except FileNotFoundError:
+            logger.warning(
+                f"Cross-correlation file not found: {ccf}. Not showing cc values."
+            )
             ccij = None
-    else:
+    elif cc_method == "calculate":
         mat = utils.concat_components(
             signal.demean_filter_window(
                 arr[iin, :, :], **hdr.kwargs(signal.demean_filter_window)
             )
         )
         _, ccij, _, _ = signal.correlation_averages(mat, hdr["phase"], False)
+    elif cc_method == "none":
+        ccij = None
+    else:
+        raise ValueError(f"Unknown cc_method: {cc_method}")
 
     fig, _ = plot.alignment(
         arr,
@@ -1535,12 +1548,12 @@ def plot_alignment_entry(
         event_dict,
         station_dict,
         sort,
-        highligh_events,
+        highlight_events,
     )
 
     if saveas is not None:
         fig.savefig(saveas)
-    else:
+    elif confirm:
         input("Press any key to continue...")
 
 
@@ -1944,7 +1957,6 @@ Software for computing relative seismic moment tensors"""
     plot_align_p.add_argument(
         "--sort",
         type=str,
-        nargs=1,
         help="The sorting to apply: 'pci' (default), 'magnitude', 'none'",
         choices=["pci", "magnitude", "none"],
         default="pci",
@@ -1953,12 +1965,16 @@ Software for computing relative seismic moment tensors"""
     plot_align_p.add_argument(*option["highlight"][0], **option["highlight"][1])
     plot_align_p.add_argument(*option["exclude"][0], **option["exclude"][1])
     plot_align_p.add_argument(
-        "--cc_from_file",
-        action="store_true",
+        "--cc",
         help=(
-            "Use cross-correlation values from alignment procedure. Faster, "
+            "Method to obtain the cross-correlation matrix:"
+            "* calculate: Re-calculate using current header values."
+            "* file: Use cross-correlation values from alignment procedure. Faster, "
             "but cc values do not reflect changes in time window or filter band."
+            "* none: Do not show cc values."
         ),
+        choices=["calculate", "file", "none"],
+        default="calculate",
     )
     plot_align_p.add_argument(*option["saveas"][0], **option["saveas"][1])
 
@@ -2119,7 +2135,7 @@ def main(args=None):
             parsed.exclude,
             parsed.sort,
             parsed.highlight,
-            parsed.cc_from_file,
+            parsed.cc,
             parsed.saveas,
         )
         return
