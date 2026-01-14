@@ -1013,8 +1013,18 @@ def alignment(
 
     snr = snr[isort]
 
+    # Axis in which to highlight events
+    hlaxs = ["snr", "cci", "ec"]
+
+    iccij = True
     if ccij is None:
         ccij = np.full((nin, nin), np.nan)
+        iccij = False
+
+        # The expansion coefficient plot gets moved to the ccij axis
+        hlaxs.remove("cci")
+        hlaxs.remove("ec")
+        hlaxs += ["ccij"]
 
     cci = utils.fisher_average(np.abs(ccij))
     cc = utils.fisher_average(cci)
@@ -1061,7 +1071,7 @@ def alignment(
         for refev in highlight_events:
             if refev in sevl:
                 iev = sevl.index(refev)
-                for iax in ["dt", "snr", "cci", "ec"]:
+                for iax in hlaxs:
                     ax = axs[iax]
                     ax.axhline(iev, color="red", zorder=0)
             else:
@@ -1126,6 +1136,7 @@ def alignment(
         ax.set_yticks(range(nin), evlabels)
         ax.grid(axis="y")
         ax.legend()
+        hlaxs += ["dt"]
 
     else:
         ax.axis("off")
@@ -1137,7 +1148,7 @@ def alignment(
     ax.set_xlabel("SNR (dB)")
     ax.axvline(0, color="silver")
     if (minsnr := hdr["min_signal_noise_ratio"]) is not None:
-        ax.axvline(minsnr, color="silver")
+        ax.axvline(minsnr, color="indianred")
     ax.grid(axis="y")
     ax.tick_params(labelleft=False)
 
@@ -1174,13 +1185,16 @@ def alignment(
 
     # Cross correlation plot
     ax = axs["cci"]
-    ax.plot(cci, range(nin), color="red")
-    ax.axvline(0, color="silver")
-    ax.set_xlabel("$\\hat{{{C}}}_i$")
-    ax.grid(axis="y")
+    if np.all(np.isnan(cci)):
+        ax.set_axis_off()
+    else:
+        ax.plot(cci, range(nin), color="red")
+        ax.axvline(0, color="silver")
+        ax.set_xlabel("$\\hat{{{C}}}_i$")
+        ax.grid(axis="y")
 
     if (mincc := hdr["min_correlation"]) is not None:
-        ax.axvline(mincc, color="silver")
+        ax.axvline(mincc, color="indianred")
     ax.tick_params(labelleft=False)
 
     for ax in [axs["dt"], axs["snr"], axs["cci"], axs["wv"], axs["ccij"], axs["ec"]]:
@@ -1189,23 +1203,30 @@ def alignment(
 
     # Cross correlation coefficient matrix
     ax = axs["ccij"]
-    ax.set_title("$\\hat{{{|C|}}}$ = " + "{:.3f}".format(cc))
-    cmap = ax.imshow(
-        ccij, vmin=-1, vmax=1, cmap="RdGy", interpolation="nearest", aspect="auto"
-    )
-    ax.set_xticks(range(nin), evlabels, rotation=90)
-    ax.tick_params(labelleft=False)
+    if iccij:
+        ax.set_title("$\\hat{{{|C|}}}$ = " + "{:.3f}".format(cc))
+        cmap = ax.imshow(
+            ccij, vmin=-1, vmax=1, cmap="RdGy", interpolation="nearest", aspect="auto"
+        )
+        ax.set_xticks(range(nin), evlabels, rotation=90)
+        ax.tick_params(labelleft=False)
 
-    plt.colorbar(
-        cmap,
-        cax=axs["cbar"],
-        location="top",
-        ticks=[-1, 0, 1],
-        label="$cc_{ij}$",
-    )
+        plt.colorbar(
+            cmap,
+            cax=axs["cbar"],
+            location="top",
+            ticks=[-1, 0, 1],
+            label="$cc_{ij}$",
+        )
 
     # Expansion coefficeints
     ax = axs["ec"]
+    if not iccij:
+        # Plot in ccij axes instead and turn this axis off
+        ax = axs["ccij"]
+        axs["ec"].set_axis_off()
+        axs["cbar"].set_axis_off()
+
     ec_score = qc.expansion_coefficient_norm(mat, phase)[isort]
 
     for i, col, sym in zip(icomps, compc, comps):
@@ -1214,13 +1235,14 @@ def alignment(
     ax.plot(ec_score, range(nin), "|", mec="red", mfc="none", label=f"Score")
 
     if (ecn := hdr["min_expansion_coefficient_norm"]) is not None:
-        ax.axvline(ecn, color="silver")
+        ax.axvline(ecn, color="indianred")
 
     ax.legend()
     ax.set_yticks(range(nin), event_list[isort])
     ax.set_xlim((0, 1))
     ax.grid(axis="y")
     ax.tick_params(labelleft=False, labelright=True)
+    ax.set_xlabel("Expansion Coefficient Norm")
 
     return fig, axs
 
