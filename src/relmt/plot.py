@@ -1183,6 +1183,33 @@ def alignment(
     ax.tick_params(labelleft=False, labelbottom=True)
     ax.grid(axis="x")
 
+    # Untapered phase window
+    phs, phe = hdr["phase_start"], hdr["phase_end"]
+    phw = phe - phs
+
+    # Is 0 in the time window?
+    i0 = phs < 0 and phe > 0
+
+    # Channel window (phase window + taper)
+    tl2 = hdr["taper_length"] / 2
+    chw = phw + 2 * tl2
+
+    # Tick locations
+    tlocs = []
+    for nc in range(len(hdr["components"])):
+        if i0:
+            tlocs += [tl2 + nc * chw, tl2 - phs + nc * chw, tl2 + phw + nc * chw]
+        else:
+            tlocs += [tl2 + nc * chw, tl2 + phw + nc * chw]
+
+    tlabs = [phs, phe]
+    if i0:
+        tlabs = [phs, 0, phe]
+
+    ax.set_xticks(tlocs, tlabs * len(hdr["components"]))
+    ax.label_outer()
+    axs["pv"].label_outer()
+
     # Cross correlation plot
     ax = axs["cci"]
     if np.all(np.isnan(cci)):
