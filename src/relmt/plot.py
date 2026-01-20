@@ -617,7 +617,7 @@ def mt_matrix(
     cmap=plt.cm.cividis,
     overlay_dc_at: float = 1.0,
     ax: Axes | None = None,
-) -> Axes:
+) -> tuple[Figure, Axes]:
     """Plot moment tensors into a square matrix
 
     Parameters
@@ -654,7 +654,9 @@ def mt_matrix(
         colors = {evn: cmap(norm(val)) for evn, val in values.items()}
 
     if ax is None:
-        _, ax = plt.subplots(1, 1, figsize=(nrow, ncol), layout="tight")
+        fig, ax = plt.subplots(1, 1, figsize=(nrow, ncol), layout="tight")
+    else:
+        fig = ax.get_figure()
 
     for nev, (iev, momt) in enumerate(mtd.items()):
         thismt = pmt.MomentTensor(mt.mt_array(momt))
@@ -718,7 +720,7 @@ def mt_matrix(
         cbar = plt.colorbar(sm, ax=ax, shrink=0.3, fraction=0.05, pad=0.01)
         cbar.set_label(valuename)
 
-    return ax
+    return fig, ax
 
 
 def bootstrap_matrix(
