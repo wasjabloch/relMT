@@ -989,6 +989,7 @@ def phase_passbands(
     ievs, evns = qc.included_events(exclude, **hdr.kwargs(qc.included_events))
 
     pha = hdr["phase"]
+    sta = hdr["sta"]
 
     # At least one period within window
     fwin = 1.0 / (hdr["phase_end"] - hdr["phase_start"])
@@ -997,8 +998,11 @@ def phase_passbands(
     fnyq = (arr.shape[-1] - 1.0) / hdr["data_window"] / 2
 
     bpd = {}
-    for iev, evn in zip(ievs, evns):
-        print("{:02d} events to go   ".format(len(evns) - iev), end="\r")
+    for nev, (iev, evn) in enumerate(zip(ievs, evns)):
+        print(
+            "{:6s} {:1s}: {: 4d} events to go   ".format(sta, pha, len(evns) - nev),
+            end="\r",
+        )
 
         ev = evd[evn]
 

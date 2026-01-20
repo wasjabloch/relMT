@@ -872,6 +872,10 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
 
     # Write to file
     for ph, amps in zip("PS", [pamps, samps]):
+        fac = 1
+        if ph == "S" and keep_other_s_equation:
+            fac = 2
+        logger.info(f"Selected {len(amps)*fac} {ph} equations")
         outfile = core.file(
             "amplitude_observation",
             directory=directory,
@@ -919,6 +923,10 @@ def solve_entry(
     refmt_weight = config["reference_weight"]
     ncpu = config["ncpu"]
     keep_other_s_equation = config["keep_other_s_equation"]
+
+    if irefs is None:
+        raise ValueError(f"Need a reference MT, not: {irefs}")
+
     sfac = 1 + int(keep_other_s_equation)
 
     nboot = config["bootstrap_samples"]
