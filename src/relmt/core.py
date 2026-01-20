@@ -765,6 +765,19 @@ Logging verbosity for relMT modules. One of 'DEBUG', 'INFO', 'WARNING', 'ERROR',
         """
 Number of threads to use in some parallel computations""",
     ),
+    "lag_times": (
+        "list[str]",
+        """
+Align parameters
+--------------------
+
+Which MCCC lag times to write out. List any of:
+
+   - 'P': P lag times
+   - 'S-median': median of S lag time triplets
+   - 'S-residual': S lag times with lowest residuals
+   - 'S-cc': S lag times with highest cross-correlation values""",
+    ),
     "amplitude_suffix": (
         "str",
         """
@@ -772,15 +785,6 @@ Amplitude parameters
 --------------------
 
 Suffix appended to files, naming the parameters parsed to 'amplitude'""",
-    ),
-    "amplitude_measure": (
-        "str",
-        """
-Method to meassure relative amplitudes. One of:
-
-   - 'indirect': Estimate relative amplitude as the ratio of principal seismogram
-     contributions to each seismogram.
-   - 'direct': Compare each event combination seperatly.""",
     ),
     "amplitude_filter": (
         "str",
@@ -821,6 +825,15 @@ value.""",
 Include frequencies with this signal-to-noise ratio to optimal bandpass filter.
 Respects lowpass constraint. If not supplied, do not attempt to optimize
 passband.""",
+    ),
+    "amplitude_measure": (
+        "str",
+        """
+Method to meassure relative amplitudes. One of:
+
+   - 'indirect': Estimate relative amplitude as the ratio of principal seismogram
+     contributions to each seismogram.
+   - 'direct': Compare each event combination seperatly.""",
     ),
     "min_dynamic_range": (
         "float",
@@ -881,9 +894,8 @@ Maximum azimuthal gap allowed for one moment tensor""",
     "keep_other_s_equation": (
         "bool",
         """
-Use two equations per S-amplitude observation (`False` only includes the one
-with the highest norm of the polarization vector.
-Warning: `False` appears broken)""",
+Use two equations per S-amplitude observation triplet (`False` only includes the
+one with the highest norm of the polarization vector).""",
     ),
     "max_s_equations": (
         "int",
@@ -979,6 +991,7 @@ class Config:
         station_file: str | None = None,
         phase_file: str | None = None,
         reference_mt_file: str | None = None,
+        lag_times: list[str] | None = None,
         amplitude_suffix: str = "",
         qc_suffix: str = "",
         result_suffix: str = "",
@@ -986,11 +999,11 @@ class Config:
         reference_mts: list[int] | None = None,
         mt_constraint: str | None = None,
         reference_weight: float | None = None,
-        amplitude_measure: str | None = None,
         amplitude_filter: str | None = None,
         auto_lowpass_method: str | None = None,
         auto_lowpass_stressdrop_range: tuple[float, float] | None = None,
         auto_bandpass_snr_target: float | None = None,
+        amplitude_measure: str | None = None,
         min_dynamic_range: float | None = None,
         min_amplitude_misfit: float | None = None,
         max_amplitude_misfit: float | None = None,
@@ -1051,6 +1064,13 @@ class Config:
                 value = [float(value[0]), float(value[1])]
             elif key in ["events_", "keep_events", "reference_mts"]:
                 value = [int(val) for val in value]
+            elif key in ["lag_times"]:
+                if type(value) == str:
+                    value = [value]
+                elif value is None:
+                    value = []
+                else:
+                    value = [str(val) for val in value]
             elif key == attr:
                 typ = __builtins__[self._valid_args[attr][0]]
                 # Cast input to type

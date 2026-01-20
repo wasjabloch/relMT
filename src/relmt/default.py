@@ -31,6 +31,7 @@ config = core.Config(
     station_file=core.file("station"),
     phase_file=core.file("phase"),
     reference_mt_file=core.file("reference_mt"),
+    lag_times=[],
     amplitude_suffix="",
     qc_suffix="",
     result_suffix="",

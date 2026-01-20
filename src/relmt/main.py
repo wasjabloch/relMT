@@ -81,6 +81,7 @@ def align_entry(
     wvids = set(core.iterate_waveid(stas)) - set(excl["waveform"])
 
     ncpu = config["ncpu"]
+    lag_times = config["lag_times"] or []  # Empty list if None.
 
     args = []
     for wvid in wvids:
@@ -140,7 +141,7 @@ def align_entry(
 
         arr = arr[iin, :, :]
 
-        args.append((arr, hdr, dest, do_mccc, do_pca, combinations))
+        args.append((arr, hdr, dest, do_mccc, do_pca, combinations, lag_times))
 
     if ncpu > 1:
         with mp.Pool(ncpu) as pool:

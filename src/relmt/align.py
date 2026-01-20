@@ -557,6 +557,7 @@ def run(
     do_mccc: bool = True,
     do_pca: bool = True,
     mccc_combinations: np.ndarray = np.array([]),
+    lag_times: list[str] = [],
 ):
     """Align waveforms and save results to disk
 
@@ -578,6 +579,13 @@ def run(
     mccc_combinations:
         When aligning using mccc, only combine these pairs (P-waves) or triplets
         (S-waves).
+    lag_times:
+        MCCC lag times to save to file:
+
+        * "P": P lag times
+        * "S-median": median of S lag time triplets
+        * "S-residual": S lag times with lowest residuals
+        * "S-cc": S lag times with highest cross-correlation values
     """
 
     if not (do_pca or do_mccc):
@@ -628,11 +636,21 @@ def run(
             set_autocorrelation=False,
         )
 
-        methods = [""]
-        if header["phase"] == "S":
-            methods = ["median", "residual", "cc"]
+        methods = []
+        if header["phase"] == "P" and "P" in lag_times:
+            methods = [""]
 
-        # Use differen methods to extract S lag times
+        if header["phase"] == "S":
+            methods = [
+                method.split("-")[0] for method in lag_times if method.startswith("S")
+            ]
+
+        # Default returned ...
+        dd = ddmc[:-1]  # ... diferential times
+        dd_res = ddresmc[:-1]  # diferential time residuals
+        ccp = ccij[evpairsmc[:, 0], evpairsmc[:, 1]]  # cc values
+        evpairs = evpairsmc  # event pairs
+        # Use different methods to extract S lag times
         for method in methods:
             if header["phase"] == "S":
                 if evpairsmc.shape[0] == nev * (nev - 1) * (nev - 2) / 3:
@@ -648,13 +666,8 @@ def run(
                     evpairs, dd, ccp, dd_res = incomplete_paired_s_lag_times(
                         evpairsmc, ddmc, ccijk, ddresmc, mccc_combinations, method
                     )
-            else:
-                dd = ddmc[:-1]
-                dd_res = ddresmc[:-1]
-                ccp = ccij[evpairsmc[:, 0], evpairsmc[:, 1]]
-                evpairs = evpairsmc
-            # Silly format before saving lag times
 
+            # Silly format before saving lag times
             # Look up actual event names
             evns = np.vectorize(header["events_"].__getitem__)(evpairs)
 
