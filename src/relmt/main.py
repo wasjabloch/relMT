@@ -1638,6 +1638,8 @@ _attr_keys = {
     "s-links": "S links",
     "moment-rms": "Moment RMS (scaled Nm)",
     "amplitude-rms": "Amplitude RMS",
+    "bootstrap-rms": "Bootstrap RMS (Nm)",
+    "bootstrap-kagan": "Bootstrap Kagan angle (deg)",
 }
 
 
@@ -1667,7 +1669,16 @@ def plot_mt_entry(
     """
 
     # Attributes only found in sumary file
-    summary_atts = ["gap", "links", "p-links", "s-links", "moment-rms", "amplitude-rms"]
+    summary_atts = [
+        "gap",
+        "links",
+        "p-links",
+        "s-links",
+        "moment-rms",
+        "amplitude-rms",
+        "bootstrap-rms",
+        "bootstrap-kagan",
+    ]
 
     mtd = io.read_mt_table(mtfile)
     evd = io.read_event_table(config["event_file"])
@@ -1679,8 +1690,8 @@ def plot_mt_entry(
 
     if sort_by in summary_atts or color_by in summary_atts:
         try:
-            gap, plinks, slinks, mrms, arms = np.loadtxt(
-                mtfile, usecols=(14, 16, 17, 20, 21), unpack=True
+            gap, plinks, slinks, mrms, arms, brms, bkag = np.loadtxt(
+                mtfile, usecols=(14, 16, 17, 20, 21, 22, 23), unpack=True
             )
         except IndexError:
             msg = "Too few columns in mtfile. Please give a 'mt_summary' file."
@@ -1700,6 +1711,8 @@ def plot_mt_entry(
         "s-links": slinks,
         "moment-rms": mrms,
         "amplitude-rms": arms,
+        "bootstrap-rms": brms,
+        "bootstrap-kagan": bkag,
     }
 
     try:
