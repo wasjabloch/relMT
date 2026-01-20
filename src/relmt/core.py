@@ -225,7 +225,7 @@ basenames_phase_station = {
 
 
 # Suffix to add to cleaned amplitude observations
-clean_amplitude_suffix = "-qced"
+clean_amplitude_suffix = "admit"
 synthetic_amplitude_suffix = "-synthetic"
 
 
@@ -842,14 +842,14 @@ Minimum ratio (dB) of low- / highpass filter bandwidth in an amplitude ratio
 measurement. When positive, discard observation outside dynamic range. When
 negative, lower the highpass until the (positive) dynamic range is reached.""",
     ),
-    "qc_suffix": (
+    "admit_suffix": (
         "str",
         """
-Quality control paramters
+Admission paramters
 -------------------------
 
-Suffix appended to the amplitude suffix, naming the quality control parameters
-parsed to 'qc'""",
+Suffix appended to the amplitude suffix, naming the admission parameters
+parsed to 'admit'""",
     ),
     "max_amplitude_misfit": (
         "float",
@@ -891,7 +891,7 @@ Minimum number of equations required to constrain one moment tensor""",
         """
 Maximum azimuthal gap allowed for one moment tensor""",
     ),
-    "keep_other_s_equation": (
+    "two_s_equations": (
         "bool",
         """
 Use two equations per S-amplitude observation triplet (`False` only includes the
@@ -924,7 +924,7 @@ faster, but may result in discarding less-redundant observations.""",
 Solve parameters
 ----------------
 
-Suffix appended to amplitude and qc suffices indicating the parameter set parsed
+Suffix appended to amplitude and admit suffices indicating the parameter set parsed
 to 'solve'""",
     ),
     "reference_mts": (
@@ -946,8 +946,7 @@ Constrain the moment tensor. 'none' or 'deviatoric'""",
         "float",
         """
 Minimum misfit to assign a full weight of 1. Weights are scaled lineraly from
-`min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`
-""",
+`min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`""",
     ),
     "min_amplitude_weight": (
         "float",
@@ -993,7 +992,7 @@ class Config:
         reference_mt_file: str | None = None,
         lag_times: list[str] | None = None,
         amplitude_suffix: str = "",
-        qc_suffix: str = "",
+        admit_suffix: str = "",
         result_suffix: str = "",
         loglevel: str | None = None,
         reference_mts: list[int] | None = None,
@@ -1012,7 +1011,7 @@ class Config:
         max_s_sigma1: float | None = None,
         max_magnitude_difference: float | None = None,
         max_event_distance: float | None = None,
-        keep_other_s_equation: bool | None = None,
+        two_s_equations: bool | None = None,
         max_s_equations: int | None = None,
         keep_events: list[int] | None = None,
         equation_batches: int | None = None,

@@ -647,15 +647,15 @@ def amplitude_entry(
         shm.unlink()
 
 
-def qc_entry(config: core.Config, directory: Path = Path()) -> None:
-    """Quality control amplitude measurements
+def admit_entry(config: core.Config, directory: Path = Path()) -> None:
+    """Admit amplitude measurements into the inversion
 
-    This function is called when executing 'relmt qc' from the command line.
+    This function is called when executing 'relmt admit' from the command line.
 
     Parameters
     ----------
     config:
-        Configuration object with QC parameters. Content of the file read
+        Configuration object with admission parameters. Content of the file read
         by the '--config' option.
     directory:
         Root directory of the project, containing the 'amplitude/' subfolder.
@@ -670,7 +670,7 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
     max_ev_dist = config["max_event_distance"]
     min_eq = config["min_equations"]
     max_gap = config["max_gap"]
-    keep_other_s_equation = config["keep_other_s_equation"]
+    two_s = config["two_s_equations"]
     max_s_equations = config["max_s_equations"]
     eq_batches = config["equation_batches"]
     keep_ev = config["keep_events"]
@@ -680,8 +680,8 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
     exclude_wvid = exclude["waveform"]
 
     ampsuf = config["amplitude_suffix"]
-    qcsuf = config["qc_suffix"]
-    outsuf = f"{ampsuf}-{qcsuf}"
+    admsuf = config["admit_suffix"]
+    outsuf = f"{ampsuf}-{admsuf}"
 
     exclude_phase = set(exclude["phase_manual"]).union(
         exclude["phase_auto_nodata"]
@@ -798,11 +798,11 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
 
     # Make sure we have enough equations
     pamps, samps = qc.clean_by_equation_count_gap(
-        pamps, samps, phd, min_eq, max_gap, keep_other_s_equation
+        pamps, samps, phd, min_eq, max_gap, two_s
     )
 
     # Make sure we don't have too many equations
-    s_equations = len(samps) * (1 + int(keep_other_s_equation))
+    s_equations = len(samps) * (1 + int(two_s))
     if max_s_equations is not None:
         excess_eq = s_equations - max_s_equations
         logger.info(f"Have {s_equations} S-equations, need to reduce by {excess_eq}")
@@ -857,10 +857,10 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
 
             # Check once more we have enough equations
             pamps, samps = qc.clean_by_equation_count_gap(
-                pamps, samps, phd, min_eq, max_gap, keep_other_s_equation
+                pamps, samps, phd, min_eq, max_gap, two_s
             )
 
-            s_equations = len(samps) * (1 + int(keep_other_s_equation))
+            s_equations = len(samps) * (1 + int(two_s))
 
             # In case some events dropped out, how many equations are left?
             excess_eq = s_equations - max_s_equations
@@ -868,12 +868,12 @@ def qc_entry(config: core.Config, directory: Path = Path()) -> None:
             eq_batches -= 1
 
     if len(pamps) + len(samps) == 0:
-        raise RuntimeError("No observations left. Relax your QC criteria.")
+        raise RuntimeError("No observations left. Relax your admission criteria.")
 
     # Write to file
     for ph, amps in zip("PS", [pamps, samps]):
         fac = 1
-        if ph == "S" and keep_other_s_equation:
+        if ph == "S" and two_s:
             fac = 2
         logger.info(f"Selected {len(amps)*fac} {ph} equations")
         outfile = core.file(
@@ -922,19 +922,19 @@ def solve_entry(
     constraint = config["mt_constraint"]
     refmt_weight = config["reference_weight"]
     ncpu = config["ncpu"]
-    keep_other_s_equation = config["keep_other_s_equation"]
+    two_s = config["two_s_equations"]
 
     if irefs is None:
         raise ValueError(f"Need a reference MT, not: {irefs}")
 
-    sfac = 1 + int(keep_other_s_equation)
+    sfac = 1 + int(two_s)
 
     nboot = config["bootstrap_samples"]
 
     ampsuf = config["amplitude_suffix"]
-    qcsuf = config["qc_suffix"]
+    admsuf = config["admit_suffix"]
     resuf = config["result_suffix"]
-    insuf = f"{ampsuf}-{qcsuf}"
+    insuf = f"{ampsuf}-{admsuf}"
     outsuf = f"{insuf}-{resuf}"
     synsuf = outsuf + core.synthetic_amplitude_suffix
 
@@ -997,7 +997,7 @@ def solve_entry(
             phd,
             constraint,
             None,
-            keep_other_s_equation,
+            two_s,
             ncpu,
         )
     else:
@@ -1011,7 +1011,7 @@ def solve_entry(
             phd,
             constraint,
             None,
-            keep_other_s_equation,
+            two_s,
         )
 
     logger.info("Computing norms and weights...")
@@ -1030,23 +1030,19 @@ def solve_entry(
             for amp in pamp_subset
         ]
         + [
-            ls.weight_misfit(
-                amp, min_mis, max_smis, min_weight, "S", keep_other_s_equation
-            )
+            ls.weight_misfit(amp, min_mis, max_smis, min_weight, "S", two_s)
             for amp in samp_subset
         ]
     )
 
     amp_weights = np.vstack(
         [1.0 for _ in pamp_subset]
-        + [ls.weight_s_amplitude(amp, keep_other_s_equation) for amp in samp_subset]
+        + [ls.weight_s_amplitude(amp, two_s) for amp in samp_subset]
     )
 
     # Equation norm
     eq_norm = ls.condition_by_norm(Ah)
-    p_norm, s_norm, _ = ls.unpack_equation_vector(
-        eq_norm, n_p, 0, mt_elements, keep_other_s_equation
-    )
+    p_norm, s_norm, _ = ls.unpack_equation_vector(eq_norm, n_p, 0, mt_elements, two_s)
 
     # Apply the weights only after measuring the norm
     if isparse:
@@ -1094,7 +1090,7 @@ def solve_entry(
 
     # Moment residuals
     p_residuals, s_residuals, _ = ls.unpack_equation_vector(
-        residuals, n_p, n_ref, mt_elements, keep_other_s_equation
+        residuals, n_p, n_ref, mt_elements, two_s
     )
 
     relmts = {
@@ -1838,10 +1834,10 @@ Software for computing relative seismic moment tensors"""
         "amplitude", help="Measure relative amplitudes on aligned waveforms"
     )
 
-    qc_p = subpars.add_parser(
-        "qc",
+    admit_p = subpars.add_parser(
+        "admit",
         help=(
-            "Apply quality control parameters from configuration file to "
+            "Apply admission parameters from configuration file to "
             "amplitude measurements"
         ),
     )
@@ -1855,7 +1851,7 @@ Software for computing relative seismic moment tensors"""
     align_p.set_defaults(command=align_entry)
     exclude_p.set_defaults(command=exclude_entry)
     amp_p.set_defaults(command=amplitude_entry)
-    qc_p.set_defaults(command=qc_entry)
+    admit_p.set_defaults(command=admit_entry)
     solve_p.set_defaults(command=solve_entry)
 
     # Subparser arguments
@@ -1946,8 +1942,8 @@ Software for computing relative seismic moment tensors"""
     amp_p.add_argument(*option["alignment"][0], **option["alignment"][1])
     amp_p.add_argument(*option["overwrite"][0], **option["overwrite"][1])
 
-    # QC sub-arguments
-    qc_p.add_argument(*option["config"][0], **option["config"][1])
+    # Admit sub-arguments
+    admit_p.add_argument(*option["config"][0], **option["config"][1])
 
     # Sub arguments of the solve routine
     solve_p.add_argument(*option["config"][0], **option["config"][1])
@@ -2116,7 +2112,7 @@ def main(args=None):
     # Let's parse the keyword arguments explicitly
     parent = conff.parent
 
-    if not parsed.mode.startswith("plot-") and parsed.mode != "qc":
+    if not parsed.mode.startswith("plot-") and parsed.mode != "admit":
         n_align = parsed.alignment
         overwrite = parsed.overwrite
 
