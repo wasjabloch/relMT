@@ -1634,8 +1634,8 @@ _attr_keys = {
     "s-links": "S links",
     "moment-rms": "Moment RMS (scaled Nm)",
     "amplitude-rms": "Amplitude RMS",
-    "bootstrap-rms": "Bootstrap RMS (Nm)",
-    "bootstrap-kagan": "Bootstrap Kagan angle (deg)",
+    "boot-rms": "normalized Bootstrap RMS (Nm/M0)",
+    "boot-kagan": "Bootstrap Kagan angle (deg)",
 }
 
 
@@ -1672,8 +1672,8 @@ def plot_mt_entry(
         "s-links",
         "moment-rms",
         "amplitude-rms",
-        "bootstrap-rms",
-        "bootstrap-kagan",
+        "boot-rms",
+        "boot-kagan",
     ]
 
     mtd = io.read_mt_table(mtfile)
@@ -1707,8 +1707,8 @@ def plot_mt_entry(
         "s-links": slinks,
         "moment-rms": mrms,
         "amplitude-rms": arms,
-        "bootstrap-rms": brms,
-        "bootstrap-kagan": bkag,
+        "boot-rms": brms,
+        "boot-kagan": bkag,
     }
 
     try:
@@ -1735,6 +1735,8 @@ def plot_mt_entry(
         valuename=colorn,
         overlay_dc_at=overlay_dc_at,
     )
+
+    fig.suptitle(f"File: {mtfile}")
 
     if saveas is not None:
         fig.savefig(saveas)
