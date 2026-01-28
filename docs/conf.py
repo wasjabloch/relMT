@@ -32,8 +32,8 @@ always_document_param_types = True
 # source_suffix = [".rst", ".md"]
 source_suffix = {
     ".rst": "restructuredtext",
-    ".md": "markdown",
-    ".ipynb": "nbsphinx",
+    # ".md": "markdown",
+    # ".ipynb": "nbsphinx",
 }
 
 exclude_patterns = [
