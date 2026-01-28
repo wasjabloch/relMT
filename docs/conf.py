@@ -7,7 +7,7 @@ author = "Wasja Bloch"
 version = release = importlib.metadata.version("relMT")
 
 extensions = [
-    "myst_parser",  # Markdown parsing
+    # "myst_parser",  # Markdown parsing already imported by myst_nb
     "sphinx_markdown_tables",
     "sphinx.ext.autodoc",  # Get docs from source code
     "sphinx.ext.intersphinx",  # Cross-link other documentation
@@ -19,6 +19,8 @@ extensions = [
     # ill-formated documentation. Uncomment and debug Critical, Errors, Warnings
     # when build of documentation is failing
     "sphinx_autodoc_typehints",
+    "myst_nb",  # Jupyter Notebooks
+    "sphinx_collections",  # Include external folders
     "sphinx_copybutton",  # Copy button for code snippets
 ]
 
@@ -30,7 +32,8 @@ always_document_param_types = True
 # source_suffix = [".rst", ".md"]
 source_suffix = {
     ".rst": "restructuredtext",
-    ".md": "markdown",
+    # ".md": "markdown",
+    #'.ipynb': 'nbsphinx',
 }
 
 exclude_patterns = [
@@ -79,6 +82,17 @@ nitpick_ignore = [
     ("py:class", "_io.StringIO"),
     ("py:class", "_io.BytesIO"),  # Ignore these interlinked attributes
 ]
+
+collections = {
+    "notebooks": {
+        "driver": "copy_folder",
+        "source": "examples",
+        "target": "examples",
+    }
+}
+
+# myst_nb notebook settings
+nb_execution_timeout = 60 * 60 * 24 * 3  # 3 days
 
 
 # Remove 'Alias for field number' docstring from named tuple
