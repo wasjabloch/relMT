@@ -256,7 +256,7 @@ def clean_by_equation_count_gap(
     phase_dict: dict[str, core.Phase],
     min_equations: int | None,
     max_gap: float | None = None,
-    keep_other_s_equation: bool = True,
+    two_s_equations: bool = True,
 ) -> tuple[list[core.P_Amplitude_Ratio], list[core.S_Amplitude_Ratios]]:
     """Remove observations that occurr in less than `min_equations` iteratively
 
@@ -271,8 +271,14 @@ def clean_by_equation_count_gap(
         List of P amplitude observations
     S_amplitudes:
         List of S amplitude observations
+    phase_dict:
+        Phase dictionary with take-off azimuths
     min_equations:
         Minimum number of occurrences of each event
+    max_gap:
+        Maximum allowed azimuthal gap
+    two_s_equations:
+        Count each S observation twice
 
     Returns
     -------
@@ -289,7 +295,7 @@ def clean_by_equation_count_gap(
         return p_amplitudes, s_amplitudes
 
     # Count S twice if we keep the redundant equations
-    sfac = 1 + int(keep_other_s_equation)
+    sfac = 1 + int(two_s_equations)
 
     p_pairs = np.array([(amp.event_a, amp.event_b) for amp in p_amplitudes])
     s_triplets = np.array(
@@ -313,7 +319,7 @@ def clean_by_equation_count_gap(
 
         for i in sin:
             cnt.update(s_triplets[i])
-            if keep_other_s_equation:
+            if two_s_equations:
                 # Count each occurrence twice.
                 cnt.update(s_triplets[i])
 
