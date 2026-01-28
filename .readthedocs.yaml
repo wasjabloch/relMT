@@ -11,6 +11,7 @@ build:
   apt_packages:
     - gfortran
     - libfftw3-dev
+    - rsync
   jobs:
     pre_build:
       - git clone --depth 1 https://github.com/wasjabloch/relmt-data.git /tmp/relmt-data
