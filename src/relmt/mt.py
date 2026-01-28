@@ -125,6 +125,11 @@ def magnitude_of_moment(moment: float) -> float:
     return np.log10(moment * 1e7) / 1.5 - 10.7
 
 
+def magnitude_of_vector(vector: core.MT | tuple) -> float:
+    """Magnitude of a moment tensor in 6-element vector notation"""
+    return magnitude_of_moment(moment_of_vector(vector))
+
+
 def mean_moment(mts: list[core.MT]) -> float:
     """Mean seismic moment of list of moment tensors"""
     return sum((moment_of_tensor(mt_array(mt)) for mt in mts)) / len(mts)
