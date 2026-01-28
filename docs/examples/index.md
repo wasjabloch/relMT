@@ -2,8 +2,8 @@
 
 ```{toctree}
 :hidden:
-../_collections/notebooks/example_0_setup_external_Pamir_data.ipynb
-../_collections/notebooks/example_1a_setup_Pamir_Muji_aftershocks.ipynb
+example_0_setup_external_Pamir_data.ipynb
+example_1a_setup_Pamir_Muji_aftershocks.ipynb
 ```
 
 <!---
