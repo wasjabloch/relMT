@@ -1,5 +1,5 @@
 import importlib.metadata
-import collections
+import collections as py_collections
 
 project = "relMT"
 copyright = "2025, Wasja Bloch"
@@ -32,8 +32,8 @@ always_document_param_types = True
 # source_suffix = [".rst", ".md"]
 source_suffix = {
     ".rst": "restructuredtext",
-    # ".md": "markdown",
-    #'.ipynb': 'nbsphinx',
+    ".md": "markdown",
+    ".ipynb": "nbsphinx",
 }
 
 exclude_patterns = [
@@ -97,7 +97,7 @@ nb_execution_timeout = 60 * 60 * 24 * 3  # 3 days
 
 # Remove 'Alias for field number' docstring from named tuple
 def remove_namedtuple_attrib_docstring(app, what, name, obj, skip, options):
-    if type(obj) is collections._tuplegetter:
+    if type(obj) is py_collections._tuplegetter:
         return True
     return skip
 
