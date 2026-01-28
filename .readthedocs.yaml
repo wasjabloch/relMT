@@ -15,10 +15,7 @@ build:
     pre_build:
       - git clone --depth 1 https://github.com/wasjabloch/relmt-data.git /tmp/relmt-data
       # Copy executed notebooks into your docs tree (choose the path you prefer)
-      - cp /tmp/relmt-data/notebooks/*.ipynb examples/
-      - find . -name *.ipynb
-      - pwd
-      - ls
+      - cp /tmp/relmt-data/notebooks/*.ipynb docs/examples/
 
 sphinx:
   configuration: docs/conf.py
