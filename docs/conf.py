@@ -74,7 +74,7 @@ intersphinx_mapping = {
     "numpy": ("https://numpy.org/doc/stable/", None),
     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
     "obspy": ("https://docs.obspy.org/", None),
-    "matplotlib": (" https://matplotlib.org/", None),
+    "matplotlib": (" https://matplotlib.org/stable", None),
     # To include other projects, provide path to objects.inv file
 }
 
@@ -86,8 +86,7 @@ nitpick_ignore = [
 collections = {
     "notebooks": {
         "driver": "copy_folder",
-        "source": "examples",
-        "target": "examples",
+        "source": "../examples",
     }
 }
 
