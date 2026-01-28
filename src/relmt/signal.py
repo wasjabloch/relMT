@@ -989,7 +989,7 @@ def phase_passbands(
     ievs, evns = qc.included_events(exclude, **hdr.kwargs(qc.included_events))
 
     pha = hdr["phase"]
-    sta = hdr["sta"]
+    sta = hdr["station"]
 
     # At least one period within window
     fwin = 1.0 / (hdr["phase_end"] - hdr["phase_start"])
