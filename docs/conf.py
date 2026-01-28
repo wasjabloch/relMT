@@ -20,7 +20,6 @@ extensions = [
     # when build of documentation is failing
     "sphinx_autodoc_typehints",
     "myst_nb",  # Jupyter Notebooks
-    "sphinx_collections",  # Include external folders
     "sphinx_copybutton",  # Copy button for code snippets
 ]
 
@@ -83,15 +82,8 @@ nitpick_ignore = [
     ("py:class", "_io.BytesIO"),  # Ignore these interlinked attributes
 ]
 
-collections = {
-    "notebooks": {
-        "driver": "copy_folder",
-        "source": "../examples",
-    }
-}
-
 # myst_nb notebook settings
-nb_execution_timeout = 60 * 60 * 24 * 3  # 3 days
+nb_execution_mode = "off"
 
 
 # Remove 'Alias for field number' docstring from named tuple
