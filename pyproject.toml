@@ -51,6 +51,7 @@ dev = [
   "sphinx-autodoc-typehints",
   "sphinx-markdown-tables",
   "sphinx-argparse",
+  "sphinx-collections",
   "pydata_sphinx_theme",
   "relmt[plot]",
   "relmt[extra]",
