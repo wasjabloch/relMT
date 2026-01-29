@@ -36,6 +36,8 @@ cd relMT
 pip install .
 ```
 
+### Additional dependencies
+
 For plotting, we require:
 
 * *Matplotlib* for all plotting

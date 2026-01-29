@@ -7,9 +7,9 @@
 Home <self>
 How to... <how-to/index>
 Formats <formats/index>
+Examples <examples/index>
 Usage <usage/usage>
 API <api/index>
-Examples <examples/index>
 ```
 
 ![relMT-beta Logo](../images/relMT-beta.png)
