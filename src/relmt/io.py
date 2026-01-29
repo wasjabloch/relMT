@@ -511,7 +511,7 @@ def read_waveform_array_header(
         Root directory to look for the files
     matlab:
         Assume MATALB waveform files. Provide the name of the variable holding
-        the waveform array in as header keyword `variable_name`.
+        the waveform array in as header keyword `matlab_variable`.
     defaults:
         Attempt to pull in default vaules from a `default-hdr.yaml` file in the
         same directory
@@ -552,7 +552,7 @@ def read_waveform_array_header(
     else:
         hdr = read_header(hdrf)
 
-    if (vname := hdr["variable_name"]) is not None:
+    if (vname := hdr["matlab_variable"]) is not None:
         wvarr = wvarr[vname]
 
     return wvarr, hdr

@@ -1291,10 +1291,11 @@ Station code""",
         """
 Seismic phase type to consider ('P' or 'S')""",
     ),
-    "variable_name": (
+    "matlab_variable": (
         "str",
         """
-Optional variable name that holds the waveform array""",
+If we are reading a MATLAB .mat file, name of the variable that holds the
+waveform array""",
     ),
     "components": (
         "str",
@@ -1403,7 +1404,7 @@ class Header(Config):
         station: str | None = None,
         phase: str | None = None,
         components: str | None = None,
-        variable_name: str | None = None,
+        matlab_variable: str | None = None,
         sampling_rate: float | None = None,
         data_window: float | None = None,
         phase_start: float | None = None,

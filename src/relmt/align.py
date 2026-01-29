@@ -728,7 +728,7 @@ def run(
         )
 
     # We are saving a numpy array, not matlab
-    header["variable_name"] = None
+    header["matlab_variable"] = None
 
     # Fresh start with QC parameters
     header["min_expansion_coefficient_norm"] = None

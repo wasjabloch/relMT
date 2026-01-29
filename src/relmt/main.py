@@ -1758,7 +1758,6 @@ color_by:
 
    - None: no coloring
    - {'\n   - '.join(f"'{key}': {_attr_keys[key]}" for key in _attr_keys)}
-
 """
 
 
