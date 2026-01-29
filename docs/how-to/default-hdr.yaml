@@ -1,0 +1,77 @@
+# relMT waveform header
+
+# Station code
+# (str)
+station:
+
+# Seismic phase type to consider ('P' or 'S')
+# (str)
+phase:
+
+# If we are reading a MATLAB .mat file, name of the variable that holds the
+# waveform array
+# (str)
+matlab_variable:
+
+# One-character component names ordered as in the waveform array, as one string
+# (e.g. 'ZNE')
+# (str)
+components:
+
+# Sampling rate of the seismic waveform (Hertz)
+# (float)
+sampling_rate:
+
+# Time window symmetric about the phase pick (i.e. pick is near the central
+# sample) (seconds)
+# (float)
+data_window:
+
+# Start of the phase window before the arrival time pick (negative seconds before
+# pick).
+# (float)
+phase_start:
+
+# End of the phase window after the arrival time pick (seconds after pick).
+# (float)
+phase_end:
+
+# Combined length of taper that is applied at both ends beyond the phase window.
+# (seconds)
+# (float)
+taper_length:
+
+# Common high-pass filter corner of the waveform (Hertz)
+# (float)
+highpass:
+
+# Common low-pass filter corner of the waveform (Hertz)
+# (float)
+lowpass:
+
+# Regard absolute amplitudes at and below this value as null
+# (float)
+null_threshold:
+
+# Minimum allowed signal-to-noise ratio (dB) of signals for event exclusion
+# (float)
+min_signal_noise_ratio:
+
+# Minimum allowed absolute averaged correlation coefficient of a waveform for
+# event exclusion
+# (float)
+min_correlation:
+
+# Minimum allowed norm of the principal component expansion coefficients
+# contributing to the waveform reconstruction for event exclusion
+# (float)
+min_expansion_coefficient_norm:
+
+# Read combinations from file names STATION_PHASE-combination.txt
+# (bool)
+combinations_from_file:
+
+# Event names corresponding to the first dimension of the waveform array. Do not
+# edit.
+# (list)
+events_:

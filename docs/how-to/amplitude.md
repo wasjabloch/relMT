@@ -31,7 +31,8 @@ myproject/
 In the configuration file, find the "Amplitude parameters" block that lists the
 options that control how amplitudes are measured. We start by measuring
 amplitudes within the frequency band defined in the `highpass` and `lowpass`
-parameters of the individual `-hdr.yaml` files.
+parameters of the individual `-hdr.yaml` files, in other words choosing the
+`manual`ly determined filter corners.
 
 ```{code-block} yaml
 :caption: config.yaml
@@ -41,16 +42,30 @@ parameters of the individual `-hdr.yaml` files.
 # Suffix appended to files, naming the parameters parsed to 'amplitude'
 amplitude_suffix:
 
+# Filter method to apply for amplitude measure. One of:
+# - 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
+# - 'auto': compute filter corners using the 'auto_' options below
+amplitude_filter: manual
+```
+
+The `auto_` options are ignored in this case so that the next relevant option is the `amplitude_measure`, with the choices:
+
+* *direct* means to consider each event combination (pairs for *P*-waves,
+  triplets for *S*-waves) seperately, determine seperate optimal filter
+  passbands and measure relative amplitudes directly on the seismograms. This
+  option allows to bridge larger magnitude differences.
+* *indirect* means to consider all waveforms (the waveform matrix) jointly,
+  determine one common filter passband for all events in the matrix, and measure
+  relative amplitude as the ratio of the contribution of the principal
+  seismogram to each seismogram in the matrix.
+
+```{code-block} yaml
+:caption: config.yaml
 # Method to meassure relative amplitudes. One of:
 # - 'indirect': Estimate relative amplitude as the ratio of principal seismogram
 #     contributions to each seismogram.
 # - 'direct': Compare each event combination seperatly.
 amplitude_measure: direct
-
-# Filter method to apply for amplitude measure. One of:
-# - 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
-# - 'auto': compute filter corners using the 'auto_' options below
-amplitude_filter: manual
 ```
 
 ## 3. Measure the amplitudes
@@ -164,7 +179,8 @@ myproject/
     +-- ...
 ```
 
-## 5. Result
+## 5. Conclusion
 
-The amplitude files may grow very large and can contain outliers. Before
-building the liniear system it is important quality control the amplitudes.
+We showed how to measure amplitudes in two different ways. The amplitude files
+may grow very large and can contain outliers. When building the linear system
+it is important to admit a balanced set of well-constrained amplitudes.

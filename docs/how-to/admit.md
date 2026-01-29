@@ -1,10 +1,11 @@
-# Quality control amplitudes
+# Admit amplitudes into the linear system
 
 ## 1. Prerequisites
 
-The aim is to select the "best" relative *P* and
+The aim is to admit the "best" relative *P* and
 *S* amplitudes from the potentially very large sets stored in
-`P-amplitudes.txt` and `S-amplitudes.txt`. We assume the following file
+`P-amplitudes.txt` and `S-amplitudes.txt` into the linear system of equations
+that constraints the relative moment tensors. We assume the following file
 structure:
 
 ```none
@@ -26,22 +27,23 @@ As relative *S* amplitudes represent comparission of event *triplets* the number
 of possible *S* combinations is $\binom{N}{3}$, for $N$ events, while the
 maximum number of *P* pairs is only $\binom{N}{2}$.
 
-## 2. Quality control parameters
+## 2. Admit parameters
 
 The following parameters in `config.yaml` define the critera by which relative
 amplitude observations should be excluded. As before, different parameter sets
-are distinguished using `qc_suffix`, which is appended to the name of the output
-files.
+are distinguished using `admit_suffix`, which is appended to the name of the
+output files.
 
 ```{code-block} yaml
 :caption: config.yaml
 
-# Quality control paramters
+# Admission paramters
 # -------------------------
 #
-# Suffix appended to the amplitude suffix, naming the quality control parameters
-# parsed to 'qc'
-qc_suffix: qced
+# Suffix appended to the amplitude suffix, naming the admission parameters
+# parsed to 'admit'
+# (str)
+admit_suffix: admitted
 ```
 
 The first parameters pertain to the quality of waveform reconstruction:
@@ -49,6 +51,8 @@ The first parameters pertain to the quality of waveform reconstruction:
 * `max_amplitude_misfit` discribes how well a waveform is reconstructed, where a
   value of *0* indicates perfect reconstruction, *>1* indicates that the misfit
   amplitude is larger than the singal amplitude itself. This value should be *<1*.
+* `max_s_amplitude_misfit` As `max_amplitude_misfit`, but sets a different
+  value for *S*-waves.
 * `max_s_sigma1` discribes the linear independence of the two relative *S*
   amplitudes. The values of $B_{abc}$ and $B_{acb}$ may become arbitrary as this
   value approaches *1* and the equation may not be linearily independent of
@@ -56,15 +60,11 @@ The first parameters pertain to the quality of waveform reconstruction:
   close to *1* for almost all waveform combinations. One then runs into danger
   of excluding all observations when choosing too low a value.
 
-```{code-block} yaml
+```{literalinclude} config-template.yaml
 :caption: config.yaml
-# Discard amplitude measurements with a higher misfit than this.
-max_amplitude_misfit:
-
-# Maximum first normalized singular value to allow for an S-wave reconstruction. A
-# value of 1 indicates that S-waveform adheres to rank 1 rather than rank 2 model.
-# The relative amplitudes Babc and Bacb are then not linearly independent.
-max_s_sigma1:
+:language: yaml
+:start-at: Discard amplitude measurements
+:end-at: max_s_sigma1:
 ```
 
 The next parameters pertain to properties of event combinations.
@@ -76,68 +76,65 @@ The next parameters pertain to properties of event combinations.
 * `max_event_distance`: Large inter-event distances may be an indication that
   the *common Green's function assumption* is violated.
 
-```{code-block} yaml
+```{literalinclude} config-template.yaml
 :caption: config.yaml
-# Maximum difference in magnitude between two events to allow an amplitude
-# measurement.
-max_magnitude_difference:
-
-# Maximum allowed distance (m) between two events.
-max_event_distance:
+:language: yaml
+:start-at: Maximum difference in magnitude
+:end-at: max_event_distance:
 ```
 
 The next parameters assure that only observations that contribute to a
-meaningful solution enter the system of equations. `min_equations` and `max_gap`
-are applied iteratively until no equations are left that violate either
-constraint.
+meaningful solution enter the system of equations.
 
-```{code-block} yaml
+* `min_equations` indicates that each relative moment tensor must be constrained
+  by at least this many equations
+* `max_gap` is the maximum azimuthal gap allowed for a moment tensor. If this
+  value is exceeded, all ob
+
+If one of the values is exceeded for a moment tensor, all observations
+pertaining to that MT will be discarded. These criteria are applied iteratively
+until no equations are left that violate either.
+
+```{literalinclude} config-template.yaml
 :caption: config.yaml
-# Minimum number of equations required to constrain one moment tensor
-min_equations:
-
-# Maximum azimuthal gap allowed for one moment tensor
-max_gap:
+:language: yaml
+:start-at: Minimum number of equations
+:end-at: max_gap:
 ```
 
 The next paramters allow to decimate the number of *S* observations. There are
 $\binom{3}{N}$ possible *S* triplets, but only $\binom{N}{2}$ possible
 *P* pairs. However, *S* observations should not necessarily dominate the
-equation system. We therefore provide `max_s_equations` to exclude *S*
-observations that are redundant in the sense that the events contributing to the
-triplet have been observed many times and on stations that have many
-observations. Observations are exluded until the threshold is reached.
-`keep_events` is a list of events that should not be considered as redundant.
-`equation_batches` controls how often the equations should be re-ranked.
+equation system.
 
-```{code-block} yaml
+* `two_s_equations` determines, if each *S* amplitude observation contributes
+  two equations (of the two longest polarization vectors $g$ for the
+  station-event configuration), or only one (of the longest polarization
+  vector)
+* `max_s_equations` allows to exclude *S* observations that are redundant in the
+  sense that the events contributing to the triplet have been observed many
+  times and on stations that have many observations. Observations are exluded
+  until the threshold is reached. When set, `keep_events` is a list of events
+  that should not be considered as redundant and `equation_batches` controls how
+  often the equations should be re-ranked.
+
+```{literalinclude} config-template.yaml
 :caption: config.yaml
-# Maximum number of S-wave equation in the linear system. If more are available,
-# iterativley discard those with redundant pair-wise observations, on stations
-# with many observations, and with a higher misfit
-max_s_equations:
-
-# When reducing number of S-wave equations, increase importance of these events by
-# not counting them in the redundancy score. Use to keep many equations e.g. for
-# the reference event or specific events of interest.
-keep_events:
-
-# When reducing the number of S-wave equations, rank observations iteratively this
-# many times by redundancy and remove the most redundant ones. A lower number is
-# faster, but may result in discarding less-redundant observations.
-equation_batches:
+:language: yaml
+:start-at: Use two equations per S-amplitude
+:end-at: equation_batches:
 ```
 
-## 3. Applying quality control
+## 3. Applying admission parameters
 
 When a set of parameters has been found, run
 
 ```{code-block} sh
 :caption: shell
-relmt qc
+relmt admit
 ```
 
-which will place the QCed files next to the original ones
+which will place the admitted files next to the original ones
 
 ```{code-block} none
 :emphasize-lines: 13,14
@@ -153,6 +150,6 @@ myproject/
 +-- amplitude/
     +-- P-amplitudes.txt
     +-- S-amplitudes.txt
-    +-- P-amplitudes-qced.txt
-    +-- S-amplitudes-qced.txt
+    +-- P-amplitudes-admitted.txt
+    +-- S-amplitudes-admitted.txt
 ```

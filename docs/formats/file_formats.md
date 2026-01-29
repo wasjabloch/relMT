@@ -72,6 +72,18 @@ loglevel:
 # (int)
 ncpu:
 
+# Align parameters
+# --------------------
+#
+# Which MCCC lag times to write out. List any of:
+#
+#    - 'P': P lag times
+#    - 'S-median': median of S lag time triplets
+#    - 'S-residual': S lag times with lowest residuals
+#    - 'S-cc': S lag times with highest cross-correlation values
+# (list[str])
+lag_times:
+
 # Amplitude parameters
 # --------------------
 #
@@ -79,31 +91,28 @@ ncpu:
 # (str)
 amplitude_suffix:
 
-# Method to meassure relative amplitudes. One of:
-# - 'indirect': Estimate relative amplitude as the ratio of principal seismogram
-#     contributions to each seismogram.
-# - 'direct': Compare each event combination seperatly.
-# (str)
-amplitude_measure:
-
 # Filter method to apply for amplitude measure. One of:
-# - 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
-# - 'auto': compute filter corners using the 'auto_' options below
+#
+#    - 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
+#    - 'auto': compute filter corners using the "auto" options below
 # (str)
 amplitude_filter:
 
 # Method to estimate lowpass filter that eliminates the source time function. One
 # of:
-# - 'fixed': Use the value 'fixed_lowpass' (not implemented)
-# - 'corner': Estimate from apparent corner frequency in event spectrum
-# - 'duration': Filter by 1/source duration of event magnitude.
-#     Requires 'auto_lowpass_stressdrop_range'
+#
+#    - 'fixed': Use the value 'fixed_lowpass' (not implemented)
+#    - 'corner': Estimate from apparent corner frequency in event spectrum.
+#      Requires 'auto_lowpass_stressdrop_range'
+#    - 'duration': Filter by 1/source duration of event magnitude.
 # (str)
 auto_lowpass_method:
 
 # When estimating the lowpass frequency of an event as the corner frequency
 # (auto_lowpass_method: 'corner'), assume a stressdrop within this range (Pa).
-# (list)
+# When second value is less or equal first value, use a fixed stressdrop of first
+# value.
+# ([float, float])
 auto_lowpass_stressdrop_range:
 
 # Include frequencies with this signal-to-noise ratio to optimal bandpass filter.
@@ -112,23 +121,37 @@ auto_lowpass_stressdrop_range:
 # (float)
 auto_bandpass_snr_target:
 
+# Method to meassure relative amplitudes. One of:
+#
+#    - 'indirect': Estimate relative amplitude as the ratio of principal seismogram
+#      contributions to each seismogram.
+#    - 'direct': Compare each event combination seperatly.
+# (str)
+amplitude_measure:
+
 # Minimum ratio (dB) of low- / highpass filter bandwidth in an amplitude ratio
 # measurement. When positive, discard observation outside dynamic range. When
-# negative, extend lower highpass until (positive) dynamic range is reached.
+# negative, lower the highpass until the (positive) dynamic range is reached.
 # (float)
 min_dynamic_range:
 
-# Quality control paramters
+# Admission paramters
 # -------------------------
 #
-# Suffix appended to the amplitude suffix, naming the quality control parameters
-# parsed to 'qc'
+# Suffix appended to the amplitude suffix, naming the admission parameters
+# parsed to 'admit'
 # (str)
-qc_suffix:
+admit_suffix:
 
-# Discard amplitude measurements with a higher misfit than this.
+# Discard amplitude measurements with a higher misfit than this. Applies only to P
+# amplitudes if 'max_s_amplitude_misfit' is given.
 # (float)
 max_amplitude_misfit:
+
+# If given, discard S amplitude measurements with a higher misfit.
+# 'max_amp_misfit' then only applies to P amplitudes.
+# (float)
+max_s_amplitude_misfit:
 
 # Maximum first normalized singular value to allow for an S-wave reconstruction. A
 # value of 1 indicates that S-waveform adheres to rank 1 rather than rank 2 model.
@@ -153,15 +176,14 @@ min_equations:
 # (float)
 max_gap:
 
-# Use two equations per S-amplitude observation (`False` only includes the one
-# with the highest norm of the polarization vector.
-# Warning: `False` appears broken)
+# Use two equations per S-amplitude observation triplet (`False` only includes the
+# one with the highest norm of the polarization vector).
 # (bool)
-keep_other_s_equation:
+two_s_equations:
 
 # Maximum number of S-wave equation in the linear system. If more are available,
 # iterativley discard those with redundant pair-wise observations, on stations
-# with many observations gap, and with a higher misfit
+# with many observations, and with a higher misfit
 # (int)
 max_s_equations:
 
@@ -172,7 +194,7 @@ max_s_equations:
 keep_events:
 
 # When reducing the number of S-wave equations, rank observations iteratively this
-# many times by redundancy and remove the most redundant ones. A higher number is
+# many times by redundancy and remove the most redundant ones. A lower number is
 # faster, but may result in discarding less-redundant observations.
 # (int)
 equation_batches:
@@ -180,7 +202,7 @@ equation_batches:
 # Solve parameters
 # ----------------
 #
-# Suffix appended to amplitude and qc suffices indicating the parameter set parsed
+# Suffix appended to amplitude and admit suffices indicating the parameter set parsed
 # to 'solve'
 # (str)
 result_suffix:
@@ -198,12 +220,11 @@ reference_weight:
 mt_constraint:
 
 # Minimum misfit to assign a full weight of 1. Weights are scaled lineraly from
-# `min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`"
-#
+# `min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`
 # (float)
 min_amplitude_misfit:
 
-# Weight assigned to the maxumum amplitude misfit
+# Lowest weight assigned to the maximum amplitude misfit
 # (float)
 min_amplitude_weight:
 
@@ -340,9 +361,10 @@ station:
 # (str)
 phase:
 
-# Optional variable name that holds the waveform array
+# If we are reading a MATLAB .mat file, name of the variable that holds the
+# waveform array
 # (str)
-variable_name:
+matlab_variable:
 
 # One-character component names ordered as in the waveform array, as one string
 # (e.g. 'ZNE')
@@ -402,7 +424,7 @@ min_expansion_coefficient_norm:
 # (bool)
 combinations_from_file:
 
-# Event indices corresponding to the first dimension of the waveform array. Do not
+# Event names corresponding to the first dimension of the waveform array. Do not
 # edit.
 # (list)
 events_:

@@ -46,19 +46,11 @@ data/
 The file names are arbitrary and must correspond to the respective entries
 in `config.yaml`:
 
-```{code-block} yaml
+```{literalinclude} config-template.yaml
 :caption: config.yaml
-# Path to the seismic event catalog
-event_file: data/events.txt
-
-# Path to the station location file
-station_file: data/stations.txt
-
-# Path to the phase file
-phase_file: data/phases.txt
-
-# Path to the reference moment tensor file
-reference_mt_file: data/reference_mt.txt
+:language: yaml
+:start-at: Path to the seismic event catalog
+:end-at: reference_mt_file
 ```
 
 The files obey a simple, whitespace-seperated text file format. For details,
@@ -128,40 +120,15 @@ in the list corresponds to the position of the waveform along the first
 dimentsion of the [waveform array](#waveform-file), while the value corresponds
 to the event name (first row) in the [event file](#event-file).
 
-
 Default parameters that are equal for multiple stations and phases may be
 declared only once in `default-hdr.yaml`. Any values found in a specific
 `STATION_PHASE-hdr.yaml` will overwrite the values defined here:
 
-```{code-block} yaml
+```{literalinclude} default-hdr.yaml
 :caption: default-hdr.yaml
-
-# One-character component names ordered as in the waveform array, as one string
-# (e.g. 'ZNE')
-components:
-
-# Sampling rate of the seismic waveform (Hertz)
-sampling_rate:
-
-# Time window symmetric about the phase pick (i.e. pick is near the central
-# sample) (seconds)
-data_window:
-
-# Start of the phase window before the arrival time pick (negative seconds before
-# pick).
-phase_start:
-
-# End of the phase window after the arrival time pick (seconds after pick).
-phase_end:
-
-# Combined length of taper that is applied at both ends beyond the phase window.
-taper_length:
-
-# Common high-pass filter corner of the waveform (Hertz)
-highpass:
-
-# Common low-pass filter corner of the waveform (Hertz)
-lowpass:
+:language: yaml
+:start-at: One-character component names
+:end-at: lowpass:
 ```
 
 :::{admonition} Example

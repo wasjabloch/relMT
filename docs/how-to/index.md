@@ -6,7 +6,7 @@ installation
 setup
 align
 amplitude
-qc
+admit
 solve
 ```
 
@@ -22,7 +22,7 @@ solve
 ```{include} amplitude.md
 ```
 
-```{include} qc.md
+```{include} admit.md
 ```
 
 ```{include} solve.md

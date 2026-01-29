@@ -2,8 +2,9 @@
 
 ## 1. Synopsis
 
-After [quality control](qc.md), each line of the *P* amplitude file represents
-one equation of the linears system and each line of the *S* amplitude file two.
+After [amplitude admission](admit.md), each line of the *P* amplitude file represents
+one equation of the linears system and each line of the *S* amplitude file either one or two (depending on the `two_s_equations` parameter).
+
 We now combine the amplitdues with the take-off angles stored in the [phase
 file](#phase-file) and the reference MT stored in the [reference MT
 file](#reference-mt-file) into a linear system of equations. We apply a
@@ -17,20 +18,16 @@ trough the bootstrapping method.
 As before, the parameter sets can be made distinguishable by defining
 `result_suffix`, which will be appended to the filenames created here.
 
-```{code-block} yaml
+```{literalinclude} config-template.yaml
 :caption: config.yaml
-
-# Solve parameters
-# ----------------
-#
-# Suffix appended to amplitude and qc suffices indicating the parameter set parsed
-# to 'solve'
-result_suffix:
+:language: yaml
+:start-at: Solve parameters
+:end-at: result_suffix:
 ```
 
 One or multiple reference MTs can be inserted into the right hand side of the
 equation system. The event number must correspond to an entry in the [event
-file](#event-file), as well as in the [reference MT file](#reference-mt-file).
+file](#event-file) and the [reference MT file](#reference-mt-file).
 We usually apply a weight of *1000* to the reference MT, which forces that
 referece event to attain the reference MT. Note that the linear system of
 equations is normalized so that parameters are in the *-1* to *1* range.
@@ -53,11 +50,11 @@ meaning that we either solve for *5* or *6* MT elements. Note that when a
 deviatoric constraint is applied, we do not consider the isotropic part of the
 reference MT and the resulting magnitudes will be lower.
 
-```{code-block} yaml
+```{literalinclude} config-template.yaml
 :caption: config.yaml
-# Constrain the moment tensor. 'none' or 'deviatoric'
-# (str)
-mt_constraint:
+:language: yaml
+:start-at: Constrain the moment tensor
+:end-at: mt_constraint:
 ```
 
 ## 4. Weighting observations by misfit
@@ -65,17 +62,14 @@ mt_constraint:
 To emphasize better observations, those with a lower misfit are given a larger
 weight (i.e. unity), which is assigned to all observations with a misfit lower
 than `min_amplitude_misfit`. To avoid that observation with a misfit approaching
-the largest allowed misfit (`max_misfit`, see [quality control](qc.md)) get a
+the largest allowed misfit (`max_misfit`, see [admit amplitudes](admit.md)) get a
 weight close to *0*, one can set the `min_amplitude_weight`.
 
-```{code-block} yaml
+```{literalinclude} config-template.yaml
 :caption: config.yaml
-# Minimum misfit to assign a full weight of 1. Weights are scaled lineraly from
-# `min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`
-min_amplitude_misfit:
-
-# Lowest weight assigned to the maximum amplitude misfit
-min_amplitude_weight:
+:language: yaml
+:start-at: Minimum misfit to assign
+:end-at: min_amplitude_weight:
 ```
 
 ## 5. Drawing bootstrap samples
@@ -83,12 +77,11 @@ min_amplitude_weight:
 To detect oulying observation one can draw bootstrap samples. This will create
 an additional relative MT file wiht a *"-boot"* suffix.
 
-```{code-block} yaml
+```{literalinclude} config-template.yaml
 :caption: config.yaml
-# Number of samples to draw for calculating uncertainties. If not given, do not
-# bootstrap.
-# (int)
-bootstrap_samples:
+:language: yaml
+:start-at: Number of samples to draw
+:end-at: bootstrap_samples:
 ```
 
 ## 6. Calling the solve routine
@@ -101,7 +94,7 @@ relmt solve
 ```
 
 which will read the amplitude files with the combined `amplitude_suffix` and
-`qc_suffix` defined in the `config.py` and write the solution to the `result/`
+`admit_suffix` defined in the `config.py` and write the solution to the `result/`
 subdirectory, with the `result_suffix` appended.
 
 ```{code-block} none
