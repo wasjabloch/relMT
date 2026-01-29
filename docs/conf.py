@@ -54,6 +54,7 @@ html_theme_options = {
     "pygments_dark_style": "blinds-dark",
     "show_toc_level": 4,
     "primary_sidebar_end": [],
+    "header_links_before_dropdown": 6,
 }
 
 # Force sidebar disappear on some pages
