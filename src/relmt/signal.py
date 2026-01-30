@@ -991,6 +991,10 @@ def phase_passbands(
     pha = hdr["phase"]
     sta = hdr["station"]
 
+    logger.debug(
+        f"Computing bandpasses for {len(evns)} events at station {sta}, phase {pha}"
+    )
+
     # At least one period within window
     fwin = 1.0 / (hdr["phase_end"] - hdr["phase_start"])
 
@@ -998,11 +1002,7 @@ def phase_passbands(
     fnyq = (arr.shape[-1] - 1.0) / hdr["data_window"] / 2
 
     bpd = {}
-    for nev, (iev, evn) in enumerate(zip(ievs, evns)):
-        print(
-            "{:6s} {:1s}: {: 4d} events to go   ".format(sta, pha, len(evns) - nev),
-            end="\r",
-        )
+    for iev, evn in zip(ievs, evns):
 
         ev = evd[evn]
 
