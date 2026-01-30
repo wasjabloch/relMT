@@ -8,3 +8,8 @@ docs/build/*
 *.un~
 lcov.info
 dist/*
+**/examples/data*
+**/examples/muji*
+**/examples/ext*
+docs/examples/*ipynb
+examples/.*
