@@ -32,7 +32,7 @@ from collections.abc import Iterator, Generator, Callable
 from typing import TypedDict
 from pathlib import Path
 
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 _LEVEL_NAME_MAP = {
     "CRITICAL": logging.CRITICAL,
@@ -44,17 +44,18 @@ _LEVEL_NAME_MAP = {
     None: logging.NOTSET,
 }
 
+_LOG_FORMAT = defaultdict(
+    lambda: "{levelname:<8s}: {message}",
+    {"DEBUG": "{levelname: <8s}: {asctime} {name}.{funcName}: {message}"},
+)
+
 _CURRENT_LOG_LEVEL_NAME = "CRITICAL"
 _CURRENT_LOG_LEVEL = _LEVEL_NAME_MAP[_CURRENT_LOG_LEVEL_NAME]
 _REGISTERED_LOGGERS: set[str] = set()
 
 logsh = logging.StreamHandler()
 logsh.setLevel(_CURRENT_LOG_LEVEL)
-logsh.setFormatter(
-    logging.Formatter(
-        "{levelname: <8s} {asctime} {name}.{funcName}: {message}", style="{"
-    )
-)
+logsh.setFormatter(logging.Formatter(_LOG_FORMAT[_CURRENT_LOG_LEVEL_NAME], style="{"))
 
 
 def _resolve_log_level(level: str | int) -> tuple[int, str]:
@@ -99,6 +100,9 @@ def set_loglevel(level: str | int) -> str:
     _CURRENT_LOG_LEVEL_NAME = text_level
 
     logsh.setLevel(numeric_level)
+    logsh.setFormatter(
+        logging.Formatter(_LOG_FORMAT[_CURRENT_LOG_LEVEL_NAME], style="{")
+    )
 
     for logger_name in _REGISTERED_LOGGERS.copy():
         logging.getLogger(logger_name).setLevel(numeric_level)
