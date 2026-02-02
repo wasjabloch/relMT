@@ -1744,21 +1744,25 @@ def plot_mt_entry(
         input("Press any key to continue...")
 
 
-plot_mt_entry.__doc__ += f"""
+plot_mt_entry.__doc__ += """
 sort_by:
     Sorting method for MTs. One of:
 
    - None: as in file
-   - {'\n   - '.join(f"'{key}': {_attr_keys[key]}" for key in _attr_keys)}
-"""
+   - {:}
+""".format(
+    "\n   - ".join(f"'{key}': {_attr_keys[key]}" for key in _attr_keys)
+)
 
-plot_mt_entry.__doc__ += f"""
+plot_mt_entry.__doc__ += """
 color_by:
     Color MTs by attribute. One of:
 
    - None: no coloring
-   - {'\n   - '.join(f"'{key}': {_attr_keys[key]}" for key in _attr_keys)}
-"""
+   - {}
+""".format(
+    "\n   - ".join(f"'{key}': {_attr_keys[key]}" for key in _attr_keys)
+)
 
 
 def make_parser() -> ArgumentParser:
