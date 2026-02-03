@@ -111,14 +111,14 @@ station:
 # Seismic phase type to consider ('P' or 'S')
 phase:
 
-# Event names corresponding to the first dimension of the waveform array.
+# Event numbers corresponding to the first dimension of the waveform array.
 events_:
 ```
 
-The `events_` parameter is a list of integer numbers. The position of the number
-in the list corresponds to the position of the waveform along the first
-dimentsion of the [waveform array](#waveform-file), while the value corresponds
-to the event name (first row) in the [event file](#event-file).
+The `events_` parameter is a list of integer numbers. The position in the list
+corresponds to the position of the waveform along the first dimentsion of the
+[waveform array](#waveform-file), while the value corresponds to the event
+number (first row) in the [event file](#event-file).
 
 Default parameters that are equal for multiple stations and phases may be
 declared only once in `default-hdr.yaml`. Any values found in a specific

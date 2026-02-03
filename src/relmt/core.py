@@ -1375,7 +1375,7 @@ Read combinations from file names STATION_PHASE-combination.txt""",
     "events_": (
         "list",
         """
-Event names corresponding to the first dimension of the waveform array. Do not
+Event numbers corresponding to the first dimension of the waveform array. Do not
 edit.""",
     ),
 }

@@ -3,7 +3,7 @@
 ## 1. Prerequisites
 
 We assume that we have a directory with aligned waveforms. Following [the
-alignment guide](align.md), waveforms are located in `align2/`
+alignment guide](alignment.md), waveforms are located in `align2/`
 
 ```none
 myproject/

@@ -3,8 +3,9 @@
 ```{toctree}
 :hidden:
 installation
+synopsis
 setup
-align
+alignment
 amplitude
 admit
 solve
@@ -13,10 +14,13 @@ solve
 ```{include} installation.md
 ```
 
+```{include} synopsis.md
+```
+
 ```{include} setup.md
 ```
 
-```{include} align.md
+```{include} alignment.md
 ```
 
 ```{include} amplitude.md
