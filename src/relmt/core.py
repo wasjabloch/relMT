@@ -163,7 +163,7 @@ basenames = {
         "mt_summary.txt",
     ),
     "bootstrap_mt": (
-        "Relative moment tensors from bootstrap subsampling",
+        "Relative moment tensors from bootstrap sub-sampling",
         "bootstrap_mts.txt",
     ),
     "bootstrap_statistics": (
@@ -801,7 +801,7 @@ Filter method to apply for amplitude measure. One of:
     "auto_lowpass_method": (
         "str",
         """
-Method to estimate lowpass filter that eliminates the source time function. One
+Method to estimate low-pass filter that eliminates the source time function. One
 of:
 
    - 'fixed': Use the value 'fixed_lowpass' (not implemented)
@@ -818,38 +818,38 @@ of:
     "auto_lowpass_stressdrop_range": (
         "[float, float]",
         """
-When estimating the lowpass frequency of an event as the corner frequency
-(auto_lowpass_method: 'corner'), assume a stressdrop within this range (Pa).
-When second value is less or equal first value, use a fixed stressdrop of first
+When estimating the low-pass frequency of an event as the corner frequency
+(auto_lowpass_method: 'corner'), assume a stress drop within this range (Pa).
+When second value is less or equal first value, use a fixed stress drop of first
 value.""",
     ),
     "auto_bandpass_snr_target": (
         "float",
         """
 Include frequencies with this signal-to-noise ratio to optimal bandpass filter.
-Respects lowpass constraint. If not supplied, do not attempt to optimize
+Respects low-pass constraint. If not supplied, do not attempt to optimize
 passband.""",
     ),
     "amplitude_measure": (
         "str",
         """
-Method to meassure relative amplitudes. One of:
+Method to measure relative amplitudes. One of:
 
    - 'indirect': Estimate relative amplitude as the ratio of principal seismogram
      contributions to each seismogram.
-   - 'direct': Compare each event combination seperatly.""",
+   - 'direct': Compare each event combination separately.""",
     ),
     "min_dynamic_range": (
         "float",
         """
-Minimum ratio (dB) of low- / highpass filter bandwidth in an amplitude ratio
+Minimum ratio (dB) of low- / high-pass filter bandwidth in an amplitude ratio
 measurement. When positive, discard observation outside dynamic range. When
-negative, lower the highpass until the (positive) dynamic range is reached.""",
+negative, lower the high-pass until the (positive) dynamic range is reached.""",
     ),
     "admit_suffix": (
         "str",
         """
-Admission paramters
+Admission parameters
 -------------------------
 
 Suffix appended to the amplitude suffix, naming the admission parameters
@@ -905,7 +905,7 @@ one with the highest norm of the polarization vector).""",
         "int",
         """
 Maximum number of S-wave equation in the linear system. If more are available,
-iterativley discard those with redundant pair-wise observations, on stations
+iteratively discard those with redundant pair-wise observations, on stations
 with many observations, and with a higher misfit""",
     ),
     "keep_events": (
@@ -949,8 +949,8 @@ Constrain the moment tensor. 'none' or 'deviatoric'""",
     "min_amplitude_misfit": (
         "float",
         """
-Minimum misfit to assign a full weight of 1. Weights are scaled lineraly from
-`min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`""",
+Minimum misfit to assign a full weight of 1. Weights are scaled linearly from
+`min_amplitude misfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`""",
     ),
     "min_amplitude_weight": (
         "float",

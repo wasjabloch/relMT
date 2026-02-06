@@ -3,9 +3,9 @@
 ## 1. Synopsis
 
 After [amplitude admission](admit.md), each line of the *P* amplitude file represents
-one equation of the linears system and each line of the *S* amplitude file either one or two (depending on the `two_s_equations` parameter).
+one equation of the linear system and each line of the *S* amplitude file either one or two (depending on the `two_s_equations` parameter).
 
-We now combine the amplitdues with the take-off angles stored in the [phase
+We now combine the amplitudes with the take-off angles stored in the [phase
 file](#phase-file) and the reference MT stored in the [reference MT
 file](#reference-mt-file) into a linear system of equations. We apply a
 weighting scheme as to counter-act large amplitude differences and honour
@@ -29,7 +29,7 @@ One or multiple reference MTs can be inserted into the right hand side of the
 equation system. The event number must correspond to an entry in the [event
 file](#event-file) and the [reference MT file](#reference-mt-file).
 We usually apply a weight of *1000* to the reference MT, which forces that
-referece event to attain the reference MT. Note that the linear system of
+reference event to attain the reference MT. Note that the linear system of
 equations is normalized so that parameters are in the *-1* to *1* range.
 
 ```{code-block} yaml
@@ -74,8 +74,8 @@ weight close to *0*, one can set the `min_amplitude_weight`.
 
 ## 5. Drawing bootstrap samples
 
-To detect oulying observation one can draw bootstrap samples. This will create
-an additional relative MT file wiht a *"-boot"* suffix.
+To detect outlying observation one can draw bootstrap samples. This will create
+an additional relative MT file with a *"-boot"* suffix.
 
 ```{literalinclude} config-template.yaml
 :caption: config.yaml

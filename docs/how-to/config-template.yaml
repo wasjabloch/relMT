@@ -57,7 +57,7 @@ amplitude_suffix:
 # (str)
 amplitude_filter:
 
-# Method to estimate lowpass filter that eliminates the source time function. One
+# Method to estimate low-pass filter that eliminates the source time function. One
 # of:
 #
 #    - 'fixed': Use the value 'fixed_lowpass' (not implemented)
@@ -67,34 +67,34 @@ amplitude_filter:
 # (str)
 auto_lowpass_method:
 
-# When estimating the lowpass frequency of an event as the corner frequency
-# (auto_lowpass_method: 'corner'), assume a stressdrop within this range (Pa).
-# When second value is less or equal first value, use a fixed stressdrop of first
+# When estimating the low-pass frequency of an event as the corner frequency
+# (auto_lowpass_method: 'corner'), assume a stress drop within this range (Pa).
+# When second value is less or equal first value, use a fixed stress drop of first
 # value.
 # ([float, float])
 auto_lowpass_stressdrop_range:
 
 # Include frequencies with this signal-to-noise ratio to optimal bandpass filter.
-# Respects lowpass constraint. If not supplied, do not attempt to optimize
+# Respects low-pass constraint. If not supplied, do not attempt to optimize
 # passband.
 # (float)
 auto_bandpass_snr_target:
 
-# Method to meassure relative amplitudes. One of:
+# Method to measure relative amplitudes. One of:
 #
 #    - 'indirect': Estimate relative amplitude as the ratio of principal seismogram
 #      contributions to each seismogram.
-#    - 'direct': Compare each event combination seperatly.
+#    - 'direct': Compare each event combination separately.
 # (str)
 amplitude_measure:
 
-# Minimum ratio (dB) of low- / highpass filter bandwidth in an amplitude ratio
+# Minimum ratio (dB) of low- / high-pass filter bandwidth in an amplitude ratio
 # measurement. When positive, discard observation outside dynamic range. When
-# negative, lower the highpass until the (positive) dynamic range is reached.
+# negative, lower the high-pass until the (positive) dynamic range is reached.
 # (float)
 min_dynamic_range:
 
-# Admission paramters
+# Admission parameters
 # -------------------------
 #
 # Suffix appended to the amplitude suffix, naming the admission parameters
@@ -141,7 +141,7 @@ max_gap:
 two_s_equations:
 
 # Maximum number of S-wave equation in the linear system. If more are available,
-# iterativley discard those with redundant pair-wise observations, on stations
+# iteratively discard those with redundant pair-wise observations, on stations
 # with many observations, and with a higher misfit
 # (int)
 max_s_equations:
@@ -178,8 +178,8 @@ reference_weight:
 # (str)
 mt_constraint:
 
-# Minimum misfit to assign a full weight of 1. Weights are scaled lineraly from
-# `min_amplitude mistfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`
+# Minimum misfit to assign a full weight of 1. Weights are scaled linearly from
+# `min_amplitude misfit` = 1 to `max_amplitude_misfit` = `min_amplitude_weight`
 # (float)
 min_amplitude_misfit:
 

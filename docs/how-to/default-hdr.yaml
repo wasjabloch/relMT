@@ -71,7 +71,7 @@ min_expansion_coefficient_norm:
 # (bool)
 combinations_from_file:
 
-# Event names corresponding to the first dimension of the waveform array. Do not
+# Event numbers corresponding to the first dimension of the waveform array. Do not
 # edit.
 # (list)
 events_:
