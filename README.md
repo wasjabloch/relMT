@@ -14,16 +14,16 @@ Installation of *relMT* is easy. The basic installation requires:
 * The *FFTW* library (often provided via the system package manager)
 * The Python packages *NumPy*, *SciPy*, *PyYAML*
 
-:::{note}
-*relMT* is currently tested only on *Linux* systems.
-
-*Windows* users, please use the [Linux Subsystem for Windows (WSL)](https://learn.microsoft.com/en-us/windows/wsl/install) and proceed with the instructions below.
-
-*Mac* users will need to install the fortran compiler `gfortran` on your system.
-Please consult the [Fortran
-documentation](https://fortran-lang.org/learn/os_setup/install_gfortran/#macos)
-for details. Then proceed below.
-:::
+> ***Note***
+>
+> *relMT* is currently tested only on *Linux* systems.
+>
+> *Windows* users, please use the [Linux Subsystem for Windows (WSL)](https://learn.microsoft.com/en-us/windows/wsl/install) and proceed with the instructions below.
+>
+> *Mac* users will need to install the fortran compiler `gfortran` on your system.
+> Please consult the [Fortran
+> documentation](https://fortran-lang.org/learn/os_setup/install_gfortran/#macos)
+> for details. Then proceed below.
 
 ### Pre-requisite
 
@@ -92,14 +92,13 @@ Consider installing these packages using the `extra` optional dependency:
 pip install .[extra]
 ```
 
-:::{note}
-Users experiencing problems installing *ObsPy* may [temporarily need to pin *setuptools* below version 82](https://discourse.obspy.org/t/obspy-runtests-fails-after-fresh-install/2353)
-
-```sh
-pip install "setuptools<82"
-```
-
-:::
+> ***Note***
+>
+> Users experiencing problems installing *ObsPy* may [temporarily need to pin *setuptools* below version 82](https://discourse.obspy.org/t/obspy-runtests-fails-after-fresh-install/2353)
+>
+> ```sh
+> pip install "setuptools<82"
+>```
 
 If you are working in *IPython*, or *Jupyter*, install the package in the same Conda environment to avoid version conflicts
 
