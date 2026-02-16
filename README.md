@@ -14,6 +14,24 @@ Installation of *relMT* is easy. The basic installation requires:
 * The *FFTW* library (often provided via the system package manager)
 * The Python packages *NumPy*, *SciPy*, *PyYAML*
 
+:::{note}
+*relMT* is currently tested only on *Linux* systems.
+
+*Windows* users, please use the [Linux Subsystem for Windows (WSL)](https://learn.microsoft.com/en-us/windows/wsl/install) and proceed with the instructions below.
+
+*Mac* users will need to install the fortran compiler `gfortran` on your system.
+Please consult the [Fortran
+documentation](https://fortran-lang.org/learn/os_setup/install_gfortran/#macos)
+for details. Then proceed below.
+:::
+
+### Pre-requisite
+
+This installation instruction assumes installation with *Conda*, *pip* and
+*git*. Experienced users may use *uv* or other tools instead.
+
+As a pre-requisite, please [install Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/install#linux-2).
+
 ### Based on Conda and Pip
 
 We recommend to create a conda environment or to install into an existing one.
@@ -26,6 +44,18 @@ conda activate relmt
 
 # Install the Fastest Fourier Transform in the West
 conda install -c conda-forge fftw
+```
+
+If not already present, install `pip`
+
+```sh
+conda install pip
+```
+
+If not already present, install `git`
+
+```sh
+conda install git
 ```
 
 Now install *relMT* locally
@@ -52,7 +82,7 @@ pip install .[plot]
 
 Some additional functionality requires community packages:
 
-* Import of waveforms and station inventories via *ObsPy*`
+* Import of waveforms and station inventories via *ObsPy*
 * Computation of spectra with *Multitaper*
 * Conversion to and from Cartesian coordinates with *UTM*
 
@@ -61,6 +91,15 @@ Consider installing these packages using the `extra` optional dependency:
 ```sh
 pip install .[extra]
 ```
+
+:::{note}
+Users experiencing problems installing *ObsPy* may [temporarily need to pin *setuptools* below version 82](https://discourse.obspy.org/t/obspy-runtests-fails-after-fresh-install/2353)
+
+```sh
+pip install "setuptools<82"
+```
+
+:::
 
 If you are working in *IPython*, or *Jupyter*, install the package in the same Conda environment to avoid version conflicts
 
