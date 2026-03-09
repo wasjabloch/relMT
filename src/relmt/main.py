@@ -80,7 +80,7 @@ def align_entry(
     stas = set(stas) - set(excl["station"])
     wvids = set(core.iterate_waveid(stas)) - set(excl["waveform"])
 
-    ncpu = config["ncpu"]
+    ncpu = config["ncpu"] or 1
     lag_times = config["lag_times"] or []  # Empty list if None.
 
     args = []
@@ -350,7 +350,7 @@ def amplitude_entry(
 
     stf = directory / config["station_file"]
     evf = directory / config["event_file"]
-    ncpu = config["ncpu"]
+    ncpu = config["ncpu"] or 1
     compare_method = config["amplitude_measure"]  # direct or indirect
     filter_method = config["amplitude_filter"]  # auto or manual
 
@@ -921,7 +921,7 @@ def solve_entry(
     irefs = config["reference_mts"]
     constraint = config["mt_constraint"]
     refmt_weight = config["reference_weight"]
-    ncpu = config["ncpu"]
+    ncpu = config["ncpu"] or 1
     two_s = config["two_s_equations"]
 
     if irefs is None:
@@ -1608,7 +1608,7 @@ def plot_spectra_entry(
         # Single band from header
         bandpassd = {
             core.join_waveid(hdr["station"], hdr["phase"]): defaultdict(
-                lambda: (hdr["highpass"], hdr["lowpass"])
+                lambda: (hdr["highpass"] or np.nan, hdr["lowpass"] or np.nan)
             )
         }
     else:
