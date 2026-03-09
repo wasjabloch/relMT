@@ -104,12 +104,10 @@ def read_station_table(
     code, north, east, depth: :class:`numpy.ndarray`
         If `unpack=True`
     """
-    code = np.loadtxt(filename, usecols=(0), unpack=True, dtype=str)
-    (
-        north,
-        east,
-        depth,
-    ) = np.loadtxt(filename, usecols=(1, 2, 3), unpack=True, dtype=float)
+    code = np.loadtxt(filename, usecols=(0), unpack=True, dtype=str, ndmin=1)
+    north, east, depth = np.loadtxt(
+        filename, usecols=(1, 2, 3), unpack=True, dtype=float, ndmin=2
+    )
 
     if unpack:
         return code, north, east, depth
