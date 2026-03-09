@@ -948,7 +948,7 @@ def alignment(
         2D Cross-correlation matrix between all event pairs
     sort:
         Sort by "magnitude", "pci" (principal component index), or
-        "time" (input order)
+        "none" (input order)
     refevs:
         Highlight these reference events in red
 
@@ -1008,7 +1008,7 @@ def alignment(
         isort = np.argsort(mags)[::-1]
     elif sort == "pci":
         isort = utils.pc_index(mat, phase=phase)
-    elif sort == "time":
+    elif sort == "none":
         isort = ievs
     else:
         raise ValueError(f"unknown sort: {sort}")
@@ -1400,7 +1400,7 @@ def spectra(
             logger.debug(f"No bandpass for event {iev}")
             continue
 
-        # Amplitude ant min and max frequency
+        # Amplitude and min and max frequency
         ismin = np.argmin(abs(fmin - fsig))
         ismax = np.argmin(abs(fmax - fsig))
 
