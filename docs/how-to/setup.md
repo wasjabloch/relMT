@@ -8,7 +8,7 @@ In the folder where the files of your new project should reside, call from a ter
 relmt init
 ```
 
-Alternativley, to create a new, empty project folder, e.g. `myproject/`, call
+Alternatively, to create a new, empty project folder, e.g. `myproject/`, call
 
 ```sh
 relmt init myproject
@@ -53,7 +53,7 @@ in `config.yaml`:
 :end-at: reference_mt_file
 ```
 
-The files obey a simple, whitespace-seperated text file format. For details,
+The files obey a simple, whitespace-separated text file format. For details,
 see:
 
 * [Station file](#station-file)
