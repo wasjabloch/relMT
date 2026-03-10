@@ -1015,15 +1015,8 @@ def solve_entry(
         )
 
     logger.info("Computing norms and weights...")
-    # Normalization applied to columns
-    ev_norm = ls.norm_event_median_amplitude(Ah, mt_elements)
 
-    if isparse:
-        Ah = (Ah * ev_norm).tocsc(copy=False)
-    else:
-        Ah *= ev_norm
-
-    # Weight applied by row
+    # Weight applied by row, independent of values of Ah
     mis_weights = np.vstack(
         [
             ls.weight_misfit(amp, min_mis, max_mis, min_weight, "P")
@@ -1035,10 +1028,26 @@ def solve_entry(
         ]
     )
 
-    amp_weights = np.vstack(
+    amp_norm = np.vstack(
         [1.0 for _ in pamp_subset]
         + [ls.weight_s_amplitude(amp, two_s) for amp in samp_subset]
     )
+
+    # breakpoint()
+
+    # Apply amplitude norm before measuring the equation norm.
+    if isparse:
+        Ah = (Ah * amp_norm).tocsc(copy=False)
+    else:
+        Ah *= amp_norm
+
+    # Normalization applied to columns
+    ev_norm = ls.norm_event_median_amplitude(Ah, mt_elements)
+
+    if isparse:
+        Ah = (Ah * ev_norm).tocsc(copy=False)
+    else:
+        Ah *= ev_norm
 
     # Equation norm
     eq_norm = ls.condition_by_norm(Ah)
@@ -1046,10 +1055,10 @@ def solve_entry(
 
     # Apply the weights only after measuring the norm
     if isparse:
-        Ah = (Ah * (mis_weights * amp_weights)).tocsc(copy=False)
+        Ah = (Ah * mis_weights).tocsc(copy=False)
         Ah = (Ah * eq_norm).tocsc(copy=False)
     else:
-        Ah *= mis_weights * amp_weights
+        Ah *= mis_weights
         Ah *= eq_norm
 
     # Build inhomogenous equations
@@ -1294,7 +1303,7 @@ def solve_entry(
                 p_residuals,
                 Ares,
                 mis_weights[:n_p].flat[:],
-                amp_weights[:n_p].flat[:],
+                amp_norm[:n_p].flat[:],
                 p_norm.flat[:],
                 Asyn,
                 ppms,
@@ -1331,7 +1340,7 @@ def solve_entry(
                 B1res,
                 B2res,
                 mis_weights[n_p : n_p + n_s : sfac].flat[:],
-                amp_weights[n_p : n_p + n_s : sfac].flat[:],
+                amp_norm[n_p : n_p + n_s : sfac].flat[:],
                 s_norm[:, 0],
                 s_norm[:, 1],
                 Bsyn[:, 0],
