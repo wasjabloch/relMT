@@ -1693,7 +1693,7 @@ def plot_mt_entry(
             msg = "Too few columns in mtfile. Please give a 'mt_summary' file."
             raise IndexError(msg)
     else:
-        gap = plinks = slinks = mrms = arms = np.full(len(mtd), np.nan)
+        gap = plinks = slinks = mrms = arms = brms = bkag = np.full(len(mtd), np.nan)
 
     keys = {
         None: np.arange(len(mtd)),
