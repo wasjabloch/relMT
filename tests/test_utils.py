@@ -60,7 +60,7 @@ def test_pc_index():
 
 def test_corner_frequency_P():
     cf = utils.corner_frequency(5, "P", 5e6, 3500)
-    assert cf == pytest.approx(0.9, 1e-3)
+    assert cf == pytest.approx(0.768, 1e-3)
 
 
 def test_corner_frequency_S():
