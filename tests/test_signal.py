@@ -26,7 +26,7 @@ Test the utility functions
 
 import pytest
 import numpy as np
-from relmt import signal, qc
+from relmt import core, signal, qc
 
 
 def test_shift():
@@ -352,6 +352,39 @@ def test_choose_passband():
     )
     assert hpas is None
     assert lpas is None
+
+
+def test_phase_passbands_fixed():
+    arr = np.ones((2, 3, 1000))
+    hdr = core.Header(
+        station="STA1",
+        phase="P",
+        events_=[0, 1],
+        components="NEZ",
+        sampling_rate=100.0,
+        data_window=10.0,
+        phase_start=0.0,
+        phase_end=2.0,
+    )
+    evd = {
+        0: core.Event(0.0, 0.0, 0.0, 0.0, 1.0, "0"),
+        1: core.Event(0.0, 0.0, 0.0, 0.0, 1.0, "1"),
+    }
+    exclude = core.Exclude(**{**core.exclude, "event": [1]})
+
+    bpd = signal.phase_passbands(
+        arr,
+        hdr,
+        evd,
+        exclude=exclude,
+        auto_lowpass_method="fixed",
+        fixed_lowpass=8.0,
+    )
+
+    # highpass is 1 / phase window, lowpass is fixed lowpass
+    assert list(bpd.keys()) == [0]
+    assert bpd[0][0] == pytest.approx(0.5)
+    assert bpd[0][1] == pytest.approx(8.0)
 
 
 def test_dB():

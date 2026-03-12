@@ -929,6 +929,7 @@ def phase_passbands(
     evd: dict[int, core.Event],
     exclude: core.Exclude | None = None,
     auto_lowpass_method: str | None = None,
+    fixed_lowpass: float | None = None,
     auto_lowpass_stressdrop_range: tuple[float, float] = [1.0e6, 1.0e6],
     auto_bandpass_snr_target: float | None = None,
 ) -> dict[str, list[float]]:
@@ -974,6 +975,19 @@ def phase_passbands(
     exclude:
         An optional exclude object with observations to be excluded from the
         computation. If None, all observatinos are included.
+    auto_lowpass_method:
+        Method to determine the lowpass corner frequency. Options are:
+        'duration', 'corner', 'fixed'
+    fixed_lowpass:
+        The fixed lowpass corner frequency, when `auto_lowpass_method` is
+        'fixed'. Ignored otherwise.
+    auto_lowpass_stressdrop_range:
+        Tuple of lower and upper bound of stress drop (Pa) to consider when
+        `auto_lowpass_method` is 'corner'. Ignored otherwise.
+    auto_bandpass_snr_target:
+        Minimum signal-to-noise ratio (dB) to consider when optimizing the
+        bandpass filter corners. If None, no optimization is applied and the
+        default corners are returned.
 
     Returns
     -------
@@ -1043,6 +1057,12 @@ def phase_passbands(
                 except ValueError:
                     # It might be outside the range of the signal
                     fc = fcmax
+        elif auto_lowpass_method == "fixed":
+            if fixed_lowpass is None:
+                raise ValueError(
+                    "Missing 'fixed_lowpass' for auto_lowpass_method='fixed'"
+                )
+            fc = fixed_lowpass
         else:
             raise ValueError(f"Unknown lowpass method: {auto_lowpass_method}")
 

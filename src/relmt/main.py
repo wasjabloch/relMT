@@ -352,7 +352,7 @@ def amplitude_entry(
     evf = directory / config["event_file"]
     ncpu = config["ncpu"] or 1
     compare_method = config["amplitude_measure"]  # direct or indirect
-    filter_method = config["amplitude_filter"]  # auto or manual
+    filter_method = config["amplitude_filter"]  # auto, manual, or fixed
 
     exclude = io.read_exclude_file(core.file("exclude", directory=directory))
 

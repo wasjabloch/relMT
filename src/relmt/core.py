@@ -804,17 +804,17 @@ Filter method to apply for amplitude measure. One of:
 Method to estimate low-pass filter that eliminates the source time function. One
 of:
 
-   - 'fixed': Use the value 'fixed_lowpass' (not implemented)
+   - 'fixed': Use the value 'fixed_lowpass'
    - 'corner': Estimate from apparent corner frequency in event spectrum.
      Requires 'auto_lowpass_stressdrop_range'
    - 'duration': Filter by 1/source duration of event magnitude. """,
     ),
-    #    "fixed_lowpass": (
-    #        "float",
-    #        """
-    # Provide a fixed lowpass filter corner for all events.
-    # (requires auto_lowpass_method: 'fixed')""",
-    #    ),
+    "fixed_lowpass": (
+        "float",
+        """
+Provide a fixed lowpass filter corner for all events.
+(requires auto_lowpass_method: 'fixed' or amplitude_filter: 'fixed')""",
+    ),
     "auto_lowpass_stressdrop_range": (
         "[float, float]",
         """
@@ -1004,6 +1004,7 @@ class Config:
         reference_weight: float | None = None,
         amplitude_filter: str | None = None,
         auto_lowpass_method: str | None = None,
+        fixed_lowpass: float | None = None,
         auto_lowpass_stressdrop_range: tuple[float, float] | None = None,
         auto_bandpass_snr_target: float | None = None,
         amplitude_measure: str | None = None,
@@ -1165,14 +1166,19 @@ class Config:
                 f"Unknown 'amplitude_measure': {value}. "
                 "Must be 'direct' or 'indirect'."
             )
-        if key == "amplitude_filter" and value not in ["manual", "auto"]:
+        if key == "amplitude_filter" and value not in ["manual", "auto", "fixed"]:
             raise ValueError(
-                f"Unknown 'amplitude_filter': {value}. " "Must be 'manual' or 'auto'."
+                f"Unknown 'amplitude_filter': {value}. "
+                "Must be 'manual', 'auto', or 'fixed'."
             )
-        if key == "auto_lowpass_method" and value not in ["duration", "corner"]:
+        if key == "auto_lowpass_method" and value not in [
+            "duration",
+            "corner",
+            "fixed",
+        ]:
             raise ValueError(
                 f"Unknown 'auto_lowpass_method': {value}. "
-                "Must be 'duration' or 'corner'."
+                "Must be 'duration', 'corner', or 'fixed'."
             )
         if key == "phase" and value not in ["P", "S"]:
             raise ValueError(f"Unknown 'phase': {value}. Must be 'P' or 'S'.")
