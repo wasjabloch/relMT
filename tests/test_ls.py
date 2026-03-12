@@ -69,24 +69,12 @@ def test_gamma():
 
 def test_directional_coefficient_general_p():
     # Calculated looking in Plourde & Bostock (2019) Eq. A2, not in the code
-    assert pytest.approx((1, 0, 0, 0, 0, 0)) == ls.dircoeff_general_p(
-        [1, 0, 0]
-    )
-    assert pytest.approx((0, 1, 0, 0, 0, 0)) == ls.dircoeff_general_p(
-        [0, 1, 0]
-    )
-    assert pytest.approx((0, 0, 1, 0, 0, 0)) == ls.dircoeff_general_p(
-        [0, 0, 1]
-    )
-    assert pytest.approx((2, 2, 0, 4, 0, 0)) == ls.dircoeff_general_p(
-        [r2, r2, 0]
-    )
-    assert pytest.approx((0, 2, 2, 0, 0, 4)) == ls.dircoeff_general_p(
-        [0, r2, r2]
-    )
-    assert pytest.approx((2, 0, 2, 0, 4, 0)) == ls.dircoeff_general_p(
-        [r2, 0, r2]
-    )
+    assert pytest.approx((1, 0, 0, 0, 0, 0)) == ls.dircoeff_general_p([1, 0, 0])
+    assert pytest.approx((0, 1, 0, 0, 0, 0)) == ls.dircoeff_general_p([0, 1, 0])
+    assert pytest.approx((0, 0, 1, 0, 0, 0)) == ls.dircoeff_general_p([0, 0, 1])
+    assert pytest.approx((2, 2, 0, 4, 0, 0)) == ls.dircoeff_general_p([r2, r2, 0])
+    assert pytest.approx((0, 2, 2, 0, 0, 4)) == ls.dircoeff_general_p([0, r2, r2])
+    assert pytest.approx((2, 0, 2, 0, 4, 0)) == ls.dircoeff_general_p([r2, 0, r2])
 
 
 def test_directional_coefficient_general_s():
@@ -109,24 +97,12 @@ def test_directional_coefficient_general_s():
 
 def test_directional_coefficient_deviatoric_p():
     # Calculated looking in Plourde & Bostock (2019) Eq. A8, not in the code
-    assert pytest.approx((1, 0, 0, 0, 0)) == ls.dircoeff_deviatoric_p(
-        [1, 0, 0]
-    )
-    assert pytest.approx((0, 1, 0, 0, 0)) == ls.dircoeff_deviatoric_p(
-        [0, 1, 0]
-    )
-    assert pytest.approx((-1, -1, 0, 0, 0)) == ls.dircoeff_deviatoric_p(
-        [0, 0, 1]
-    )
-    assert pytest.approx((2, 2, 4, 0, 0)) == ls.dircoeff_deviatoric_p(
-        [r2, r2, 0]
-    )
-    assert pytest.approx((-2, 0, 0, 0, 4)) == ls.dircoeff_deviatoric_p(
-        [0, r2, r2]
-    )
-    assert pytest.approx((0, -2, 0, 4, 0)) == ls.dircoeff_deviatoric_p(
-        [r2, 0, r2]
-    )
+    assert pytest.approx((1, 0, 0, 0, 0)) == ls.dircoeff_deviatoric_p([1, 0, 0])
+    assert pytest.approx((0, 1, 0, 0, 0)) == ls.dircoeff_deviatoric_p([0, 1, 0])
+    assert pytest.approx((-1, -1, 0, 0, 0)) == ls.dircoeff_deviatoric_p([0, 0, 1])
+    assert pytest.approx((2, 2, 4, 0, 0)) == ls.dircoeff_deviatoric_p([r2, r2, 0])
+    assert pytest.approx((-2, 0, 0, 0, 4)) == ls.dircoeff_deviatoric_p([0, r2, r2])
+    assert pytest.approx((0, -2, 0, 4, 0)) == ls.dircoeff_deviatoric_p([r2, 0, r2])
 
 
 def test_directional_coefficient_deviatoric_s():
@@ -426,20 +402,20 @@ def test_norm_event_median_amplitude():
         mat[1, nev * mt_elements + 1] = ev[1]
         mat[2, nev * mt_elements + 3] = ev[2]
 
-    result = ls.norm_event_median_amplitude(mat, nmt=mt_elements)
+    result = ls.norm_event_median_value(mat, nmt=mt_elements)
     for nev, ev in enumerate(evs):
         assert result[nev * mt_elements : (nev + 1) * mt_elements] == pytest.approx(
             [1 / np.median(np.abs(ev))] * mt_elements
         )
 
-    result = ls.norm_event_median_amplitude(mat, nmt=mt_elements, n_homogenous=2)
+    result = ls.norm_event_median_value(mat, nmt=mt_elements, n_homogenous=2)
     for nev, ev in enumerate(evs):
         assert result[nev * mt_elements : (nev + 1) * mt_elements] == pytest.approx(
             [1 / np.median(np.abs(ev[:2]))] * mt_elements
         )
 
     with pytest.raises(IndexError):
-        ls.norm_event_median_amplitude(mat, nmt=5)
+        ls.norm_event_median_value(mat, nmt=5)
 
 
 def test_condition_homogenous_matrix_by_norm():
@@ -558,7 +534,7 @@ def test_solve_lsmr():
 
             # Collect and apply weights ...
             # ... of the homogenous system
-            ev_norm = ls.norm_event_median_amplitude(Ah, mt_elements)
+            ev_norm = ls.norm_event_median_value(Ah, mt_elements)
             Ah *= ev_norm
 
             # Test different weights applied by row

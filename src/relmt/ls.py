@@ -1016,7 +1016,7 @@ def condition_by_norm(mat: np.ndarray, n_homogenous: int | None = None) -> np.nd
     return factors[:, np.newaxis]
 
 
-def norm_event_median_amplitude(
+def norm_event_median_value(
     mat: NDArray, nmt: int, n_homogenous: int | None = None
 ) -> NDArray:
     """

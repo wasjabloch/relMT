@@ -1033,16 +1033,15 @@ def solve_entry(
         + [ls.weight_s_amplitude(amp, two_s) for amp in samp_subset]
     )
 
-    # breakpoint()
-
     # Apply amplitude norm before measuring the equation norm.
+    # After this operation, Ah is in the -R to R range (i.e. close to 1).
     if isparse:
         Ah = (Ah * amp_norm).tocsc(copy=False)
     else:
         Ah *= amp_norm
 
     # Normalization applied to columns
-    ev_norm = ls.norm_event_median_amplitude(Ah, mt_elements)
+    ev_norm = ls.norm_event_median_value(Ah, mt_elements)
 
     if isparse:
         Ah = (Ah * ev_norm).tocsc(copy=False)
