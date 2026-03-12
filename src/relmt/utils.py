@@ -980,7 +980,7 @@ def corner_frequency(
     magnitude: float, phase: str, stress_drop: float, vs: float
 ) -> float:
     """
-    Return a rought estimate of the corner frequency based on
+    Return a rought estimate of the corner frequency based on (Madariaga, 1976):
 
     .. math::
         f_c = (16/7 \\sigma k_s^3 v_S^3 / M_0 )^{1/3}
@@ -990,7 +990,7 @@ def corner_frequency(
     magnitude: float
         Magnitude :math:`M_0`
     phase : str
-        P (:math:`k_s` = 0.375) or S (:math:`k_s` = 0.21)
+        P (:math:`k_s` = 0.32) or S (:math:`k_s` = 0.21)
     stress_drop : float
         Stress drop :math:`\\sigma` in Pa (use ~5e6)
     vs : float
@@ -1001,7 +1001,7 @@ def corner_frequency(
     Corner frequency in Hz
     """
 
-    ks = 0.375
+    ks = 0.32
     if phase == "S":
         ks = 0.21
 
