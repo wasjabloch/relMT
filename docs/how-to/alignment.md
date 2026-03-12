@@ -185,8 +185,8 @@ One can check visually if the alignment did succeed by inspecting the aligned wa
 
 ```{code-block} sh
 :caption: shell
-relmt plot alignment align1/ASTA_P-wvarr.npy
-relmt plot alignment align1/ASTA_S-wvarr.npy
+relmt plot-alignment align1/ASTA_P-wvarr.npy
+relmt plot-alignment align1/ASTA_S-wvarr.npy
 ```
 
 The resulting plot shows the applied time shifts, the waveforms, the
@@ -220,7 +220,7 @@ Re-running the plot function shows the plot with the changed parameters:
 
 ```{code-block} sh
 :caption: shell
-relmt plot alignment align1/ASTA_P-wvarr.npy
+relmt plot-alignment align1/ASTA_P-wvarr.npy
 ```
 
 From intuition or reasoning one can now define parameters to exclude waveforms
@@ -334,7 +334,7 @@ myproject/
     +-- ASTA_S-wvarr.npy
 ```
 
-You can inspect the results with `relmt plot alignment`. When re-doing
+You can inspect the results with `relmt plot-alignment`. When re-doing
 individual stations, delete the corresponding `-hdr.yaml` and `-wvarr.npy` files
 from the target directory. When re-doing all stations, activate the `-o` flag to
 overwrite in the target directory, e.g. `relmt align -a 1 -o`.
