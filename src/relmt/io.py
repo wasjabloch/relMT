@@ -694,44 +694,53 @@ def save_mt_result_summary(
     """Combine moment tensor dictionary and event table and write out resut table"""
 
     evd = event_dict
+    event_ids = list(mt_dict)
+    moment_tensors = np.asarray(list(mt_dict.values()))
+    if moment_tensors.ndim != 2 or moment_tensors.shape[1] != 6:
+        raise ValueError("Moment tensor values must form a 2D array with 6 columns")
 
-    # Event number and name
-    arrays = [np.array([evn for evn in mt_dict])]
-    arrays += np.hsplit(np.array([momt for momt in mt_dict.values()]), 6)
+    arrays = [np.asarray(event_ids)]
+    arrays.extend(moment_tensors[:, idx] for idx in range(moment_tensors.shape[1]))
+    arrays.append(np.asarray([evd[evn].name for evn in event_ids]))
 
-    arrays += [np.array([evd[evn].name for evn in mt_dict])]
-
-    # A priori floats
-    arrays += np.hsplit(
-        np.array(
+    scalar_columns = [
+        np.asarray([evd[evn].north for evn in event_ids], dtype=float),
+        np.asarray([evd[evn].east for evn in event_ids], dtype=float),
+        np.asarray([evd[evn].depth for evn in event_ids], dtype=float),
+        np.asarray([evd[evn].time for evn in event_ids], dtype=float),
+        np.asarray([evd[evn].mag for evn in event_ids], dtype=float),
+        np.asarray(
             [
-                (
-                    evd[evn].north,
-                    evd[evn].east,
-                    evd[evn].depth,
-                    evd[evn].time,
-                    evd[evn].mag,
-                    mt.magnitude_of_moment(mt.moment_of_vector(momt)),
-                    gaps.get(evn, [np.nan])[0],  # First and second azimuthal gap
-                    (
-                        gaps.get(evn, [np.nan])[1]
-                        if len(gaps.get(evn, [])) > 1
-                        else np.nan
-                    ),
-                    float(links.get(evn, [np.nan])[0]),  # P-links
-                    float(links.get(evn, [np.nan, np.nan])[1]),  # S-links
-                    misfits.get(evn, np.nan),
-                    correlations.get(evn, np.nan),
-                    moment_rms.get(evn, np.nan),
-                    amplitude_rms.get(evn, np.nan),
-                    bootstrap_rms.get(evn, np.nan),
-                    bootstrap_kagan.get(evn, np.nan),
-                )
-                for evn, momt in mt_dict.items()
-            ]
+                mt.magnitude_of_moment(mt.moment_of_vector(mt_dict[evn]))
+                for evn in event_ids
+            ],
+            dtype=float,
         ),
-        16,
-    )
+        np.asarray([gaps.get(evn, [np.nan])[0] for evn in event_ids], dtype=float),
+        np.asarray(
+            [
+                gaps.get(evn, [np.nan])[1] if len(gaps.get(evn, [])) > 1 else np.nan
+                for evn in event_ids
+            ],
+            dtype=float,
+        ),
+        np.asarray(
+            [float(links.get(evn, [np.nan])[0]) for evn in event_ids], dtype=float
+        ),
+        np.asarray(
+            [float(links.get(evn, [np.nan, np.nan])[1]) for evn in event_ids],
+            dtype=float,
+        ),
+        np.asarray([misfits.get(evn, np.nan) for evn in event_ids], dtype=float),
+        np.asarray([correlations.get(evn, np.nan) for evn in event_ids], dtype=float),
+        np.asarray([moment_rms.get(evn, np.nan) for evn in event_ids], dtype=float),
+        np.asarray([amplitude_rms.get(evn, np.nan) for evn in event_ids], dtype=float),
+        np.asarray([bootstrap_rms.get(evn, np.nan) for evn in event_ids], dtype=float),
+        np.asarray(
+            [bootstrap_kagan.get(evn, np.nan) for evn in event_ids], dtype=float
+        ),
+    ]
+    arrays.extend(scalar_columns)
 
     headers = [
         "#   Event",
@@ -793,15 +802,21 @@ def write_formatted_table(
         Field delimiter.
     """
 
-    # Inspired by ChatGPT 4o-mini-high
-    # Sanity checks
     ncols = len(arrays)
     if not (len(formatters) == ncols == len(headers)):
         msg = "'arrays', 'formatters' and 'headers' must all have the same length"
         raise ValueError(msg)
 
-    # ensure all arrays are 1D and same length
-    lengths = [arr.shape[0] for arr in arrays]
+    # Normalize inputs and ensure all arrays are 1D and the same length.
+    normalized_arrays = []
+    lengths = []
+    for arr in arrays:
+        arr = np.asarray(arr)
+        if arr.ndim != 1:
+            raise ValueError("All arrays must be one-dimensional")
+        normalized_arrays.append(arr)
+        lengths.append(arr.shape[0])
+
     if len({*lengths}) != 1:
         raise ValueError("All arrays must have the same number of rows")
     nrows = lengths[0]
@@ -810,36 +825,30 @@ def write_formatted_table(
     dtype_fields = []
     proc_cols = []
 
-    for idx, arr in enumerate(arrays):
+    for idx, arr in enumerate(normalized_arrays):
         fmt = formatters[idx]
+        field_name = f"f{idx}"
 
-        # treat anything with '%s' or non-numeric dtype as “string” column
+        # Treat anything with '%s' or non-numeric dtype as a string column.
         if fmt.endswith("s") or arr.dtype.kind in ("U", "S", "O"):
-            # convert all values to Python str
             col_str = arr.astype(str)
-            # find max string length
-            maxlen = max(len(x) for x in col_str)
-            # Unicode string field of exactly maxlen characters
-            dtype_fields.append((f"f{idx}", f"<U{maxlen}"))
+            maxlen = max((len(x) for x in col_str), default=1)
+            dtype_fields.append((field_name, f"<U{maxlen}"))
             proc_cols.append(col_str)
-
         else:
-            # numeric column: preserve or cast dtype
-            if arr.dtype.kind not in ("i", "f"):
+            if arr.dtype.kind not in ("i", "u", "f"):
                 arr = arr.astype(float)
-            dtype_fields.append((f"f{idx}", arr.dtype))
+            dtype_fields.append((field_name, arr.dtype))
             proc_cols.append(arr)
 
-    # build structured dtype
+    # Build the structured array column-wise. Newer NumPy versions can raise
+    # "ValueError: setting an array element with a sequence" when constructing
+    # directly from row tuples for mixed dtypes.
     dtypes = np.dtype(dtype_fields)
+    structured_arr = np.empty(nrows, dtype=dtypes)
+    for idx, col in enumerate(proc_cols):
+        structured_arr[f"f{idx}"] = col
 
-    # --- 3) Build a list of row-tuples ---
-    # note: list(...) so numpy.savetxt can infer shape
-    # TODO: is this really necessary? Appears like a massive bottle neck
-    rows = [tuple(col[i] for col in proc_cols) for i in range(nrows)]
-
-    # --- 4) Convert to structured array and write ---
-    structured_arr = np.array(rows, dtype=dtypes)
     np.savetxt(
         outfile,
         structured_arr,
