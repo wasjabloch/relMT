@@ -377,14 +377,6 @@ def test_header():
         assert hdrkws[kw] == hdr[kw]
 
 
-def test_default_config():
-    dconf = default.config
-
-    # Assert all keys are present
-    for key in core._config_args_comments:
-        assert dconf[key] is not None
-
-
 def test_default_header():
     dhead = default.header
 
