@@ -24,8 +24,12 @@
 Test the main functions
 """
 
-from relmt import main, core, default, io, amp, qc
+from relmt import main, core, default, io, amp
+from pathlib import Path
+import numpy as np
+import shutil
 import pytest
+
 
 try:
     # This is what IPython likes
@@ -126,3 +130,336 @@ def test_main_amplitdue(synthetic_aligned_waveforms):
     # Large uncertainties due to unhandeld degenerecies
     assert pytest.approx(s_syn[:, 0], rel=srel) == s_obs0
     assert pytest.approx(s_syn[:, 1], rel=srel) == s_obs1
+
+
+# Code below implemented with help of Codex GPT-5.4.
+#
+# Initial prompt:
+# in tests/test_main.py, please implement a full set of tests fore each of the
+# *_entry functions in src/relmt/main.py . When data input is needed, please use
+# the minimal raw data example provided in the directory tests/data/muji-mini.
+
+MUJI_MINI = Path(__file__).parent / "data" / "muji-mini"
+
+
+class DummyFigure:
+    def __init__(self):
+        self.saved = []
+        self.title = None
+
+    def savefig(self, filename):
+        filename = Path(filename)
+        filename.write_text("dummy figure")
+        self.saved.append(filename)
+
+    def suptitle(self, title):
+        self.title = title
+
+
+def _make_config(project: Path) -> core.Config:
+    config = core.Config(**dict(default.config.items()))
+    config.update(
+        {
+            "event_file": str(project / "data" / "events.txt"),
+            "station_file": str(project / "data" / "stations.txt"),
+            "phase_file": str(project / "data" / "phases.txt"),
+            "reference_mt_file": str(project / "data" / "reference_mts.txt"),
+            "reference_mts": [7508],
+            "amplitude_suffix": "testamp",
+            "admit_suffix": "testadm",
+            "result_suffix": "testres",
+            "amplitude_filter": "manual",
+            "amplitude_measure": "indirect",
+            "min_equations": 1,
+            "max_gap": 360.0,
+            "max_s_sigma1": 1.1,
+            "max_amplitude_misfit": 1.0e9,
+            "max_s_amplitude_misfit": 1.0e9,
+            "max_magnitude_difference": 1.0e9,
+            "max_event_distance": 1.0e9,
+            "max_s_equations": int(1e6),
+            "bootstrap_samples": 0,
+            "ncpu": 1,
+            "keep_events": [7508],
+        }
+    )
+    return config
+
+
+def _save_path(fig: DummyFigure) -> Path:
+    assert fig.saved
+    return fig.saved[-1]
+
+
+def _run_amplitude_admit_solve(config: core.Config, project: Path) -> None:
+    main.amplitude_entry(config, project, 0, overwrite=True)
+    main.admit_entry(config, project)
+    main.solve_entry(config, project, do_predict=False, iteration=0)
+
+
+@pytest.fixture
+def muji_mini_project(tmp_path) -> Path:
+    project = tmp_path / "muji-mini"
+    core.init(project)
+    shutil.copytree(MUJI_MINI, project, dirs_exist_ok=True)
+    return project
+
+
+@pytest.fixture
+def muji_config(muji_mini_project: Path) -> core.Config:
+    return _make_config(muji_mini_project)
+
+
+def test_align_entry_writes_aligned_waveforms(
+    muji_mini_project, muji_config, monkeypatch
+):
+    monkeypatch.chdir(muji_mini_project)
+
+    for do in [(True, True), (True, False), (False, True)]:
+        do_mccc, do_pca = do
+
+        main.align_entry(
+            muji_config,
+            muji_mini_project,
+            iteration=0,
+            do_mccc=do_mccc,
+            do_pca=do_pca,
+            overwrite=True,
+        )
+
+        outfiles = list((muji_mini_project / "align1").glob("*-wvarr.npy"))
+        assert outfiles
+
+
+def test_exclude_entry_marks_zero_trace_as_no_data(
+    muji_mini_project, muji_config, monkeypatch
+):
+    monkeypatch.chdir(muji_mini_project)
+
+    arrf = muji_mini_project / "data" / "EP03_P-wvarr.npy"
+    hdrf = muji_mini_project / "data" / "EP03_P-hdr.yaml"
+
+    arr = np.load(arrf)
+    hdr = io.read_header(hdrf)
+    arr[0, :, :] = 0.0
+    np.save(arrf, arr)
+
+    main.exclude_entry(
+        muji_config,
+        iteration=0,
+        overwrite=True,
+        directory=muji_mini_project,
+        do_nodata=True,
+    )
+
+    excl = io.read_exclude_file(muji_mini_project / "exclude.yaml")
+    phaseid = core.join_phaseid(hdr["events_"][0], "EP03", "P")
+    assert phaseid in excl["phase_auto_nodata"]
+
+
+def test_amplitude_entry_writes_observation_files(muji_mini_project, muji_config):
+    main.amplitude_entry(muji_config, muji_mini_project, 0, overwrite=True)
+
+    pampf = core.file(
+        "amplitude_observation",
+        phase="P",
+        directory=muji_mini_project,
+        suffix=muji_config["amplitude_suffix"],
+    )
+    sampf = core.file(
+        "amplitude_observation",
+        phase="S",
+        directory=muji_mini_project,
+        suffix=muji_config["amplitude_suffix"],
+    )
+
+    assert len(io.read_amplitudes(pampf, "P")) > 0
+    assert len(io.read_amplitudes(sampf, "S")) > 0
+
+
+@pytest.mark.parametrize(
+    (
+        "auto_lowpass_method",
+        "fixed_lowpass",
+        "stressdrop_range",
+        "snr_target",
+        "expected_lowpass",
+    ),
+    [
+        ("duration", None, [1.0e6, 1.0e8], None, None),
+        ("corner", None, [2.0e5, 4.0e7], None, None),
+        ("fixed", 1.75, [1.0e6, 1.0e6], 0.0, 1.75),
+    ],
+)
+def test_amplitude_entry_passes_auto_filter_config(
+    muji_mini_project,
+    muji_config,
+    monkeypatch,
+    auto_lowpass_method,
+    fixed_lowpass,
+    stressdrop_range,
+    snr_target,
+    expected_lowpass,
+):
+    monkeypatch.chdir(muji_mini_project)
+
+    muji_config.update(
+        {
+            "amplitude_filter": "auto",
+            "amplitude_suffix": f"auto-{auto_lowpass_method}",
+            "auto_lowpass_method": auto_lowpass_method,
+            "fixed_lowpass": fixed_lowpass,
+            "auto_lowpass_stressdrop_range": stressdrop_range,
+            "auto_bandpass_snr_target": snr_target,
+        }
+    )
+
+    main.amplitude_entry(muji_config, muji_mini_project, 0, overwrite=True)
+
+    bandpassf = core.file(
+        "bandpass",
+        directory=muji_mini_project,
+        suffix=muji_config["amplitude_suffix"],
+    )
+    assert bandpassf.exists()
+
+    bandpassd = io.read_yaml(bandpassf)
+    assert bandpassd
+    assert set(bandpassd) == set(
+        core.iterate_waveid(io.read_station_table(muji_config["station_file"]))
+    )
+
+    for event_bandpass in bandpassd.values():
+        assert event_bandpass
+        for corners in event_bandpass.values():
+            assert len(corners) == 2
+            assert np.isfinite(corners).all()
+            assert 0.0 < corners[0]
+            assert 0.0 < corners[1]
+            if expected_lowpass is not None:
+                assert corners[1] <= expected_lowpass + 1.0e-6
+
+    pampf = core.file(
+        "amplitude_observation",
+        phase="P",
+        directory=muji_mini_project,
+        suffix=muji_config["amplitude_suffix"],
+    )
+    sampf = core.file(
+        "amplitude_observation",
+        phase="S",
+        directory=muji_mini_project,
+        suffix=muji_config["amplitude_suffix"],
+    )
+    assert len(io.read_amplitudes(pampf, "P")) > 0
+    assert len(io.read_amplitudes(sampf, "S")) > 0
+
+
+def test_admit_entry_writes_admitted_observations(muji_mini_project, muji_config):
+    main.amplitude_entry(muji_config, muji_mini_project, 0, overwrite=True)
+    main.admit_entry(muji_config, muji_mini_project)
+
+    pampf = core.file(
+        "amplitude_observation",
+        phase="P",
+        directory=muji_mini_project,
+        suffix=f"{muji_config['amplitude_suffix']}-{muji_config['admit_suffix']}",
+    )
+    sampf = core.file(
+        "amplitude_observation",
+        phase="S",
+        directory=muji_mini_project,
+        suffix=f"{muji_config['amplitude_suffix']}-{muji_config['admit_suffix']}",
+    )
+
+    assert len(io.read_amplitudes(pampf, "P")) > 0
+    assert len(io.read_amplitudes(sampf, "S")) > 0
+
+
+def test_solve_entry_writes_result_files(muji_mini_project, muji_config):
+    _run_amplitude_admit_solve(muji_config, muji_mini_project)
+
+    mtsuf = (
+        f"{muji_config['amplitude_suffix']}-{muji_config['admit_suffix']}"
+        f"-{muji_config['result_suffix']}"
+    )
+    mtfile = core.file("relative_mt", directory=muji_mini_project, suffix=mtsuf)
+    sumfile = core.file("mt_summary", directory=muji_mini_project, suffix=mtsuf)
+
+    assert len(io.read_mt_table(mtfile)) > 0
+    assert sumfile.exists()
+
+
+def test_plot_alignment_entry_saves_figure(muji_mini_project, muji_config, monkeypatch):
+    fig = DummyFigure()
+    call = {}
+
+    def fake_alignment(*args):
+        call["args"] = args
+        return fig, None
+
+    monkeypatch.setattr(main.plot, "alignment", fake_alignment)
+
+    saveas = muji_mini_project / "alignment.png"
+    main.plot_alignment_entry(
+        muji_mini_project / "data" / "EP03_P-wvarr.npy",
+        config=muji_config,
+        do_exclude=True,
+        sort="name",
+        highlight_events=[7508],
+        cc_method="calculate",
+        saveas=saveas,
+        confirm=False,
+    )
+
+    assert _save_path(fig) == saveas
+    assert len(call["args"][6]) > 0
+
+
+def test_plot_spectra_entry_saves_figure(muji_mini_project, monkeypatch):
+    fig = DummyFigure()
+    call = {}
+
+    def fake_spectra(*args):
+        call["args"] = args
+        return fig, None
+
+    monkeypatch.setattr(main.plot, "spectra", fake_spectra)
+
+    saveas = muji_mini_project / "spectra.png"
+    main.plot_spectra_entry(
+        muji_mini_project / "data" / "EP03_P-wvarr.npy",
+        highlight=[7508],
+        integrate=True,
+        saveas=saveas,
+    )
+
+    assert _save_path(fig) == saveas
+    assert call["args"][3] == [7508]
+
+
+def test_plot_mt_entry_saves_figure(muji_mini_project, muji_config, monkeypatch):
+    fig = DummyFigure()
+    call = {}
+
+    def fake_mt_matrix(*args, **kwargs):
+        call["args"] = args
+        call["kwargs"] = kwargs
+        return fig, None
+
+    monkeypatch.setattr(main.plot, "mt_matrix", fake_mt_matrix)
+
+    saveas = muji_mini_project / "mt.png"
+    main.plot_mt_entry(
+        muji_mini_project / "data" / "reference_mts.txt",
+        muji_config,
+        highlight=[7508],
+        overlay_dc_at=0.5,
+        sort_by="number",
+        color_by="mag",
+        saveas=saveas,
+    )
+
+    assert _save_path(fig) == saveas
+    assert call["args"][1] == [7508]
+    assert call["kwargs"]["overlay_dc_at"] == 0.5
