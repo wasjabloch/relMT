@@ -71,23 +71,29 @@ def align_entry(
         Overwrite existing aligned waveform files. Activated by '--overwrite'
     """
 
-    stf = directory / config["station_file"]
-
-    stas = io.read_station_table(stf)
     excl = io.read_exclude_file(core.file("exclude", directory=directory))
 
-    # Exclude some observations
-    stas = set(stas) - set(excl["station"])
-    wvids = set(core.iterate_waveid(stas)) - set(excl["waveform"])
+    wvdir = directory / core.aligndir(iteration)
+
+    # Matlab and numpy files
+    wvfiles = list(wvdir.glob(f"*-{core.basenames_phase_station['waveform_array'][1]}"))
+    wvfiles += list(
+        wvdir.glob(
+            f"*-{core.basenames_phase_station['waveform_array'][1].replace('.npy', '.mat')}"
+        )
+    )
+
+    wvids = set(wvfile.stem.split("-")[0] for wvfile in wvfiles)
+    wvids = wvids - set(excl["waveform"])
+    wvids = [
+        wvid for wvid in wvids if core.split_waveid(wvid)[0] not in excl["station"]
+    ]
 
     ncpu = config["ncpu"] or 1
     lag_times = config["lag_times"] or []  # Empty list if None.
 
     args = []
     for wvid in wvids:
-
-        if wvid in excl["waveform"]:
-            continue
 
         logger.debug(f"Getting arguments for: {wvid}")
 

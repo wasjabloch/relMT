@@ -233,6 +233,17 @@ clean_amplitude_suffix = "admit"
 synthetic_amplitude_suffix = "-synthetic"
 
 
+def aligndir(iteration: int | None) -> str:
+    """Return the name of the alignment directory for a given iteration"""
+    if iteration is None or iteration == 0:
+        return Path("data")
+    elif iteration > 0:
+        return Path(f"align{iteration}")
+    else:
+        msg = f"'n_align' must be >= 0, not: '{iteration}'.\n"
+        raise ValueError(msg)
+
+
 def file(
     file_id: str,
     station: str = "",
@@ -309,27 +320,16 @@ def file(
         folder /= "amplitude"
 
     elif file_id.startswith("waveform_") or file_id == "combination":
-        if n_align is None or n_align == 0:
-            folder /= "data"
-        elif n_align > 0:
-            folder /= f"align{n_align}"
-        else:
-            msg = f"'n_align' must be >= 0, not: '{n_align}'.\n"
-            raise ValueError(msg)
+        folder /= aligndir(n_align)
 
     elif "." in file_id:
         if n_align is not None:
-            if n_align == 0:
-                folder /= "data"
-            elif n_align > 0:
-                folder /= f"align{n_align}"
-            else:
-                raise ValueError(f"'n_align' must be >= 0, not: {n_align}")
+            folder /= aligndir(n_align)
         else:
             folder /= "amplitude"
 
     else:
-        folder /= f"align{n_align}"
+        folder /= aligndir(n_align)
 
     # Assemble the name
     if file_id in basenames:
