@@ -79,6 +79,37 @@ def test_section_2d_image(iplot=False):
     plot.section_2d(_2d_signal_to_plot(), image=True, wiggle=False)
 
 
+def test_alignment_pv_yticklabels_visible():
+    arr = _3d_signal_to_plot()
+    hdr = core.Header(
+        station="STAT",
+        phase="P",
+        events_=[0, 1, 2, 6, 7],
+        components="ZNE",
+        sampling_rate=100,
+        data_window=10.0,
+        phase_start=-1.0,
+        phase_end=2.0,
+        taper_length=1.0,
+        highpass=0.1,
+        lowpass=10.0,
+        null_threshold=0.0,
+        min_signal_noise_ratio=0.0,
+        min_correlation=0.5,
+        min_expansion_coefficient_norm=0.5,
+        combinations_from_file=False,
+    )
+
+    fig, axs = plot.alignment(arr, hdr)
+    fig.canvas.draw()
+
+    labels = axs["pv"].get_yticklabels()
+    assert [label.get_text() for label in labels] == ["0", "1"]
+    assert all(label.get_visible() for label in labels)
+
+    plt.close(fig)
+
+
 def test_p_reconstruction(iplot=False):
     n = 512
     Aab = 10

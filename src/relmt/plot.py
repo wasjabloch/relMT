@@ -1166,9 +1166,11 @@ def alignment(
 
     phi = align.pca_objective(s, phase, mat.shape[0])
     section_2d(Vh[icomps, :], **hdr.kwargs(section_2d), ax=ax)
+    ax.set_yticks(icomps, [f"{i}" for i in icomps])
+    ax.label_outer()
+    ax.tick_params(left=True, labelleft=True)
     ax.set_title("$\\Phi={:.4f}$".format(phi), pad=12)
     ax.set_ylabel("Principal\nSeismogram")
-    ax.set_yticks(icomps)
     ax.set_xlabel("")
 
     # Waveform plot
@@ -1209,8 +1211,6 @@ def alignment(
         tlabs = [phs, 0, phe]
 
     ax.set_xticks(tlocs, tlabs * len(hdr["components"]))
-    ax.label_outer()
-    axs["pv"].label_outer()
 
     # Cross correlation plot
     ax = axs["cci"]
@@ -1219,7 +1219,7 @@ def alignment(
     else:
         ax.plot(cci, range(nin), color="red")
         ax.axvline(0, color="silver")
-        ax.set_xlabel("$\\hat{{{C}}}_i$")
+        ax.set_xlabel("$\\hat{{{|C|}}}_i$")
         ax.grid(axis="y")
 
     if (mincc := hdr["min_correlation"]) is not None:
@@ -1259,19 +1259,21 @@ def alignment(
     ec_score = qc.expansion_coefficient_norm(mat, phase)[isort]
 
     for i, col, sym in zip(icomps, compc, comps):
-        e0 = abs(s[i] * U[:, i])
+        e0 = s[i] * U[:, i]
         ax.plot(e0, range(nin), sym, mec=col, mfc="none", label=f"EC{i}")
-    ax.plot(ec_score, range(nin), "|", mec="red", mfc="none", label=f"Score")
+    ax.plot(ec_score, range(nin), "|", mec="red", mfc="none", label=f"$\pm$ Norm")
+    ax.plot(-ec_score, range(nin), "|", mec="red", mfc="none")
 
     if (ecn := hdr["min_expansion_coefficient_norm"]) is not None:
         ax.axvline(ecn, color="indianred")
 
     ax.legend()
     ax.set_yticks(range(nin), event_list[isort])
-    ax.set_xlim((0, 1))
+    ax.set_xlim((-1, 1))
     ax.grid(axis="y")
+    ax.axvline(0, color="silver", zorder=-5)
     ax.tick_params(labelleft=False, labelright=True)
-    ax.set_xlabel("Expansion Coefficient Norm")
+    ax.set_xlabel("Expansion Coefficient $\\sigma V$")
 
     return fig, axs
 
