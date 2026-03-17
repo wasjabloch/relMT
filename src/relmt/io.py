@@ -643,19 +643,19 @@ def save_amplitudes(
         logger.error("Table is empty. No data to be saved.")
         return
 
-    if ncol == 10:
-        fmt = "{:10s} {:7d} {:7d} {:20.13e} {:7.5f} {:11.5f} {:6.4f} {:6.4f} "
+    if ncol == 11:
+        fmt = "{:10s} {:6s} {:7d} {:7d} {:20.13e} {:7.5f} {:11.5f} {:6.4f} {:6.4f} "
         fmt += "{:8.2e} {:8.2e} "
-        out = "#Station    EventA  EventB  Amplitude_AB        Misfit  "
+        out = "#Station    Phase  EventA  EventB  Amplitude_AB        Misfit  "
         out += "Correlation Sigma1 Sigma2 Highpass Lowpass "
-    elif ncol == 13:
-        fmt = "{:10s} {:7d} {:7d} {:7d} {:20.13e} {:20.13e} {:7.5f} "
+    elif ncol == 14:
+        fmt = "{:10s} {:6s} {:7d} {:7d} {:7d} {:20.13e} {:20.13e} {:7.5f} "
         fmt += "{:11.5f} {:6.4f} {:6.4f} {:6.4f} {:8.2e} {:8.2e} "
-        out = "#Station    EventA  EventB  EventC  Amplitude_ABC        "
+        out = "#Station    Phase  EventA  EventB  EventC  Amplitude_ABC        "
         out += "Amplitude_ACB       Misfit  Correlation Sigma1 Sigma2 Sigma3 "
         out += "Highpass Lowpass "
     else:
-        msg = f"Found {ncol} index columns, but only 9 or 11 are allowed."
+        msg = f"Found {ncol} columns, but only 11 or 14 are allowed."
         raise IndexError(msg)
 
     if more_formats is not None:
@@ -879,7 +879,7 @@ def read_combinations(filename: str | Path) -> set[tuple[int, int]]:
     return set(tuple(comb) for comb in combs)
 
 
-def read_amplitudes(filename: str, phase: str, unpack: bool = False):
+def read_amplitudes(filename: str, phase_type: str, unpack: bool = False):
     """
     Load relative amplitudes from file
 
@@ -887,8 +887,8 @@ def read_amplitudes(filename: str, phase: str, unpack: bool = False):
     ----------
     filename:
         Name of the input file
-    phase:
-        Seismic phase to consider
+    phase_type:
+        Seismic phase type to consider (`P` or `S`)
     unpack:
         Return each variable as separate array
 
@@ -897,54 +897,88 @@ def read_amplitudes(filename: str, phase: str, unpack: bool = False):
     amplitudes: if `unpack=False`
         Lists of the :class:`relmt.core.P_Amplitude_Ratio` or
         :class:`relmt.core.S_Amplitude_Ratios`
-    station, a, b, amplitude, misfit, correlation, sigma1, sigma2, higpass,
-    lowpass: if `unpack=True` and `phase=P`
+    station, phase_name, a, b, amplitude, misfit, correlation, sigma1, sigma2,
+    higpass, lowpass: if `unpack=True` and `phase=P`
         Arrays of the :class:`relmt.core.P_Amplitude_Ratio` attribute
-    station, a, b, c, amp_abc, amb_acb, misfit, correlation, sigma1, sigma2,
-    sigma3, higpass, lowpass: if `unpack=True` and `phase=S`
+    station, phase_name, a, b, c, amp_abc, amb_acb, misfit, correlation,
+    sigma1, sigma2, sigma3, higpass, lowpass: if `unpack=True` and `phase=S`
         Arrays of the :class:`relmt.core.S_Amplitude_Ratios` attributes
 
     Raises
     ------
     ValueError:
-        If 'phase' is not `P` or `S`
+        If 'phase_type' is not `P` or `S`
     """
-    stas = np.loadtxt(filename, usecols=0, dtype=str)
+    phase_type = phase_type.upper()
+    if phase_type not in ("P", "S"):
+        raise ValueError("'phase_type' must be 'P' or 'S'")
 
-    if phase.upper() == "P":
-        events = np.loadtxt(filename, usecols=(1, 2), dtype=int, ndmin=2)
-        X = np.loadtxt(filename, usecols=(3, 4, 5, 6, 7, 8, 9), ndmin=2)
+    with open(filename) as fid:
+        first_data_line = next(
+            (
+                line.strip()
+                for line in fid
+                if line.strip() and not line.lstrip().startswith("#")
+            ),
+            None,
+        )
+
+    if first_data_line is None:
+        raise ValueError(f"No amplitude data found in {filename}.")
+
+    tokens = first_data_line.split()
+    has_phase_column = len(tokens) > 1 and tokens[1].startswith(("P", "S"))
+
+    if has_phase_column:
+        stas, phases = np.loadtxt(
+            filename, usecols=(0, 1), dtype=str, unpack=True, ndmin=2
+        )
+    else:
+        stas = np.loadtxt(filename, usecols=0, dtype=str, ndmin=1)
+        phases = np.full(stas.shape[0], phase_type, dtype=str)
+        logger.warning(f"No phase column in {filename}. Assuming '{phase_type}'")
+
+    if phase_type == "P":
+        if has_phase_column:
+            events = np.loadtxt(filename, usecols=(2, 3), dtype=int, ndmin=2)
+            X = np.loadtxt(filename, usecols=(4, 5, 6, 7, 8, 9, 10), ndmin=2)
+        else:
+            events = np.loadtxt(filename, usecols=(1, 2), dtype=int, ndmin=2)
+            X = np.loadtxt(filename, usecols=(3, 4, 5, 6, 7, 8, 9), ndmin=2)
 
         if unpack:
-            return stas, *events.T, *X.T
+            return stas, phases, *events.T, *X.T
 
         return [
-            core.P_Amplitude_Ratio(sta, ia, ib, *floats)
-            for sta, ia, ib, floats in zip(
+            core.P_Amplitude_Ratio(sta, pha, ia, ib, *floats)
+            for sta, pha, ia, ib, floats in zip(
                 stas,
-                *events.T,
-                X,
-            )
-        ]
-
-    elif phase.upper() == "S":
-        events = np.loadtxt(filename, usecols=(1, 2, 3), dtype=int, ndmin=2)
-        X = np.loadtxt(filename, usecols=(4, 5, 6, 7, 8, 9, 10, 11, 12), ndmin=2)
-
-        if unpack:
-            return stas, *events.T, *X.T
-
-        return [
-            core.S_Amplitude_Ratios(sta, ia, ib, ic, *floats)
-            for sta, ia, ib, ic, floats in zip(
-                stas,
+                phases,
                 *events.T,
                 X,
             )
         ]
 
     else:
-        raise ValueError("'phase' must be 'P' or 'S'")
+        if has_phase_column:
+            events = np.loadtxt(filename, usecols=(2, 3, 4), dtype=int, ndmin=2)
+            X = np.loadtxt(filename, usecols=(5, 6, 7, 8, 9, 10, 11, 12, 13), ndmin=2)
+        else:
+            events = np.loadtxt(filename, usecols=(1, 2, 3), dtype=int, ndmin=2)
+            X = np.loadtxt(filename, usecols=(4, 5, 6, 7, 8, 9, 10, 11, 12), ndmin=2)
+
+        if unpack:
+            return stas, phases, *events.T, *X.T
+
+        return [
+            core.S_Amplitude_Ratios(sta, pha, ia, ib, ic, *floats)
+            for sta, pha, ia, ib, ic, floats in zip(
+                stas,
+                phases,
+                *events.T,
+                X,
+            )
+        ]
 
 
 def write_gmt_meca_table(

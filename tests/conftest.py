@@ -105,7 +105,9 @@ def synthetic_aligned_waveforms(tmp_path):
         # Create the waveform arrays
         arrd = {
             wvid: rng.normal(size=(len(event_dict), 3, 512), scale=noise_level)
-            for wvid in core.iterate_waveid(station_dict)
+            for wvid in [
+                core.join_waveid(sta, pha) for sta in station_dict for pha in "PS"
+            ]
         }
 
         # And the corresponding headers
@@ -173,7 +175,9 @@ def synthetic_aligned_waveforms(tmp_path):
         io.write_station_table(station_dict, core.file("station", directory=tmp_path))
         io.save_yaml(core.file("exclude", directory=tmp_path), core.exclude)
 
-        for wvid in core.iterate_waveid(station_dict):
+        for wvid in [
+            core.join_waveid(sta, pha) for sta in station_dict for pha in "PS"
+        ]:
             sta, pha = core.split_waveid(wvid)
             hdrf = core.file("waveform_header", sta, pha, directory=tmp_path)
             arrf = core.file("waveform_array", sta, pha, directory=tmp_path)

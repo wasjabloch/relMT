@@ -312,9 +312,9 @@ def test_collect_takeoff():
 
 def test_event_indices():
     pamps = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.33, 0.9, 0.1, 0.5, 20.0),
-        core.P_Amplitude_Ratio("STA1", 0, 2, 1.1, 1.5, 0.34, 0.9, 0.1, 0.5, 20.0),
-        core.P_Amplitude_Ratio("STA1", 0, 3, 1.2, 1.5, 0.35, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", "P", 0, 1, 1.0, 0.1, 0.33, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", "P", 0, 2, 1.1, 1.5, 0.34, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", "P", 0, 3, 1.2, 1.5, 0.35, 0.9, 0.1, 0.5, 20.0),
     ]
 
     indd = utils.event_indices(pamps)
@@ -325,13 +325,13 @@ def test_event_indices():
 
     samps = [
         core.S_Amplitude_Ratios(
-            "STA1", 0, 1, 2, 1.0, 11.2, 0.1, 0.33, 0.9, 0.1, 0.0, 0.5, 20.0
+            "STA1", "S", 0, 1, 2, 1.0, 11.2, 0.1, 0.33, 0.9, 0.1, 0.0, 0.5, 20.0
         ),
         core.S_Amplitude_Ratios(
-            "STA1", 0, 2, 3, 1.1, 11.2, 1.5, 0.34, 0.9, 0.1, 0.0, 0.5, 20.0
+            "STA1", "S", 0, 2, 3, 1.1, 11.2, 1.5, 0.34, 0.9, 0.1, 0.0, 0.5, 20.0
         ),
         core.S_Amplitude_Ratios(
-            "STA1", 0, 3, 4, 1.2, 11.2, 1.5, 0.35, 0.9, 0.1, 0.0, 0.5, 20.0
+            "STA1", "S", 0, 3, 4, 1.2, 11.2, 1.5, 0.35, 0.9, 0.1, 0.0, 0.5, 20.0
         ),
     ]
 

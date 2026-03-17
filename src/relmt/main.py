@@ -682,30 +682,33 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
     evd = io.read_event_table(directory / config["event_file"])
     phd = io.read_phase_table(directory / config["phase_file"])
 
-    for ph in "PS":
+    for phase_type in "PS":
         infile = core.file(
-            "amplitude_observation", directory=directory, phase=ph, suffix=ampsuf
+            "amplitude_observation",
+            directory=directory,
+            phase=phase_type,
+            suffix=ampsuf,
         )
 
-        amps = io.read_amplitudes(infile, ph)
+        amps = io.read_amplitudes(infile, phase_type)
 
         exclude_stations = set(
             core.split_waveid(wvid)[0]
             for wvid in exclude_wvid
-            if core.split_waveid(wvid)[1] == ph
+            if core.split_waveid(wvid)[1] == phase_type
         ).union(exclude["station"])
 
         # Read the files again, this time unpack QCed values in arrays
-        if ph == "P":
-            sta, eva, evb, amp1, mis, cc, *_ = io.read_amplitudes(
-                infile, ph, unpack=True
+        if phase_type == "P":
+            sta, pha, eva, evb, amp1, mis, cc, *_ = io.read_amplitudes(
+                infile, phase_type, unpack=True
             )
             s1 = np.full_like(mis, -np.inf)  # Never exclude
             amp2 = np.zeros_like(amp1)  # No second amplitude
             evc = eva
         else:
-            sta, eva, evb, evc, amp1, amp2, mis, cc, s1, *_ = io.read_amplitudes(
-                infile, ph, unpack=True
+            sta, pha, eva, evb, evc, amp1, amp2, mis, cc, s1, *_ = io.read_amplitudes(
+                infile, phase_type, unpack=True
             )
 
         # Direct exlusions using numpy
@@ -713,7 +716,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
         # Stations
         iout = np.isin(sta, list(exclude_stations))
         logger.info(
-            f"Excluded {(nout := sum(iout))} {ph}-observations because stations "
+            f"Excluded {(nout := sum(iout))} {phase_type}-observations because stations "
             "or waveforms are excluded"
         )
 
@@ -729,28 +732,28 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
                     c in exclude_events,
                 )
             )
-            for a, b, c, s in zip(eva, evb, evc, sta)
+            for a, b, c, s, ph in zip(eva, evb, evc, sta, pha)
         ]
 
         logger.info(
-            f"Excluded {sum(iout) - nout} more {ph}-observations from exclude file"
+            f"Excluded {sum(iout) - nout} more {phase_type}-observations from exclude file"
         )
 
         # Valid amplitude
         iout |= ~np.isfinite(amp1) | ~np.isfinite(amp2)
         logger.info(
-            f"Excluded {sum(iout) - nout} more {ph}-observations due bad amplitude"
+            f"Excluded {sum(iout) - nout} more {phase_type}-observations due bad amplitude"
         )
 
         # Misfit
         nout = sum(iout)
-        if max_mis is not None and ph == "P":
+        if max_mis is not None and phase_type == "P":
             iout |= ~(mis < max_mis)  # Exclude also nans
             logger.info(
                 f"Excluded {sum(iout) - nout} more P-observations due to high misfit"
             )
 
-        if max_smis is not None and ph == "S":
+        if max_smis is not None and phase_type == "S":
             iout |= ~(mis < max_smis)  # Exclude also nans
             logger.info(
                 f"Excluded {sum(iout) - nout} more S-observations due to high misfit"
@@ -761,7 +764,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
         if max_s1 is not None:
             iout |= ~(s1 < max_s1)  # Exclude also nans
             logger.info(
-                f"Excluded {sum(iout) - nout} more {ph}-observations due high sigma1"
+                f"Excluded {sum(iout) - nout} more {phase_type}-observations due high sigma1"
             )
 
         iin = (~iout).nonzero()[0]  # Included amplitude indices
@@ -779,7 +782,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
         amps = qc.clean_by_event_distance(amps, evd, max_ev_dist)
 
         # Let's not overwrite, but save for later use
-        if ph == "P":
+        if phase_type == "P":
             pamps = amps.copy()
         else:
             samps = amps  # No need to copy as we leave the "PS"-loop either way
@@ -859,15 +862,15 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
         raise RuntimeError("No observations left. Relax your admission criteria.")
 
     # Write to file
-    for ph, amps in zip("PS", [pamps, samps]):
+    for phase_type, amps in zip("PS", [pamps, samps]):
         fac = 1
-        if ph == "S" and two_s:
+        if phase_type == "S" and two_s:
             fac = 2
-        logger.info(f"Selected {len(amps)*fac} {ph} equations")
+        logger.info(f"Selected {len(amps)*fac} {phase_type} equations")
         outfile = core.file(
             "amplitude_observation",
             directory=directory,
-            phase=ph,
+            phase=phase_type,
             suffix=outsuf,
         )
         io.save_amplitudes(outfile, amps)
@@ -1213,6 +1216,7 @@ def solve_entry(
         pamp_synthetic = [
             core.P_Amplitude_Ratio(
                 pamp.station,
+                pamp.phase,
                 pamp.event_a,
                 pamp.event_b,
                 Aab,
@@ -1231,6 +1235,7 @@ def solve_entry(
         samp_synthetic = [
             core.S_Amplitude_Ratios(
                 samp.station,
+                samp.phase,
                 samp.event_a,
                 samp.event_b,
                 samp.event_c,

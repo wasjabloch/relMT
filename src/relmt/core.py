@@ -521,6 +521,7 @@ P_Amplitude_Ratio = namedtuple(
     "P_Amplitude_Ratio",
     [
         "station",
+        "phase",
         "event_a",
         "event_b",
         "amp_ab",
@@ -538,6 +539,8 @@ P_Amplitude_Ratio.__doc__ = """P-wave amplitude ratio observation
     ----------
     station: str
         Unique station name
+    phase: str
+        Phase identifier starting with ``P``
     event_a, event_b: int
         Event indices
     amp_ab: float
@@ -556,6 +559,7 @@ S_Amplitude_Ratios = namedtuple(
     "S_Amplitude_Ratios",
     [
         "station",
+        "phase",
         "event_a",
         "event_b",
         "event_c",
@@ -577,6 +581,8 @@ S_Amplitude_Ratios.__doc__ = """S-wave amplitude ratio observations
     ----------
     station: str
         Unique station name
+    phase: str
+        Phase identifier starting with ``S``
     event_a, event_b, event_c: int
         Event indices
     amp_abc: float

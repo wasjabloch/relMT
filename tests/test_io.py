@@ -350,20 +350,21 @@ def test_read_waveform_array_header():
 
 def test_save_read_p_amplitudes():
     pamps1 = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1e0, 0.5, 0.33, 1.0, 0.0, 0.5, 20.0),
-        core.P_Amplitude_Ratio("STA1", 0, 2, -1e0, 1.5, 0.34, 1.0, 0.0, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", "P", 0, 1, 1e0, 0.5, 0.33, 1.0, 0.0, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", "P", 0, 2, -1e0, 1.5, 0.34, 1.0, 0.0, 0.5, 20.0),
     ]
 
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
         io.save_amplitudes(fid.name, pamps1)
         pamps2 = io.read_amplitudes(fid.name, "P")
-        sta, ev1, ev2, amp, mis, cc, sig1, sig2, hpas, lpas = io.read_amplitudes(
+        sta, phs, ev1, ev2, amp, mis, cc, sig1, sig2, hpas, lpas = io.read_amplitudes(
             fid.name, "P", unpack=True
         )
     os.remove(fid.name)
 
     assert pytest.approx(pamps1) == pamps2
     assert pytest.approx(sta) == ["STA1", "STA1"]
+    assert pytest.approx(phs) == ["P", "P"]
     assert pytest.approx(ev1) == [0, 0]
     assert pytest.approx(ev2) == [1, 2]
     assert pytest.approx(amp) == [1e0, -1e0]
@@ -378,10 +379,10 @@ def test_save_read_p_amplitudes():
 def test_save_read_s_amplitudes():
     samps1 = [
         core.S_Amplitude_Ratios(
-            "STA1", 0, 1, 3, 1e0, 1e1, 0.5, 0.33, 0.7, 0.3, 0.0, 0.5, 20.0
+            "STA1", "S", 0, 1, 3, 1e0, 1e1, 0.5, 0.33, 0.7, 0.3, 0.0, 0.5, 20.0
         ),
         core.S_Amplitude_Ratios(
-            "STA1", 0, 2, 3, -1e0, -1e1, 1.5, 0.34, 0.7, 0.3, 0.0, 0.5, 20.0
+            "STA1", "S", 0, 2, 3, -1e0, -1e1, 1.5, 0.34, 0.7, 0.3, 0.0, 0.5, 20.0
         ),
     ]
 
@@ -390,6 +391,7 @@ def test_save_read_s_amplitudes():
         samps2 = io.read_amplitudes(fid.name, "S")
         (
             sta,
+            phs,
             ev1,
             ev2,
             ev3,
@@ -407,6 +409,7 @@ def test_save_read_s_amplitudes():
 
     assert pytest.approx(samps1) == samps2
     assert pytest.approx(sta) == ["STA1", "STA1"]
+    assert pytest.approx(phs) == ["S", "S"]
     assert pytest.approx(ev1) == [0, 0]
     assert pytest.approx(ev2) == [1, 2]
     assert pytest.approx(ev3) == [3, 3]

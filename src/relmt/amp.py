@@ -606,6 +606,7 @@ def principal_p_amplitudes(
     p_amplitudes = [
         core.P_Amplitude_Ratio(
             hdr["station"],
+            hdr["phase"],
             evns[a],
             evns[b],
             As[n],
@@ -698,7 +699,7 @@ def paired_p_amplitudes(
     cc = p_reconstruction_correlation(mat)
 
     return core.P_Amplitude_Ratio(
-        hdr["station"], a, b, A, mis, cc, *sigmas, highpass, lowpass
+        hdr["station"], hdr["phase"], a, b, A, mis, cc, *sigmas, highpass, lowpass
     )
 
 
@@ -751,6 +752,7 @@ def principal_s_amplitudes(
     s_amplitudes = [
         core.S_Amplitude_Ratios(
             hdr["station"],
+            hdr["phase"],
             # Order events as in amplitude comparison
             # and reference to event list
             *evns[np.array([a, b, c])[isorts[n]]],
@@ -854,6 +856,7 @@ def triplet_s_amplitudes(
 
     return core.S_Amplitude_Ratios(
         hdr["station"],
+        hdr["phase"],
         *np.array((a, b, c))[iord],
         Babc,
         Bacb,

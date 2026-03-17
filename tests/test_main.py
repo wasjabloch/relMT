@@ -325,9 +325,7 @@ def test_amplitude_entry_passes_auto_filter_config(
 
     bandpassd = io.read_yaml(bandpassf)
     assert bandpassd
-    assert set(bandpassd) == set(
-        core.iterate_waveid(io.read_station_table(muji_config["station_file"]))
-    )
+    assert set(bandpassd) == set(core.iterate_waveid(muji_mini_project, 0))
 
     for event_bandpass in bandpassd.values():
         assert event_bandpass

@@ -134,7 +134,7 @@ def test_distance_ratio():
 def test_p_equation():
     # Make a set of observation along y-axis. Test if correct line is produced
     Aab = 1e-3
-    ampl = core.P_Amplitude_Ratio("A", 0, 1, Aab, 0, 0.9, 0.9, 0.1, 0.5, 20.0)
+    ampl = core.P_Amplitude_Ratio("A", "P", 0, 1, Aab, 0, 0.9, 0.9, 0.1, 0.5, 20.0)
     sta = core.Station(0, 10, 0, "A")
     event_dict = {0: core.Event(0, 0, 0, 0, 1, "0"), 1: core.Event(0, 0, 0, 0, 2, "1")}
     in_events = list(range(len(event_dict)))
@@ -157,7 +157,7 @@ def test_p_equation():
         pytest.approx(cols) == exp_cols
         pytest.approx(vals) == expect
 
-    ampl = core.P_Amplitude_Ratio("A", 0, 1, 1 / Aab, 0, 0.9, 0.9, 0.1, 0.5, 20.0)
+    ampl = core.P_Amplitude_Ratio("A", "P", 0, 1, 1 / Aab, 0, 0.9, 0.9, 0.1, 0.5, 20.0)
     for mt_elements in [5, 6]:
 
         expect = np.zeros(len(event_dict) * mt_elements)
@@ -173,7 +173,7 @@ def test_s_equations():
     Babc = 1e-3
     Bacb = 2e3
     ampl = core.S_Amplitude_Ratios(
-        "A", 0, 1, 2, Babc, Bacb, 0, 0.8, 0.9, 0.1, 0.1, 0.5, 20.0
+        "A", "S", 0, 1, 2, Babc, Bacb, 0, 0.8, 0.9, 0.1, 0.1, 0.5, 20.0
     )
     sta = core.Station(0, 10, 0, "A")
     event_dict = {
@@ -226,13 +226,13 @@ def test_s_equations():
 
 
 def test_weight_misfit():
-    amp = core.P_Amplitude_Ratio("A", 0, 1, 1e-3, 0.5, 0.9, 0.9, 0.1, 0.5, 20.0)
+    amp = core.P_Amplitude_Ratio("A", "P", 0, 1, 1e-3, 0.5, 0.9, 0.9, 0.1, 0.5, 20.0)
     assert pytest.approx(0.5) == ls.weight_misfit(amp, 0.0, 1.0, 0.0, "P")
     assert pytest.approx(0.0) == ls.weight_misfit(amp, 0.0, 0.1, 0.0, "P")
     assert pytest.approx(0.75) == ls.weight_misfit(amp, 0.0, 2.0, 0.0, "P")
 
     amp = core.S_Amplitude_Ratios(
-        "A", 0, 1, 2, 1e-3, 2e-3, 0.5, 0.8, 0.9, 0.1, 0.1, 0.5, 20.0
+        "A", "S", 0, 1, 2, 1e-3, 2e-3, 0.5, 0.8, 0.9, 0.1, 0.1, 0.5, 20.0
     )
     assert pytest.approx([0.5, 0.5]) == ls.weight_misfit(amp, 0.0, 1.0, 0.0, "S")
     assert pytest.approx([0.0, 0.0]) == ls.weight_misfit(amp, 0.0, 0.1, 0.0, "S")
@@ -244,15 +244,15 @@ def test_weight_misfit():
 
 def test_weight_s_amplitude():
     amp = core.S_Amplitude_Ratios(
-        "A", 0, 1, 2, 1e-3, 2e-3, 0.5, 0.9, 0.8, 0.1, 0.1, 0.5, 20.0
+        "A", "S", 0, 1, 2, 1e-3, 2e-3, 0.5, 0.9, 0.8, 0.1, 0.1, 0.5, 20.0
     )
     assert pytest.approx([1.0, 1.0]) == ls.weight_s_amplitude(amp)
     amp = core.S_Amplitude_Ratios(
-        "A", 0, 1, 2, -1e3, 2e-3, 0.5, 0.9, 0.8, 0.1, 0.1, 0.5, 20.0
+        "A", "S", 0, 1, 2, -1e3, 2e-3, 0.5, 0.9, 0.8, 0.1, 0.1, 0.5, 20.0
     )
     assert pytest.approx([1e-3, 1e-3]) == ls.weight_s_amplitude(amp)
     amp = core.S_Amplitude_Ratios(
-        "A", 0, 1, 2, -1e3, 1e4, 0.5, 0.9, 0.8, 0.1, 0.1, 0.5, 20.0
+        "A", "S", 0, 1, 2, -1e3, 1e4, 0.5, 0.9, 0.8, 0.1, 0.1, 0.5, 20.0
     )
     assert pytest.approx([1e-4, 1e-4]) == ls.weight_s_amplitude(amp)
 
@@ -263,10 +263,10 @@ def test_homogenous_amplitude_equations():
     Aab = 5e-1
     Babc = 1e-3
     Bacb = 2e3
-    pamps = [core.P_Amplitude_Ratio("A", 0, 1, Aab, 0.0, 0.9, 0.9, 0.1, 0.5, 20.0)]
+    pamps = [core.P_Amplitude_Ratio("A", "P", 0, 1, Aab, 0.0, 0.9, 0.9, 0.1, 0.5, 20.0)]
     samps = [
         core.S_Amplitude_Ratios(
-            "A", 0, 1, 2, Babc, Bacb, 0.0, 0.9, 0.8, 0.1, 0.1, 0.5, 20.0
+            "A", "S", 0, 1, 2, Babc, Bacb, 0.0, 0.9, 0.8, 0.1, 0.1, 0.5, 20.0
         )
     ]
 
@@ -499,7 +499,7 @@ def test_solve_lsmr():
                 Aab, sigma = amp.pca_amplitude_2p(up[[a, b], ist, :])
                 p_amplitudes.append(
                     core.P_Amplitude_Ratio(
-                        str(ist), a, b, Aab, misfit, cc, *sigma, 0.5, 20.0
+                        str(ist), "P", a, b, Aab, misfit, cc, *sigma, 0.5, 20.0
                     )
                 )
 
@@ -509,6 +509,7 @@ def test_solve_lsmr():
                 s_amplitudes.append(
                     core.S_Amplitude_Ratios(
                         str(ist),
+                        "S",
                         *np.array([a, b, c])[iord],
                         Babc,
                         Bacb,

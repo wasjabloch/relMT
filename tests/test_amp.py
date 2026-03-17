@@ -306,9 +306,9 @@ def test_s_reconstruction_correlation():
 def test_info_p():
 
     amplitudes = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.33, 0.9, 0.1, 0.5, 20.0),
-        core.P_Amplitude_Ratio("STA1", 0, 2, 1.1, 1.5, 0.34, 0.9, 0.1, 0.5, 20.0),
-        core.P_Amplitude_Ratio("STA1", 0, 3, 1.2, 1.5, 0.35, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", "P", 0, 1, 1.0, 0.1, 0.33, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", "P", 0, 2, 1.1, 1.5, 0.34, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", "P", 0, 3, 1.2, 1.5, 0.35, 0.9, 0.1, 0.5, 20.0),
     ]
 
     amp.info(amplitudes, width=5)
@@ -318,13 +318,13 @@ def test_info_s():
 
     amplitudes = [
         core.S_Amplitude_Ratios(
-            "STA1", 0, 1, 2, 1.0, 1.0, 0.1, 0.33, 0.8, 0.1, 0.1, 0.5, 20.0
+            "STA1", "S", 0, 1, 2, 1.0, 1.0, 0.1, 0.33, 0.8, 0.1, 0.1, 0.5, 20.0
         ),
         core.S_Amplitude_Ratios(
-            "STA1", 0, 1, 3, 1.1, 1.1, 1.5, 0.34, 0.8, 0.1, 0.1, 0.5, 20.0
+            "STA1", "S", 0, 1, 3, 1.1, 1.1, 1.5, 0.34, 0.8, 0.1, 0.1, 0.5, 20.0
         ),
         core.S_Amplitude_Ratios(
-            "STA1", 0, 3, 4, 0.9, 0.9, 1.5, 0.35, 0.8, 0.1, 0.1, 0.5, 20.0
+            "STA1", "S", 0, 3, 4, 0.9, 0.9, 1.5, 0.35, 0.8, 0.1, 0.1, 0.5, 20.0
         ),
     ]
 

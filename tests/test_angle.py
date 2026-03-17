@@ -79,17 +79,17 @@ def test_plunge():
 
 def test_azimuth_gap():
     pamps = [
-        core.P_Amplitude_Ratio("STA1", 0, 1, 1.0, 0.1, 0.33, 0.9, 0.1, 0.5, 20.0),
-        core.P_Amplitude_Ratio("STA2", 0, 2, 1.1, 1.5, 0.34, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA1", "P", 0, 1, 1.0, 0.1, 0.33, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA2", "P", 0, 2, 1.1, 1.5, 0.34, 0.9, 0.1, 0.5, 20.0),
     ]
 
     samps = [
         core.S_Amplitude_Ratios(
-            "STA3", 0, 1, 2, 1.0, 11.2, 0.1, 0.33, 0.9, 0.1, 0.0, 0.5, 20.0
+            "STA3", "S", 0, 1, 2, 1.0, 11.2, 0.1, 0.33, 0.9, 0.1, 0.0, 0.5, 20.0
         ),
         # Below an amplitude without observation
         core.S_Amplitude_Ratios(
-            "STA4", 0, 1, 2, 1.0, 11.2, 0.1, 0.33, 0.9, 0.1, 0.0, 0.5, 20.0
+            "STA4", "S", 0, 1, 2, 1.0, 11.2, 0.1, 0.33, 0.9, 0.1, 0.0, 0.5, 20.0
         ),
     ]
 

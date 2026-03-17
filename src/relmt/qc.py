@@ -57,9 +57,9 @@ def _ps_amplitudes(
 
     ip = isinstance(amplitudes[0], core.P_Amplitude_Ratio)
 
-    iev = slice(1, 3)
+    iev = slice(2, 4)
     if not ip:
-        iev = slice(1, 4)
+        iev = slice(2, 5)
 
     return ip, iev
 
@@ -173,7 +173,7 @@ def clean_by_magnitude_difference(
         return [
             amp
             for amp in amplitudes
-            if abs(event_dict[amp[1]].mag - event_dict[amp[2]].mag)
+            if abs(event_dict[amp[2]].mag - event_dict[amp[3]].mag)
             < magnitude_difference
         ]
     return [
@@ -181,11 +181,11 @@ def clean_by_magnitude_difference(
         for amp in amplitudes
         if all(
             [
-                abs(event_dict[amp[1]].mag - event_dict[amp[2]].mag)
-                < magnitude_difference,
-                abs(event_dict[amp[1]].mag - event_dict[amp[3]].mag)
-                < magnitude_difference,
                 abs(event_dict[amp[2]].mag - event_dict[amp[3]].mag)
+                < magnitude_difference,
+                abs(event_dict[amp[2]].mag - event_dict[amp[4]].mag)
+                < magnitude_difference,
+                abs(event_dict[amp[3]].mag - event_dict[amp[4]].mag)
                 < magnitude_difference,
             ]
         )
@@ -386,10 +386,7 @@ def clean_by_valid_takeoff_angle(
     """
 
     # Check if we are dealing with P or S
-    ip, iev = _ps_amplitudes(amplitudes)
-    pha = "S"
-    if ip:
-        pha = "P"
+    _, iev = _ps_amplitudes(amplitudes)
 
     # Return amplitude only if a ll take-off angles are finite
     return [
@@ -398,7 +395,7 @@ def clean_by_valid_takeoff_angle(
         # First test if all phases are present
         if np.all(
             [
-                core.join_phaseid(ev, amp.station, pha) in phase_dictionary
+                core.join_phaseid(ev, amp.station, amp.phase) in phase_dictionary
                 for ev in amp[iev]
             ]
         )
@@ -408,10 +405,10 @@ def clean_by_valid_takeoff_angle(
                 np.isfinite(
                     [
                         phase_dictionary[
-                            core.join_phaseid(ev, amp.station, pha)
+                            core.join_phaseid(ev, amp.station, amp.phase)
                         ].azimuth,
                         phase_dictionary[
-                            core.join_phaseid(ev, amp.station, pha)
+                            core.join_phaseid(ev, amp.station, amp.phase)
                         ].plunge,
                     ]
                 )
