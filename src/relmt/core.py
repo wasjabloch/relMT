@@ -290,10 +290,9 @@ def file(
 
     folder = Path(directory)
 
-    if phase is not None:
-        if phase not in "PSps":
-            raise ValueError(f"'phase' must be 'P' or 'S', not: {phase}")
-        phase = phase.upper()
+    if phase:
+        if not phase.startswith("P") and not phase.startswith("S"):
+            raise ValueError(f"'phase' must start with 'P' or 'S', not: {phase}")
 
     # Sort in the right subfolder
     if file_id == "config" or file_id == "exclude":

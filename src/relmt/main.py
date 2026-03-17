@@ -340,7 +340,6 @@ def amplitude_entry(
         logger.info(f"Target directory does not exist: {ampdir}. Creating.")
         ampdir.mkdir()
 
-    stf = directory / config["station_file"]
     evf = directory / config["event_file"]
     ncpu = config["ncpu"] or 1
     compare_method = config["amplitude_measure"]  # direct or indirect
@@ -348,11 +347,8 @@ def amplitude_entry(
 
     exclude = io.read_exclude_file(core.file("exclude", directory=directory))
 
-    stas = io.read_station_table(stf)
-
     # Exclude some observations
-    stas = set(stas) - set(exclude["station"])
-    wvids = set(core.iterate_waveid(stas)) - set(exclude["waveform"])
+    wvids = core.iterate_waveid(directory, iteration, exclude)
 
     # Read the events
     event_dict = io.read_event_table(evf)
@@ -456,7 +452,7 @@ def amplitude_entry(
                     core.file("combination", sta, pha, iteration, directory)
                 )
                 combs = utils.valid_combinations(evns, pairs, pha)
-            elif pha == "P":
+            elif pha.startswith("P"):
                 combs = core.iterate_event_pair(len(evns))
             else:
                 combs = core.iterate_event_triplet(len(evns))
@@ -471,7 +467,7 @@ def amplitude_entry(
             mname = shm.name
 
             # Look up correct passband and collect the arguments
-            if pha == "P":
+            if pha.startswith("P"):
                 for a, b in combs:
                     hpas, lpas = signal.choose_passband(
                         [pasbnds[wvid][evns[i]][0] for i in [a, b]],
@@ -495,7 +491,7 @@ def amplitude_entry(
                             )
                         )
 
-            if pha == "S":
+            if pha.startswith("S"):
                 for a, b, c in combs:
                     hpas, lpas = signal.choose_passband(
                         [pasbnds[wvid][evns[i]][0] for i in [a, b, c]],
@@ -552,10 +548,10 @@ def amplitude_entry(
             if hpas is None:
                 continue
 
-            if pha == "P":
+            if pha.startswith("P"):
                 pargs += [(xarr, hdr, hpas, lpas)]
 
-            if pha == "S":
+            if pha.startswith("S"):
                 sargs += [(xarr, hdr, hpas, lpas)]
 
         # Arguments above pertain to these functions
@@ -704,7 +700,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
             sta, eva, evb, amp1, mis, cc, *_ = io.read_amplitudes(
                 infile, ph, unpack=True
             )
-            s1 = np.full_like(mis, -np.inf)  # Never exclud
+            s1 = np.full_like(mis, -np.inf)  # Never exclude
             amp2 = np.zeros_like(amp1)  # No second amplitude
             evc = eva
         else:
