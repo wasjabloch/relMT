@@ -464,98 +464,6 @@ def split_waveid(wave_id: str) -> tuple[str, str]:
     return station, phase
 
 
-# Iterators
-def iterate_waveid(stations: list[str]) -> Iterator[str]:
-    """Yield P and S waveform identifiers for all stations"""
-    for sta in sorted(stations):
-        for pha in "PS":
-            yield join_waveid(sta, pha)
-
-
-def iterate_event_pair(nev: int, event_list: list[int] | range | None = None):
-    """
-    Yield event pairs and corresponding indices into event_list
-
-    Parameters
-    ----------
-    nev:
-        Total number of events  (= highest event index)
-    event_list:
-        Reduced set of events to iterate (Default: range(nev))
-
-    Yields
-    ------
-    a, b: int
-        Combinations of a and b
-    ia, ib: int if `event_list` is not `None`
-        Indices of a and b in `event_list`
-    """
-
-    if event_list is None:
-        for a in range(nev - 1):
-            for b in range(a + 1, nev):
-                yield (a, b)
-    else:
-        for a in range(nev - 1):
-            for b in range(a + 1, nev):
-                ia = event_list[a]
-                ib = event_list[b]
-                yield (ia, ib)
-
-
-def iterate_event_triplet(nev: int, event_list: list[int] | range | None = None):
-    """
-    Yield event triplets and corresponding indices into event_list
-
-    Parameters
-    ----------
-    nev:
-        Total number of events
-    event_list:
-        Reduced set of events to iterate (Default: range(nev))
-
-    Yields
-    ------
-    a, b, c: int
-        Indices of combinations of a, b, and c
-    ia, ib, ic: int if `event_list` is not `None`
-        Indices of a, b and c in `event_list`
-
-    """
-
-    if event_list is None:
-        for a in range(nev - 2):
-            for b in range(a + 1, nev - 1):
-                for c in range(b + 1, nev):
-                    yield (a, b, c)
-
-    else:
-        for a in range(nev - 2):
-            for b in range(a + 1, nev - 1):
-                for c in range(b + 1, nev):
-                    try:
-                        ia = event_list[a]
-                        ib = event_list[b]
-                        ic = event_list[c]
-                        yield (ia, ib, ic)
-                    except ValueError:
-                        continue
-
-
-def ijk_ccvec(ns: int) -> Generator[tuple[int, int, int]]:
-    """Translate linear index n to cross correlation triplet indices ijk
-
-    Yields all three permutations (i, j, k), (k, i, j) and (j, k i)
-    """
-
-    for i in range(ns - 2):
-        for j in range(i + 1, ns - 1):
-            for k in range(j + 1, ns):
-                yield (i, j, k)
-                yield (k, i, j)
-                yield (j, k, i)
-
-
 ### Objects
 
 Station = namedtuple("Station", ["north", "east", "depth", "name"])
@@ -1472,6 +1380,107 @@ class Header(Config):
                     "'lowpass' ({lp} Hz) must be larger than 'highpass' ({hp} Hz)"
                 )
         return True
+
+
+# Iterators
+def iterate_waveid(directory: Path, iteration: int, excl: Exclude = exclude) -> list:
+    """Get the waveform IDs present in alignment directory.
+
+    Excluding those in the exclude file.
+    """
+    wvdir = directory / aligndir(iteration)
+
+    # Numpy and Matlab files
+    suf = "-" + basenames_phase_station["waveform_array"][1].rstrip(".npy")
+    wvfiles = list(wvdir.glob(f"*{suf}.npy")) + list(wvdir.glob(f"*{suf}.mat"))
+    wvids = set(wvfile.stem.split(suf)[0] for wvfile in wvfiles)
+    wvids = wvids - set(excl["waveform"])
+    wvids = [wvid for wvid in wvids if split_waveid(wvid)[0] not in excl["station"]]
+    return wvids
+
+
+def iterate_event_pair(nev: int, event_list: list[int] | range | None = None):
+    """
+    Yield event pairs and corresponding indices into event_list
+
+    Parameters
+    ----------
+    nev:
+        Total number of events  (= highest event index)
+    event_list:
+        Reduced set of events to iterate (Default: range(nev))
+
+    Yields
+    ------
+    a, b: int
+        Combinations of a and b
+    ia, ib: int if `event_list` is not `None`
+        Indices of a and b in `event_list`
+    """
+
+    if event_list is None:
+        for a in range(nev - 1):
+            for b in range(a + 1, nev):
+                yield (a, b)
+    else:
+        for a in range(nev - 1):
+            for b in range(a + 1, nev):
+                ia = event_list[a]
+                ib = event_list[b]
+                yield (ia, ib)
+
+
+def iterate_event_triplet(nev: int, event_list: list[int] | range | None = None):
+    """
+    Yield event triplets and corresponding indices into event_list
+
+    Parameters
+    ----------
+    nev:
+        Total number of events
+    event_list:
+        Reduced set of events to iterate (Default: range(nev))
+
+    Yields
+    ------
+    a, b, c: int
+        Indices of combinations of a, b, and c
+    ia, ib, ic: int if `event_list` is not `None`
+        Indices of a, b and c in `event_list`
+
+    """
+
+    if event_list is None:
+        for a in range(nev - 2):
+            for b in range(a + 1, nev - 1):
+                for c in range(b + 1, nev):
+                    yield (a, b, c)
+
+    else:
+        for a in range(nev - 2):
+            for b in range(a + 1, nev - 1):
+                for c in range(b + 1, nev):
+                    try:
+                        ia = event_list[a]
+                        ib = event_list[b]
+                        ic = event_list[c]
+                        yield (ia, ib, ic)
+                    except ValueError:
+                        continue
+
+
+def ijk_ccvec(ns: int) -> Generator[tuple[int, int, int]]:
+    """Translate linear index n to cross correlation triplet indices ijk
+
+    Yields all three permutations (i, j, k), (k, i, j) and (j, k i)
+    """
+
+    for i in range(ns - 2):
+        for j in range(i + 1, ns - 1):
+            for k in range(j + 1, ns):
+                yield (i, j, k)
+                yield (k, i, j)
+                yield (j, k, i)
 
 
 # TODO: Only make an 'extra' optional dependency

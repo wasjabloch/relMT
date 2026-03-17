@@ -73,21 +73,7 @@ def align_entry(
 
     excl = io.read_exclude_file(core.file("exclude", directory=directory))
 
-    wvdir = directory / core.aligndir(iteration)
-
-    # Matlab and numpy files
-    wvfiles = list(wvdir.glob(f"*-{core.basenames_phase_station['waveform_array'][1]}"))
-    wvfiles += list(
-        wvdir.glob(
-            f"*-{core.basenames_phase_station['waveform_array'][1].replace('.npy', '.mat')}"
-        )
-    )
-
-    wvids = set(wvfile.stem.split("-")[0] for wvfile in wvfiles)
-    wvids = wvids - set(excl["waveform"])
-    wvids = [
-        wvid for wvid in wvids if core.split_waveid(wvid)[0] not in excl["station"]
-    ]
+    wvids = core.iterate_waveid(directory, iteration, excl)
 
     ncpu = config["ncpu"] or 1
     lag_times = config["lag_times"] or []  # Empty list if None.
@@ -226,7 +212,7 @@ def exclude_entry(
     # Collect new excludes in this dictionary
     excludes = {"no_data": [], "snr": [], "cc": [], "ecn": []}
 
-    for wvid in core.iterate_waveid(stas):
+    for wvid in core.iterate_waveid(directory, iteration):
 
         sta, pha = core.split_waveid(wvid)
 

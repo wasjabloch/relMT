@@ -327,9 +327,22 @@ def test_file_suffix():
     assert str(ans).endswith("myfile-mysuffix.dat")
 
 
-def test_iterate_waveid():
-    wvids = list(core.iterate_waveid(["STA1"]))
-    assert pytest.approx(wvids) == ["STA1_P", "STA1_S"]
+def test_iterate_waveid(tmp_path):
+    aligndir = tmp_path / core.aligndir(1)
+    aligndir.mkdir()
+
+    (aligndir / "STA1_P-wvarr.npy").touch()
+    (aligndir / "STA1_S-wvarr.mat").touch()
+    (aligndir / "STA2_P-wvarr.npy").touch()
+    (aligndir / "STA3_P-wvarr.txt").touch()
+    (aligndir / "STA4_P-other.npy").touch()
+
+    excl = dict(core.exclude)
+    excl["waveform"] = ["STA1_S"]
+    excl["station"] = ["STA2"]
+
+    wvids = sorted(core.iterate_waveid(tmp_path, 1, excl))
+    assert wvids == ["STA1_P"]
 
 
 def test_iterate_event_pair():
