@@ -863,8 +863,7 @@ def read_combinations(filename: str | Path) -> set[tuple[int, int]]:
     """
     Read a table of event combinations
 
-    Each pair will be sorted to allow for
-
+    Each pair will be sorted to allow for easy lookup.
 
     Parameters
     ----------
