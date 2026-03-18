@@ -1373,6 +1373,12 @@ event exclusion""",
 Minimum allowed norm of the principal component expansion coefficients
 contributing to the waveform reconstruction for event exclusion""",
     ),
+    "combine_neighbors": (
+        "int",
+        """
+Combine only this many nearest neigboring events. Ignored when using
+'combinations_from_file'""",
+    ),
     "combinations_from_file": (
         "bool",
         """
@@ -1426,6 +1432,7 @@ class Header(Config):
         min_signal_noise_ratio: float | None = None,
         min_correlation: float | None = None,
         min_expansion_coefficient_norm: float | None = None,
+        combine_neighbors: int | None = None,
         combinations_from_file: bool | None = None,
         events_: list[int] | None = None,
     ):

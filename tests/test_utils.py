@@ -389,6 +389,33 @@ def test_xyzarray():
     assert result.shape == (2, 3)
 
 
+def test_nearest_neighbors():
+    events = np.array([10, 20, 30, 40])
+    event_dict = {
+        10: core.Event(0.0, 0.0, 0.0, 0.0, 0.0, "10"),
+        20: core.Event(1.0, 0.0, 0.0, 0.0, 0.0, "20"),
+        30: core.Event(3.0, 0.0, 0.0, 0.0, 0.0, "30"),
+        40: core.Event(10.0, 0.0, 0.0, 0.0, 0.0, "40"),
+    }
+
+    pairs = utils.nearest_neighbors(2, events, event_dict)
+
+    assert pairs == {(10, 20), (20, 30), (30, 40)}
+
+
+def test_nearest_neighbors_returns_all_pairs_if_too_few_events():
+    events = np.array([10, 20, 30])
+    event_dict = {
+        10: core.Event(0.0, 0.0, 0.0, 0.0, 0.0, "10"),
+        20: core.Event(1.0, 0.0, 0.0, 0.0, 0.0, "20"),
+        30: core.Event(2.0, 0.0, 0.0, 0.0, 0.0, "30"),
+    }
+
+    pairs = utils.nearest_neighbors(5, events, event_dict)
+
+    assert pairs == {(10, 20), (10, 30), (20, 30)}
+
+
 def test_cartesian_distance():
     result = utils.cartesian_distance(0, 0, 0, 1, 1, 1)
     assert np.isclose(result, np.sqrt(3))

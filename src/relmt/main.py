@@ -92,6 +92,9 @@ def align_entry(
     ncpu = config["ncpu"] or 1
     lag_times = config["lag_times"] or []  # Empty list if None.
 
+    # Initialize event dict, only load it when we combine nearest neighbors
+    evd = {}
+
     args = []
     for wvid in wvids:
 
@@ -127,12 +130,25 @@ def align_entry(
         )
 
         # Read optional pair list and  check for singolton events
+        if hdr["combinations_from_file"] and hdr["combine_neighbors"]:
+            logger.warning(
+                "'combinations_from_file' given. Ignoring 'combine_neighbors'"
+            )
+
         if hdr["combinations_from_file"]:
             pairs = io.read_combinations(core.file("combination", *source))
+            iin &= np.isin(hdr["events_"], np.unique(list(pairs)))
+        elif hdr["combine_neighbors"]:
+            if not evd:
+                # Load the event dict, if not done yet
+                evd = io.read_event_table(config["event_file"])
+            evns = np.array(hdr["events_"])[iin]  # Only parse included events
+            pairs = utils.nearest_neighbors(hdr["combine_neighbors"], evns, evd)
             iin &= np.isin(hdr["events_"], np.unique(list(pairs)))
 
         # Enough events left?
         if (phase == "P" and sum(iin) < 2) or (phase == "S" and sum(iin) < 3):
+            logger.warning(f"Not enough events for {wvid}")
             continue
 
         # Only parse valid events
@@ -140,7 +156,7 @@ def align_entry(
 
         # Convert pair to triplet combinations and return indices into arr
         combinations = np.array([])
-        if hdr["combinations_from_file"]:
+        if hdr["combinations_from_file"] or hdr["combine_neighbors"]:
             logger.debug("Finding valid combinations")
             combinations = utils.valid_combinations(hdr["events_"], pairs, hdr["phase"])
             logger.info(f"Found {combinations.shape[0]} combinations for {wvid}")
@@ -465,10 +481,20 @@ def amplitude_entry(
             xarr = arr[ievs, :, :]
             hdr["events_"] = evns
 
-            if hdr["combinations_from_file"]:
-                pairs = io.read_combinations(
-                    core.file("combination", sta, pha, iteration, directory)
-                )
+            if hdr["combinations_from_file"] or hdr["combine_neighbors"]:
+                if hdr["combinations_from_file"]:
+                    pairs = io.read_combinations(
+                        core.file("combination", sta, pha, iteration, directory)
+                    )
+                    logger.info(
+                        f"Using {pairs.shape[0]} combinations from file for {wvid}"
+                    )
+                else:
+                    nn = hdr["combine_neighbors"]
+                    pairs = utils.nearest_neighbors(nn, evns, event_dict)
+                    logger.info(
+                        f"Using {pairs.shape[0]} combinations from {nn} nearest neighbors for {wvid}"
+                    )
                 combs = utils.valid_combinations(evns, pairs, pha)
             elif pha == "P":
                 combs = core.iterate_event_pair(len(evns))

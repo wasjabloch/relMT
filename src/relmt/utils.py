@@ -27,6 +27,7 @@ import numpy as np
 from scipy.linalg import svd
 from scipy.interpolate import interpn
 from scipy.special import comb
+from scipy.spatial import cKDTree
 from datetime import datetime
 from typing import Iterable
 from relmt import core, mt, signal, qc, angle
@@ -708,6 +709,38 @@ def select_events(arr: np.ndarray, select: list[int], events: list[int]) -> np.n
 
     iin = [events.index(i) for i in select]
     return arr[iin, ...]
+
+
+def nearest_neighbors(
+    n_neighbors: int, events: np.ndarray, event_dict: dict
+) -> set[tuple[int, int]]:
+
+    # Events observed on this station
+    thisevd = {evn: event_dict[evn] for evn in events}
+    xyz = xyzarray(thisevd)
+
+    # Find nearest neigbours
+    tree = cKDTree(xyz)
+    _, inn = tree.query(xyz, n_neighbors)
+
+    try:
+        # Re-format neigbour indices to event number pairs
+        pairs = np.array(
+            [
+                np.repeat(events[inn[:, 0]], inn.shape[1] - 1),
+                events[inn[:, 1:]].reshape(-1),
+            ]
+        ).T
+    except IndexError:
+        # Too few events, simply return all pairs
+        pairs = np.array(
+            [[events[a], events[b]] for a, b in core.iterate_event_pair(len(events))]
+        )
+
+    pairs.sort(axis=-1)
+
+    # Set required for quick lookup in sanity check
+    return set(tuple(pair) for pair in pairs)
 
 
 def valid_combinations(
