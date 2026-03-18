@@ -105,7 +105,7 @@ def test_mccc_ssf0():
     combs = np.array(list(core.iterate_event_triplet(wvin.shape[0]))) + 1
 
     rowi, coli, valu, dd, cc3 = mcf.mccc_ssf0(
-        wvin.T, 1 / sampling_rate, 20, 1, combs, verb=False
+        wvin.T, 1 / sampling_rate, 20, 1, combs, True, False
     )
 
     A = coo_matrix((valu, (rowi, coli)), dtype=np.float64).tocsc()
@@ -126,6 +126,12 @@ def test_mccc_ssf0():
 
     # And the diagonal == 0, so as to average it correctly
     assert pytest.approx(cc2[np.diag_indices_from(cc2)]) == 0.0
+
+    # Do we really skip computing cc3 when docc=False?
+    _, _, _, _, cc3 = mcf.mccc_ssf0(
+        wvin.T, 1 / sampling_rate, 20, 1, combs, False, False
+    )
+    assert pytest.approx(cc3) == 0.0
 
 
 def test_mccc_ssf():
@@ -211,7 +217,9 @@ def test_paired_s_lag_times():
 
     wvf_matrix = s_wavelet()
     nwv = len(wvf_matrix)
-    _, cc, dd, dd_res, evpairs = align.mccc_align(wvf_matrix, "S", 100, 0.5)
+    _, cc, dd, dd_res, evpairs = align.mccc_align(
+        wvf_matrix, "S", 100, 0.5, do_scc=True
+    )
 
     evpairs2, dd2, cc2, rms = align.complete_paired_s_lag_times(evpairs, dd, cc, dd_res)
 

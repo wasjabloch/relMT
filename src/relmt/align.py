@@ -66,6 +66,7 @@ def mccc_align(
     maxshift: float,
     ndec: int = 1,
     combinations: np.ndarray = np.array([]),
+    do_scc: bool = True,
     verbose: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute time shifts that align the seismogram matrix
@@ -88,6 +89,9 @@ def mccc_align(
     combinations:
         Only combine these indices of mtx. ``(combinations, 2)`` for P-waves,
         ``(combinations, 3)`` for S-waves. When empty, combine all events.
+    do_scc:
+        Compute S-wave correlation coefficients. May be slow. Else, returned cc
+        values are all zero
     verbose:
         Print diagnostic output
 
@@ -119,11 +123,6 @@ def mccc_align(
     sampling_interval = 1 / sampling_rate
     nev = mtx.shape[0]
 
-    if phase == "P":
-        fun = mccore.mccc_ppf
-    elif phase == "S":
-        fun = mccore.mccc_ssf0
-
     icombine = True
     if len(combinations) == 0:
         icombine = False
@@ -149,9 +148,21 @@ def mccc_align(
     combinations += 1  # Fortran indexing
 
     # Data, sampling_interval, maxlag, ndec
-    rowi, coli, valu, dd, cc = fun(
-        mtx.T, sampling_interval, maxshift, ndec, combinations, verbose, nci=ncombi
-    )
+    if phase == "P":
+        rowi, coli, valu, dd, cc = mccore.mccc_ppf(
+            mtx.T, sampling_interval, maxshift, ndec, combinations, verbose, nci=ncombi
+        )
+    elif phase == "S":
+        rowi, coli, valu, dd, cc = mccore.mccc_ssf0(
+            mtx.T,
+            sampling_interval,
+            maxshift,
+            ndec,
+            combinations,
+            do_scc,
+            verbose,
+            nci=ncombi,
+        )
 
     combinations -= 1  # Return to python indexing
 
@@ -609,6 +620,7 @@ def run(
             verbose=True,
             maxshift=maxshift,
             combinations=mccc_combinations,
+            do_cc=False,
             **header.kwargs(mccc_align),
         )
 

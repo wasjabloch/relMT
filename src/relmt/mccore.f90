@@ -306,13 +306,14 @@ integer :: ix,jx,kx,ll,mm,nn,nl,nl2,ii,jj,k
 
 end subroutine
 !-----------------
-subroutine mccc_ssf0(scomp0,dt,mxlag,ndec,trips,verb,rowi,coli,valu,dd,cc3,ns,nt,nci)
+subroutine mccc_ssf0(scomp0,dt,mxlag,ndec,trips,docc,verb,rowi,coli,valu,dd,cc3,ns,nt,nci)
 ! Input:
 ! scomp0: Input seismogram matrix of NS seismograms x NT samples
 ! dt: Sampling interval (seconds)
 ! mxlag: Maximum time lag to search for correlation (seconds)
 ! ndec: Number of samples to decimate time lag search (samples)
 ! trips: Optional list of event combinations to use
+! docc: Compute cc coefficients (logical)
 ! verb: Verbose (logical)
 !
 ! Output:
@@ -329,6 +330,7 @@ implicit none
 real(8), intent(in) :: mxlag,dt
 integer, intent(in) :: ns,nt,nci
 integer, intent(in) :: ndec
+logical, intent(in) :: docc
 logical, intent(in) :: verb
 integer, intent(in), dimension(nci,3) :: trips
 real(8), intent(in), dimension(nt,ns) :: scomp0
@@ -459,7 +461,11 @@ endif
         gmat(:,1)=scomp(:,ix)
         gmat(:,2)=cshift(scomp(:,jx),-int(rlag(kk(1))/dt))
         gmat(:,3)=cshift(scomp(:,kx),-int(rlag(kk(2))/dt))
-        call ccorf3(gmat,nt,cc3(nn:nn+2))
+! Don't call ccorf3 now, because we compute the cc's only after applying the
+! time window
+        if (docc) then
+          call ccorf3(gmat,nt,cc3(nn:nn+2))
+        end if
 
 ! Fill rows,columns and values for COO spars format.
         rowi(mm)=ll
