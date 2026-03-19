@@ -951,9 +951,10 @@ def solve_entry(
     ampsuf = config["amplitude_suffix"]
     admsuf = config["admit_suffix"]
     resuf = config["result_suffix"]
-    insuf = f"{ampsuf}-{admsuf}"
-    outsuf = f"{insuf}-{resuf}"
-    synsuf = outsuf + core.synthetic_amplitude_suffix
+
+    insuf = core.combine_suffixes(ampsuf, admsuf)
+    outsuf = core.combine_suffixes(insuf, resuf)
+    synsuf = core.combine_suffixes(outsuf, core.synthetic_amplitude_suffix)
 
     mt_elements = ls.mt_elements(constraint)
 

@@ -233,6 +233,12 @@ clean_amplitude_suffix = "admit"
 synthetic_amplitude_suffix = "-synthetic"
 
 
+def combine_suffixes(*suffixes: str) -> str:
+    """Combine multiple suffixes into one, with single leading '-' and no trailing '-'"""
+    clean_suffixes = [s.lstrip("-") for s in suffixes if s]
+    return "-".join(clean_suffixes)
+
+
 def aligndir(iteration: int | None) -> str:
     """Return the name of the alignment directory for a given iteration"""
     if iteration is None or iteration == 0:
