@@ -821,19 +821,24 @@ Maximum azimuthal gap allowed for one moment tensor""",
 Use two equations per S-amplitude observation triplet (`False` only includes the
 one with the highest norm of the polarization vector).""",
     ),
+    "max_p_equations": (
+        "int",
+        """
+Maximum number of P-wave equation in the linear system. If more are available,
+iteratively discard those with redundant observations, on stations with many
+observations, and with a higher misfit""",
+    ),
     "max_s_equations": (
         "int",
         """
-Maximum number of S-wave equation in the linear system. If more are available,
-iteratively discard those with redundant pair-wise observations, on stations
-with many observations, and with a higher misfit""",
+As `max_p_equations`, but for S equations.""",
     ),
     "keep_events": (
         "list",
         """
-When reducing number of S-wave equations, increase importance of these events by
-not counting them in the redundancy score. Use to keep many equations e.g. for
-the reference event or specific events of interest.""",
+When reducing number of equations, increase importance of these events by not
+counting them in the redundancy score. Use to keep more equations e.g. for the
+reference event or specific events of interest.""",
     ),
     "equation_batches": (
         "int",
@@ -937,6 +942,7 @@ class Config:
         max_magnitude_difference: float | None = None,
         max_event_distance: float | None = None,
         two_s_equations: bool | None = None,
+        max_p_equations: int | None = None,
         max_s_equations: int | None = None,
         keep_events: list[int] | None = None,
         equation_batches: int | None = None,
