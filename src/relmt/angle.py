@@ -410,8 +410,11 @@ def azimuth_gap(
     # Mapping Event -> Wave IDs
     wvobs = {
         evn: set(
-            [(p_amplitudes[pev].station, "P") for pev in ipev[evn]]
-            + [(s_amplitudes[sev].station, "S") for sev in isev[evn]]
+            [(p_amplitudes[pev].station, p_amplitudes[pev].phase) for pev in ipev[evn]]
+            + [
+                (s_amplitudes[sev].station, s_amplitudes[sev].phase)
+                for sev in isev[evn]
+            ]
         )
         for evn in evns
     }
