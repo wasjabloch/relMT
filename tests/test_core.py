@@ -327,6 +327,16 @@ def test_file_suffix():
     assert str(ans).endswith("myfile-mysuffix.dat")
 
 
+def test_combine_suffixes():
+    assert core.combine_suffixes("a", "b") == "a-b"
+    assert core.combine_suffixes("-a", "-b") == "a-b"
+    assert core.combine_suffixes("-a", "b") == "a-b"
+    assert core.combine_suffixes("a", "-b", "c") == "a-b-c"
+    assert core.combine_suffixes("", "b") == "b"
+    assert core.combine_suffixes("a", "") == "a"
+    assert core.combine_suffixes("", "") == ""
+
+
 def test_iterate_waveid(tmp_path):
     aligndir = tmp_path / core.aligndir(1)
     aligndir.mkdir()
