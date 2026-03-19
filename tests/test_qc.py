@@ -331,3 +331,117 @@ def test_connected_events():
     # The MTs are not connected with each other. Solve seperatly
     with pytest.raises(RuntimeError):
         cevs = qc.connected_events([0, 5], pamps, samps)
+
+
+def _phase_dict_for_amplitudes(pamps=None, samps=None):
+    phase_dict = {}
+    for pamp in pamps or []:
+        for event in (pamp.event_a, pamp.event_b):
+            phase_dict[core.join_phaseid(event, pamp.station, pamp.phase)] = core.Phase(
+                0.0, 0.0, 0.0
+            )
+    for samp in samps or []:
+        for event in (samp.event_a, samp.event_b, samp.event_c):
+            phase_dict[core.join_phaseid(event, samp.station, samp.phase)] = core.Phase(
+                0.0, 0.0, 0.0
+            )
+    return phase_dict
+
+
+def test_reduce_equations_reduces_only_p_amplitudes():
+    pamps = [
+        core.P_Amplitude_Ratio("STA1", "P", 0, 1, 1.0, 0.1, 0.8, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA2", "P", 0, 1, 1.0, 0.9, 0.8, 0.9, 0.1, 0.5, 20.0),
+    ]
+    samps = [
+        core.S_Amplitude_Ratios(
+            "STA3", "S", 0, 1, 2, 1.0, 1.0, 0.2, 0.8, 0.2, 0.1, 0.0, 0.5, 20.0
+        )
+    ]
+
+    rp, rs = qc.reduce_equations(
+        pamps,
+        samps,
+        _phase_dict_for_amplitudes(pamps, samps),
+        max_p_equations=1,
+        max_s_equations=2,
+        two_s=False,
+        keep_ev=[],
+        min_equations=0,
+        max_gap=360.0,
+        max_amplitude_misfit=1.0,
+        max_s_amplitude_misfit=1.0,
+        max_s_sigma1=1.0,
+    )
+
+    assert len(rp) == 1
+    assert rp[0].station == "STA1"
+    assert rs == samps
+
+
+def test_reduce_equations_reduces_only_s_amplitudes():
+    pamps = [
+        core.P_Amplitude_Ratio("STA1", "P", 0, 1, 1.0, 0.1, 0.8, 0.9, 0.1, 0.5, 20.0)
+    ]
+    samps = [
+        core.S_Amplitude_Ratios(
+            "STA2", "S", 0, 1, 2, 1.0, 1.0, 0.1, 0.8, 0.2, 0.1, 0.0, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA3", "S", 0, 1, 2, 1.0, 1.0, 0.9, 0.8, 0.9, 0.1, 0.0, 0.5, 20.0
+        ),
+    ]
+
+    rp, rs = qc.reduce_equations(
+        pamps,
+        samps,
+        _phase_dict_for_amplitudes(pamps, samps),
+        max_p_equations=1,
+        max_s_equations=1,
+        two_s=False,
+        keep_ev=[],
+        min_equations=0,
+        max_gap=360.0,
+        max_amplitude_misfit=1.0,
+        max_s_amplitude_misfit=1.0,
+        max_s_sigma1=1.0,
+    )
+
+    assert rp == pamps
+    assert len(rs) == 1
+    assert rs[0].station == "STA2"
+
+
+def test_reduce_equations_reduces_p_and_s_amplitudes_together():
+    pamps = [
+        core.P_Amplitude_Ratio("STA1", "P", 0, 1, 1.0, 0.1, 0.8, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA2", "P", 0, 1, 1.0, 0.9, 0.8, 0.9, 0.1, 0.5, 20.0),
+    ]
+    samps = [
+        core.S_Amplitude_Ratios(
+            "STA3", "S", 0, 1, 2, 1.0, 1.0, 0.1, 0.8, 0.2, 0.1, 0.0, 0.5, 20.0
+        ),
+        core.S_Amplitude_Ratios(
+            "STA4", "S", 0, 1, 2, 1.0, 1.0, 0.9, 0.8, 0.9, 0.1, 0.0, 0.5, 20.0
+        ),
+    ]
+
+    rp, rs = qc.reduce_equations(
+        pamps,
+        samps,
+        _phase_dict_for_amplitudes(pamps, samps),
+        max_p_equations=1,
+        max_s_equations=1,
+        two_s=False,
+        keep_ev=[],
+        min_equations=0,
+        max_gap=360.0,
+        max_amplitude_misfit=1.0,
+        max_s_amplitude_misfit=1.0,
+        max_s_sigma1=1.0,
+    )
+
+    assert len(rp) == 1
+    assert rp[0].station == "STA1"
+    assert len(rs) == 1
+    assert rs[0].station == "STA3"

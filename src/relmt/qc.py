@@ -909,3 +909,140 @@ def events_phases_above_misfit(
                     events[iev] -= 1
 
     return events, phases
+
+
+def reduce_equations(
+    pamps: list[core.P_Amplitude_Ratio],
+    samps: list[core.S_Amplitude_Ratios],
+    phd: dict[str : core.Phase],
+    max_p_equations: int,
+    max_s_equations: int,
+    two_s: bool,
+    keep_ev: list[str],
+    min_equations: int,
+    max_gap: float,
+    max_amplitude_misfit: float,
+    max_s_amplitude_misfit: float,
+    max_s_sigma1: float,
+    equation_batches: int = 1,
+):
+    """Reduce the number of equations based on misfit, redundancy and station coverage
+
+    Parameters
+    ----------
+    pamps:
+        List of P-amplitude observations
+    samps:
+        List of S-amplitude observations
+    phd:
+        Phase dictionary with take-off azimuths
+    max_p_equations:
+        Maximum number of P-equations to keep
+    max_s_equations:
+        Maximum number of S-equations to keep
+    two_s:
+        Count each S observation twice (for the two independent S-wave combinations)
+    keep_ev:
+        List of event IDs to keep, even if they are redundant
+    min_equations:
+        Minimum number of equations per event to keep
+    max_gap:
+        Maximum allowed azimuthal gap per event to keep
+    max_amplitude_misfit:
+        Maximum allowed misfit for P-amplitude observations to keep
+    max_s_amplitude_misfit:
+        Maximum allowed misfit for S-amplitude observations to keep
+    max_s_sigma1:
+        Maximum allowed sigma1 for S-amplitude observations to keep
+    equation_batches:
+        Reduce equations in batches. Larger number, reduces in smaller batches,
+        which can lead to a more optimal selection of equations, but takes
+        longer.
+
+    Returns
+    -------
+    Reduced list of P- and S-amplitude observations
+    """
+
+    s_equations = len(samps) * (1 + int(two_s))
+    p_equations = len(pamps)
+    excess_s = s_equations - max_s_equations
+    excess_p = p_equations - max_p_equations
+    logger.info(f"Have {s_equations} S-equations, need to reduce by {excess_s}")
+    logger.info(f"Have {p_equations} P-equations, need to reduce by {excess_p}")
+
+    while s_equations > max_s_equations or p_equations > max_p_equations:
+        triplets, stas, miss, s1s = map(
+            np.array,
+            zip(
+                *[
+                    (
+                        (samp.event_a, samp.event_b, samp.event_c),
+                        samp.station,
+                        samp.misfit,
+                        samp.sigma1,
+                    )
+                    for samp in samps
+                ]
+            ),
+        )
+        pairs, stap, misp = map(
+            np.array,
+            zip(
+                *[
+                    ((pamp.event_a, pamp.event_b), pamp.station, pamp.misfit)
+                    for pamp in pamps
+                ]
+            ),
+        )
+
+        # Redundancy score per observation (highest score least important)
+        sred_score = utils.pair_redundancy(triplets, ignore=keep_ev)
+        pred_score = utils.element_redundancy(pairs, ignore=keep_ev)
+
+        # Gap score per observation (lowest score least important)
+        # Alternative score based on station azimutal gap
+        # std_sub = {stn: std[stn] for stn in set(stas)}
+        # sta_gap = utils.station_gap(std_sub, evd)
+        # gap_score = np.array([sta_gap[sta] for sta in stas])
+
+        sta_count_s = utils.item_count(stas)
+        sta_count_p = utils.item_count(stap)
+
+        # Combine misfit and sigma meassure
+        # Prefer disinct S-wave combinations with low misfit
+        # Lower is better
+        mis_sigma = (1 - (max_s_sigma1 - s1s)) * (1 - (max_s_amplitude_misfit - miss))
+        mis_p = 1 - (max_amplitude_misfit - misp)
+
+        # Adapt number of exclusion in case some events dropped out
+        nex_s = int(-excess_s // equation_batches)
+        nex_p = int(-excess_p // equation_batches)
+
+        if nex_s >= 0:
+            nex_s = None
+        if nex_p >= 0:
+            nex_p = None
+
+        # score sort: from most important to least important
+        ssort = np.lexsort((mis_sigma, sta_count_s, sred_score))
+        samps = [samps[i] for i in ssort[:nex_s]]
+
+        psort = np.lexsort((mis_p, sta_count_p, pred_score))
+        pamps = [pamps[i] for i in psort[:nex_p]]
+
+        # Check once more we have enough equations
+        pamps, samps = qc.clean_by_equation_count_gap(
+            pamps, samps, phd, min_equations, max_gap, two_s
+        )
+        s_equations = len(samps) * (1 + int(two_s))
+        p_equations = len(pamps)
+
+        # In case some events dropped out, how many equations are left?
+        excess_s = s_equations - max_s_equations
+        excess_p = p_equations - max_p_equations
+        logger.debug(f"Reduced to {s_equations} S-equations. {excess_s} left.")
+        logger.debug(f"Reduced to {p_equations} P-equations. {excess_p} left.")
+        equation_batches -= 1
+
+    return pamps, samps
