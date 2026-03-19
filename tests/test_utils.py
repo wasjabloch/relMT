@@ -489,3 +489,29 @@ def test_pair_redundancy():
     scores = utils.pair_redundancy(tri, ignore=[10, 1])
 
     assert pytest.approx(scores) == [2, 2, 4, 0, 0, 4, 3]
+
+
+def test_element_redundancy():
+    pairs = np.array(
+        [
+            (1, 2),
+            (2, 3),
+            (3, 4),
+            (1, 3),
+            (1, 4),
+            (20, 4),
+            (20, 30),
+        ],
+        dtype=int,
+    )
+    scores = utils.element_redundancy(pairs)
+
+    assert pytest.approx(scores) == [5, 5, 6, 6, 6, 5, 3]
+
+    scores = utils.element_redundancy(pairs, ignore=[1])
+
+    assert pytest.approx(scores) == [2, 5, 6, 3, 3, 5, 3]
+
+    scores = utils.element_redundancy(pairs, ignore=[1, 20])
+
+    assert pytest.approx(scores) == [2, 5, 6, 3, 3, 3, 1]

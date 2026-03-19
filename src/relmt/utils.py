@@ -885,6 +885,47 @@ def pair_redundancy(
     return scores
 
 
+def element_redundancy(
+    pairs: np.ndarray, ignore: list[int] | None = None
+) -> np.ndarray:
+    """Count of the number of contributing elements per pair
+
+    Parameters
+    ----------
+    pairs:
+        ``(n, 2)`` array of event index pairs
+    ignore:
+        Do not count elements that contain these event indices
+
+    Returns
+    -------
+    Number of element occurrences contributing to each pair
+    """
+
+    # Flatten to individual element occurrences
+    elems = pairs.reshape(-1)
+
+    # True where the element itself should not be counted
+    iignore = np.isin(elems, ignore)
+
+    # Get counts per unique element
+    _, inverse, counts = np.unique(elems, return_inverse=True, return_counts=True)
+
+    # Map each element occurrence to its frequency
+    elem_freqs = counts[inverse]
+
+    # But don't count ignored elements
+    elem_freqs[iignore] = 0
+
+    # Reshape to element occurrences in pairs
+    freqs_per_pair = elem_freqs.reshape(-1, 2)
+
+    # And sum all occurrences
+    scores = freqs_per_pair.sum(axis=1)
+
+    return scores
+
+
 def item_count(array: Iterable) -> np.ndarray:
     """Count of the items in the list"""
     _, inv, cnt = np.unique(array, return_counts=True, return_inverse=True)
