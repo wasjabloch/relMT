@@ -798,13 +798,13 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
 
         # Misfit
         nout = sum(iout)
-        if max_mis is not None and phase_type == "P":
+        if np.isfinite(max_mis) and phase_type == "P":
             iout |= ~(mis < max_mis)  # Exclude also nans
             logger.info(
                 f"Excluded {sum(iout) - nout} more P-observations due to high misfit"
             )
 
-        if max_smis is not None and phase_type == "S":
+        if np.isfinite(max_smis) and phase_type == "S":
             iout |= ~(mis < max_smis)  # Exclude also nans
             logger.info(
                 f"Excluded {sum(iout) - nout} more S-observations due to high misfit"
@@ -812,7 +812,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
 
         # Sigma1
         nout = sum(iout)
-        if max_s1 is not None:
+        if max_s1 < 1.0 and phase_type == "S":
             iout |= ~(s1 < max_s1)  # Exclude also nans
             logger.info(
                 f"Excluded {sum(iout) - nout} more {phase_type}-observations due high sigma1"
@@ -827,10 +827,12 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
         amps = qc.clean_by_valid_takeoff_angle(amps, phd)
 
         # ... within magnitude difference ...
-        amps = qc.clean_by_magnitude_difference(amps, evd, max_mag_diff)
+        if max_mag_diff is not None:
+            amps = qc.clean_by_magnitude_difference(amps, evd, max_mag_diff)
 
         # ... within inter-event distance ...
-        amps = qc.clean_by_event_distance(amps, evd, max_ev_dist)
+        if max_ev_dist is not None:
+            amps = qc.clean_by_event_distance(amps, evd, max_ev_dist)
 
         # Let's not overwrite, but save for later use
         if phase_type == "P":
