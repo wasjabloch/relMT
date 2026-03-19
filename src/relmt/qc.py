@@ -165,7 +165,7 @@ def clean_by_magnitude_difference(
     Cleaned list of amplitude observations
     """
 
-    if magnitude_difference is None:
+    if magnitude_difference is None or len(amplitudes) == 0:
         return amplitudes
 
     ip, _ = _ps_amplitudes(amplitudes)
@@ -216,7 +216,7 @@ def clean_by_event_distance(
     Cleaned list of amplitude observations
     """
 
-    if event_distance is None:
+    if event_distance is None or len(amplitudes) == 0:
         return amplitudes
 
     ip, _ = _ps_amplitudes(amplitudes)
@@ -385,10 +385,13 @@ def clean_by_valid_takeoff_angle(
     Cleaned list of amplitude observations
     """
 
+    if len(amplitudes) == 0:
+        return amplitudes
+
     # Check if we are dealing with P or S
     _, iev = _ps_amplitudes(amplitudes)
 
-    # Return amplitude only if a ll take-off angles are finite
+    # Return amplitude only if take-off angles are finite
     return [
         amp
         for amp in amplitudes
