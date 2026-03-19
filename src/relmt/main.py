@@ -698,6 +698,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
     min_eq = config["min_equations"]
     max_gap = config["max_gap"]
     two_s = config["two_s_equations"]
+    max_p_equations = config["max_p_equations"]
     max_s_equations = config["max_s_equations"]
     eq_batches = config["equation_batches"]
     keep_ev = config["keep_events"]
@@ -846,70 +847,24 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
     )
 
     # Make sure we don't have too many equations
-    s_equations = len(samps) * (1 + int(two_s))
-    if max_s_equations is not None:
-        excess_eq = s_equations - max_s_equations
-        logger.info(f"Have {s_equations} S-equations, need to reduce by {excess_eq}")
-
-        if eq_batches is None:
-            eq_batches = 0
-            logger.debug(
-                "'equation_batches' not set. Reducing S equations in one batch."
-            )
-
-        if max_s1 is None:
-            max_s1 = 1.0
-
-        while s_equations > max_s_equations:
-            triplets, stas, miss, s1s = map(
-                np.array,
-                zip(
-                    *[
-                        (
-                            (samp.event_a, samp.event_b, samp.event_c),
-                            samp.station,
-                            samp.misfit,
-                            samp.sigma1,
-                        )
-                        for samp in samps
-                    ]
-                ),
-            )
-
-            # Redundancy score per observation (highest score least important)
-            red_score = utils.pair_redundancy(triplets, ignore=keep_ev)
-
-            # Gap score per observation (lowest score least important)
-            # Alternative score based on station azimutal gap
-            # std_sub = {stn: std[stn] for stn in set(stas)}
-            # sta_gap = utils.station_gap(std_sub, evd)
-            # gap_score = np.array([sta_gap[sta] for sta in stas])
-
-            sta_count = utils.item_count(stas)
-
-            # Combine misfit and sigma meassure
-            # Prefer disinct S-wave combinations with low misfit
-            # Lower is better
-            mis_sigma = (1 - (max_s1 - s1s)) * (1 - (max_smis - miss))
-
-            # Adapt number of exclusion in case some events dropped out
-            nex = int(excess_eq // eq_batches + 1)
-
-            # score sort: from most important to least important
-            ssort = np.lexsort((mis_sigma, sta_count, red_score))
-            samps = [samps[i] for i in ssort[: -nex + 1]]
-
-            # Check once more we have enough equations
-            pamps, samps = qc.clean_by_equation_count_gap(
-                pamps, samps, phd, min_eq, max_gap, two_s
-            )
-
-            s_equations = len(samps) * (1 + int(two_s))
-
-            # In case some events dropped out, how many equations are left?
-            excess_eq = s_equations - max_s_equations
-            logger.debug(f"Reduced to {s_equations} S-equations. {excess_eq} left.")
-            eq_batches -= 1
+    if max_s_equations is not None or max_p_equations is not None:
+        max_p_equations = max_p_equations or len(pamps)
+        max_s_equations = max_s_equations or len(samps) * (int(two_s) + 1)
+        pamps, samps = qc.reduce_equations(
+            pamps,
+            samps,
+            phd,
+            max_p_equations,
+            max_s_equations,
+            two_s,
+            keep_ev,
+            min_eq,
+            max_gap,
+            max_mis,
+            max_smis,
+            max_s1,
+            eq_batches,
+        )
 
     if len(pamps) + len(samps) == 0:
         raise RuntimeError("No observations left. Relax your admission criteria.")
