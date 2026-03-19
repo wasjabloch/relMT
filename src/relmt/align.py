@@ -615,12 +615,12 @@ def run(
         maxshift = header["phase_end"] - header["phase_start"]
 
         # Align using MCCC
-        dt_cc, ccmc, ddmc, ddresmc, evpairsmc = mccc_align(
+        dt_cc, _, ddmc, ddresmc, evpairsmc = mccc_align(
             pwv,
             verbose=True,
             maxshift=maxshift,
             combinations=mccc_combinations,
-            do_cc=False,
+            do_scc=False,
             **header.kwargs(mccc_align),
         )
 
