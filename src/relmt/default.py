@@ -35,6 +35,7 @@ config = dict(
     equation_batches=1,
     bootstrap_samples=0,
     max_amplitude_misfit=inf,
+    max_s_sigma1=1.0,
     min_amplitude_misfit=0.0,
     min_amplitude_weight=0.0,
     amplitude_suffix="",
