@@ -1025,7 +1025,9 @@ class Config:
     def __repr__(self):
         """Machine-readable representation of the configuration"""
         out = f"{__name__}.Config(\n"
-        out += "\n".join(f"    {key}={value}," for key, value in self.items())
+        out += "\n".join(
+            f"    {key}={value.__repr__()}," for key, value in self.items()
+        )
         out += "\n"
         out += ")"
         return out
@@ -1179,11 +1181,7 @@ class Config:
 
     def items(self):
         """Iterator over key, value pairs where value is set"""
-        return [
-            (key, value)
-            for key, value in self.__dict__.items()
-            if self[key] is not None
-        ]
+        return [(key, value) for key, value in self.__dict__.items()]
 
     def values(self):
         """List of configuration values that are not ``None``"""
@@ -1364,7 +1362,9 @@ class Header(Config):
     def __repr__(self):
         """Machine-readable representation of the header"""
         out = f"{__name__}.Header(\n"
-        out += "\n".join(f"    {key}={value}," for key, value in self.items())
+        out += "\n".join(
+            f"    {key}={value.__repr__()}," for key, value in self.items()
+        )
         out += "\n"
         out += ")"
         return out
