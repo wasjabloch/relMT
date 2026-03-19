@@ -75,8 +75,8 @@ def align_entry(
 
     wvids = core.iterate_waveid(directory, iteration, excl)
 
-    ncpu = config["ncpu"] or 1
-    lag_times = config["lag_times"] or []  # Empty list if None.
+    ncpu = config["ncpu"]
+    lag_times = config["lag_times"]
 
     # Initialize event dict, only load it when we combine nearest neighbors
     evd = {}
@@ -212,9 +212,6 @@ def exclude_entry(
 
     exf = core.file("exclude", directory=directory)
 
-    staf = directory / config["station_file"]
-    stas = io.read_station_table(staf)
-
     try:
         logger.info(f"Reading excludes from: {exf}")
         excl = io.read_exclude_file(exf)
@@ -222,8 +219,6 @@ def exclude_entry(
         logger.info(f"No exlusion file found. Creating: {exf}")
         excl = core.exclude
         io.save_yaml(exf, excl)
-
-    stas = set(stas) - set(excl["station"])
 
     # Collect new excludes in this dictionary
     excludes = {"no_data": [], "snr": [], "cc": [], "ecn": []}
@@ -356,10 +351,22 @@ def amplitude_entry(
         logger.info(f"Target directory does not exist: {ampdir}. Creating.")
         ampdir.mkdir()
 
-    evf = directory / config["event_file"]
-    ncpu = config["ncpu"] or 1
+    ncpu = config["ncpu"]
+
+    try:
+        evf = directory / config["event_file"]
+    except TypeError:
+        raise ValueError(
+            "No event file specified in config. Cannot compute amplitudes."
+        )
+
     compare_method = config["amplitude_measure"]  # direct or indirect
+    if compare_method not in ["direct", "indirect"]:
+        raise ValueError(f"Unknown 'amplitude_measure': {compare_method}. Exiting.")
+
     filter_method = config["amplitude_filter"]  # auto, manual, or fixed
+    if filter_method not in ["auto", "manual", "fixed"]:
+        raise ValueError(f"Unknown 'amplitude_filter': {filter_method}. Exiting.")
 
     exclude = io.read_exclude_file(core.file("exclude", directory=directory))
 
@@ -389,8 +396,14 @@ def amplitude_entry(
                 logger.debug(e)
                 continue
 
+            if hdr["highpass"] is None or hdr["lowpass"] is None:
+                logger.warning(
+                    f"Filter corner not set in header for {wvid}. Setting to nan."
+                )
+
             pasbnds[wvid] = {
-                evn: [hdr["highpass"], hdr["lowpass"]] for evn in hdr["events_"]
+                evn: [hdr["highpass"] or np.nan, hdr["lowpass"] or np.nan]
+                for evn in hdr["events_"]
             }
 
     elif filter_method == "auto":
@@ -705,8 +718,20 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
 
     exclude_events = set(exclude["event"])
 
-    evd = io.read_event_table(directory / config["event_file"])
-    phd = io.read_phase_table(directory / config["phase_file"])
+    if max_mag_diff is not None or max_ev_dist is not None:
+        try:
+            evd = io.read_event_table(directory / config["event_file"])
+        except TypeError:
+            raise ValueError(
+                "No event file specified in config. Cannot apply magnitude or distance criteria."
+            )
+
+    try:
+        phd = io.read_phase_table(directory / config["phase_file"])
+    except TypeError:
+        raise ValueError(
+            "No phase file specified in config. Cannot sanitize amplitude file."
+        )
 
     for phase_type in "PS":
         infile = core.file(
@@ -926,27 +951,31 @@ def solve_entry(
         Only required when do_predict is `True`
     """
 
-    evf = directory / config["event_file"]
-    stf = directory / config["station_file"]
-    phf = directory / config["phase_file"]
-    refmtf = directory / config["reference_mt_file"]
+    # These values require a conscious choice
+    try:
+        evf = directory / config["event_file"]
+        stf = directory / config["station_file"]
+        phf = directory / config["phase_file"]
+        refmtf = directory / config["reference_mt_file"]
+    except TypeError:
+        raise ValueError("Event, station, phase, reference MT files are required.")
 
+    irefs = config["reference_mts"]
+    if irefs is None:
+        raise ValueError(f"Need a reference MT, not: {irefs}")
+
+    # These values have defaults
     max_mis = config["max_amplitude_misfit"]
     max_smis = config["max_s_amplitude_misfit"] or max_mis
     min_mis = config["min_amplitude_misfit"]
     min_weight = config["min_amplitude_weight"]
-    irefs = config["reference_mts"]
     constraint = config["mt_constraint"]
-    refmt_weight = config["reference_weight"]
-    ncpu = config["ncpu"] or 1
+    ncpu = config["ncpu"]
     two_s = config["two_s_equations"]
-
-    if irefs is None:
-        raise ValueError(f"Need a reference MT, not: {irefs}")
+    refmt_weight = config["reference_weight"]
+    nboot = config["bootstrap_samples"]
 
     sfac = 1 + int(two_s)
-
-    nboot = config["bootstrap_samples"]
 
     ampsuf = config["amplitude_suffix"]
     admsuf = config["admit_suffix"]

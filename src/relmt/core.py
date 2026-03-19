@@ -27,8 +27,9 @@ import logging
 import yaml
 import inspect
 import os
+from relmt import default
 from functools import wraps
-from collections.abc import Iterator, Generator, Callable
+from collections.abc import Generator, Callable
 from typing import TypedDict
 from pathlib import Path
 
@@ -49,7 +50,7 @@ _LOG_FORMAT = defaultdict(
     {"DEBUG": "{levelname: <8s}: {asctime} {name}.{funcName}: {message}"},
 )
 
-_CURRENT_LOG_LEVEL_NAME = "CRITICAL"
+_CURRENT_LOG_LEVEL_NAME = "INFO"
 _CURRENT_LOG_LEVEL = _LEVEL_NAME_MAP[_CURRENT_LOG_LEVEL_NAME]
 _REGISTERED_LOGGERS: set[str] = set()
 
@@ -973,10 +974,10 @@ class Config:
             return
 
         if value is None:
-            # None suffixes become empty stings
-            if key.endswith("_suffix"):
-                value = ""
-            else:
+            # Try to fill in default value
+            try:
+                value = default.config[key]
+            except KeyError:
                 # Don't attempt to cast not-set values
                 self.__setattr__(key, value)
                 return
@@ -1395,7 +1396,7 @@ class Header(Config):
         if (hp := self["highpass"]) is not None and (lp := self["lowpass"]) is not None:
             if hp > lp:
                 raise ValueError(
-                    "'lowpass' ({lp} Hz) must be larger than 'highpass' ({hp} Hz)"
+                    f"'lowpass' ({lp} Hz) must be larger than 'highpass' ({hp} Hz)"
                 )
         return True
 

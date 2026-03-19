@@ -23,61 +23,22 @@
 
 """Default configuration and header values for relMT."""
 
-from relmt import core
+from numpy import inf
 
-
-config = core.Config(
-    event_file=core.file("event"),
-    station_file=core.file("station"),
-    phase_file=core.file("phase"),
-    reference_mt_file=core.file("reference_mt"),
+config = dict(
     lag_times=[],
+    loglevel="INFO",
+    mt_constraint="none",
+    auto_bandpass_snr_target=0.0,
+    min_dynamic_range=1.0,
+    two_s_equations=True,
+    equation_batches=1,
+    bootstrap_samples=0,
+    max_amplitude_misfit=inf,
+    min_amplitude_misfit=0.0,
+    min_amplitude_weight=0.0,
     amplitude_suffix="",
     admit_suffix="",
     result_suffix="",
-    loglevel="DEBUG",
-    reference_mts=[0],
-    mt_constraint="none",
-    reference_weight=1000.0,
-    min_amplitude_misfit=0.1,
-    max_amplitude_misfit=0.8,
-    max_s_amplitude_misfit=0.4,
-    min_amplitude_weight=0.05,
-    max_s_sigma1=0.95,
-    amplitude_measure="indirect",
-    amplitude_filter="auto",
-    auto_lowpass_method="duration",
-    auto_lowpass_stressdrop_range=[1.0e6, 1.0e8],
-    auto_bandpass_snr_target=0.0,
-    min_dynamic_range=2.0,
-    min_equations=8,
-    two_s_equations=True,
-    max_s_equations=1e5,
-    keep_events=[0],
-    equation_batches=1,
-    max_gap=300,
-    max_magnitude_difference=float("inf"),
-    max_event_distance=float("inf"),
-    bootstrap_samples=100,
     ncpu=1,
-)
-
-header = core.Header(
-    station="STATION",
-    phase="P",
-    components="ZNE",
-    matlab_variable="",
-    sampling_rate=100,
-    data_window=10.0,
-    phase_start=-1.0,
-    phase_end=2.0,
-    taper_length=1.0,
-    highpass=0.1,
-    lowpass=10.0,
-    null_threshold=0.0,
-    min_signal_noise_ratio=0.0,
-    min_correlation=0.5,
-    min_expansion_coefficient_norm=0.5,
-    combinations_from_file=False,
-    events_=[0, 1, 2],
 )

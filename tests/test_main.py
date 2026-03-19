@@ -84,8 +84,11 @@ def test_main_amplitdue(synthetic_aligned_waveforms):
     # Temporary path, array dictionary, header dictionary
     path, arrd, hdrd = synthetic_aligned_waveforms(mtd, evl, std, phd, 0.0)
 
-    config = default.config
+    config = core.Config(**default.config)
+    config["event_file"] = str(path / "data" / "events.txt")
+    config["station_file"] = str(path / "data" / "stations.txt")
     config["amplitude_filter"] = "manual"
+    config["amplitude_measure"] = "indirect"
 
     main.amplitude_entry(config, path, 0)
 
@@ -165,6 +168,7 @@ def _make_config(project: Path) -> core.Config:
             "phase_file": str(project / "data" / "phases.txt"),
             "reference_mt_file": str(project / "data" / "reference_mts.txt"),
             "reference_mts": [7508],
+            "reference_weight": 1000.0,
             "amplitude_suffix": "testamp",
             "admit_suffix": "testadm",
             "result_suffix": "testres",
