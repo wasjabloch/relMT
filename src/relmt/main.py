@@ -115,6 +115,10 @@ def align_entry(
             excl, return_bool=True, **hdr.kwargs(qc.included_events)
         )
 
+        if not any(iin):
+            logger.warning(f"No events included for {wvid}. Continuing.")
+            continue
+
         # Read optional pair list and  check for singolton events
         if hdr["combinations_from_file"] and hdr["combine_neighbors"]:
             logger.warning(
@@ -483,14 +487,12 @@ def amplitude_entry(
                     pairs = io.read_combinations(
                         core.file("combination", sta, pha, iteration, directory)
                     )
-                    logger.info(
-                        f"Using {pairs.shape[0]} combinations from file for {wvid}"
-                    )
+                    logger.info(f"Using {len(pairs)} combinations from file for {wvid}")
                 else:
                     nn = hdr["combine_neighbors"]
                     pairs = utils.nearest_neighbors(nn, evns, event_dict)
                     logger.info(
-                        f"Using {pairs.shape[0]} combinations from {nn} nearest neighbors for {wvid}"
+                        f"Using {len(pairs)} combinations from {nn} nearest neighbors for {wvid}"
                     )
                 combs = utils.valid_combinations(evns, pairs, pha)
             elif pha.startswith("P"):

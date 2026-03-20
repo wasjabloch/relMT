@@ -719,6 +719,8 @@ def nearest_neighbors(
     thisevd = {evn: event_dict[evn] for evn in events}
     xyz = xyzarray(thisevd)
 
+    events = np.asarray(events)
+
     # Find nearest neigbours
     tree = cKDTree(xyz)
     _, inn = tree.query(xyz, n_neighbors)
