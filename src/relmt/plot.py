@@ -975,7 +975,7 @@ def alignment(
     icomps = [0, 1]
     compc = ["black", "gray"]
     comps = "ox"
-    if phase == "S":
+    if phase.startswith("S"):
         icomps += [2]
         compc = ["black", "green", "gray"]
         comps = "o+x"
@@ -991,7 +991,7 @@ def alignment(
     if not any(event_list):
         raise ValueError("No events in list")
 
-    if (phase == "P" and nin < 2) or (phase == "S" and nin < 3):
+    if (phase.startswith("P") and nin < 2) or (phase.startswith("S") and nin < 3):
         raise ValueError("No enough events for phase")
 
     # Taper and filter the actual phase data

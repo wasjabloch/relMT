@@ -882,7 +882,7 @@ def correlation_averages(
     )
     n = mat.shape[0]
 
-    if phase == "P":
+    if phase.startswith("P"):
         ccij = np.corrcoef(mat)
 
         # Fisher average expects no contribution of auto-correlation
@@ -891,7 +891,7 @@ def correlation_averages(
         # Triplet wise correlation are not defined
         ccijk = np.full((n, n, n), np.nan)
 
-    elif phase == "S":
+    elif phase.startswith("S"):
         # ccorf3 expects normalized matrix
         nmat = mat / np.linalg.norm(mat, axis=-1)[:, np.newaxis]
 

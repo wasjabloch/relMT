@@ -581,7 +581,7 @@ def expansion_coefficient_norm(arr: np.ndarray, phase: str) -> np.ndarray:
 
     # We sum the squared values
     ec = (s[0] * U[:, 0]) ** 2
-    if phase == "S":
+    if phase.startswith("S"):
         try:
             ec += (s[1] * U[:, 1]) ** 2
         except IndexError:

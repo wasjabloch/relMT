@@ -1108,7 +1108,7 @@ class Config:
                 f"Unknown 'auto_lowpass_method': {value}. "
                 "Must be 'duration', 'corner', or 'fixed'."
             )
-        if key == "phase" and value not in ["P", "S"]:
+        if key == "phase" and not (value.startswith("P") or value.startswith("S")):
             raise ValueError(f"Unknown 'phase': {value}. Must be 'P' or 'S'.")
 
         return

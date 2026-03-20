@@ -815,11 +815,11 @@ def valid_combinations(
         if a in events and b in events
     )
 
-    if phase == "P":
+    if phase.startswith("P"):
         # All event name combinations
         return np.array(sorted(ipairs))
 
-    elif phase == "S":
+    elif phase.startswith("S"):
         logger.debug("Finding valid event triplets")
         return np.array(list(_triplets(ipairs)))
 
@@ -1076,7 +1076,7 @@ def corner_frequency(
     """
 
     ks = 0.32
-    if phase == "S":
+    if phase.startswith("S"):
         ks = 0.21
 
     M0 = mt.moment_of_magnitude(magnitude)
@@ -1116,9 +1116,9 @@ def pc_index(mtx: np.ndarray, phase: str) -> np.ndarray:
 
     # Do the SVD on the verified data
     U, s, _ = svd(normed, False)
-    if phase == "P":
+    if phase.startswith("P"):
         return np.argsort(s[0] * U[:, 0])
-    elif phase == "S":
+    elif phase.startswith("S"):
         return np.argsort(np.arctan2(s[1] * U[:, 1], s[0] * U[:, 0]))
     else:
         raise ValueError(f"Unknown phase: {phase}")

@@ -133,7 +133,9 @@ def align_entry(
             iin &= np.isin(hdr["events_"], np.unique(list(pairs)))
 
         # Enough events left?
-        if (phase == "P" and sum(iin) < 2) or (phase == "S" and sum(iin) < 3):
+        if (phase.startswith("P") and sum(iin) < 2) or (
+            phase.startswith("S") and sum(iin) < 3
+        ):
             logger.warning(f"Not enough events for {wvid}")
             continue
 

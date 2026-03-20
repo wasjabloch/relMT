@@ -50,10 +50,12 @@ def _test_phase_shape(phase, mtx):
     IndexError:
         When not enough events are provided for the chosen phase
     """
-    if phase not in ["P", "S"]:
-        raise ValueError("Phase must be either 'P' or 'S'")
+    if not (phase.startswith("P") or phase.startswith("S")):
+        raise ValueError("Phase must start with either 'P' or 'S'")
 
-    if (phase == "P" and mtx.shape[1] < 2) or (phase == "S" and mtx.shape[1] < 3):
+    if (phase.startswith("P") and mtx.shape[1] < 2) or (
+        phase.startswith("S") and mtx.shape[1] < 3
+    ):
         msg = f"mtx contains only {mtx.shape[1]} events. "
         msg += "At least 2 are required for P-waves, 3 for S waves."
         raise IndexError(msg)
@@ -128,7 +130,7 @@ def mccc_align(
         icombine = False
         ndim = 2
         ncombi = int(nev * (nev - 1) / 2)
-        if phase == "S":
+        if phase.startswith("S"):
             ndim = 3
             ncombi = int(nev * (nev - 1) * (nev - 2) / 6)
         # combinations = np.empty((0, ndim), int)
@@ -148,11 +150,11 @@ def mccc_align(
     combinations += 1  # Fortran indexing
 
     # Data, sampling_interval, maxlag, ndec
-    if phase == "P":
+    if phase.startswith("P"):
         rowi, coli, valu, dd, cc = mccore.mccc_ppf(
             mtx.T, sampling_interval, maxshift, ndec, combinations, verbose, nci=ncombi
         )
-    elif phase == "S":
+    elif phase.startswith("S"):
         rowi, coli, valu, dd, cc = mccore.mccc_ssf0(
             mtx.T,
             sampling_interval,
@@ -176,9 +178,9 @@ def mccc_align(
         dd = dd[: rowi[-1] + 1]
 
     # Make cc cubic (S) or symmetric square (P) matrix
-    if phase == "S" and not icombine:
+    if phase.startswith("S") and not icombine:
         cc = utils.reshape_ccvec(cc, nev)
-    elif phase == "S":
+    elif phase.startswith("S"):
         cc = utils.reshape_ccvec(cc, nev, combinations)
 
     A = coo_matrix((valu, (rowi, coli)), dtype=np.float64).tocsc()
@@ -221,10 +223,12 @@ def pca_objective(sigma: np.ndarray, phase: str, ns: int) -> float:
     The objective value
     """
     # worst 0 -> 1 best
-    if phase == "P":
+    if phase.startswith("P"):
         return sigma[0] ** 2 / ns
-    elif phase == "S":
+    elif phase.startswith("S"):
         return 1 - (sigma[2] / (sigma[0] + sigma[1]))
+    else:
+        raise ValueError(f"Unknwon phase: {phase}")
 
 
 def pca_align(
@@ -290,7 +294,7 @@ def pca_align(
     tshift = np.zeros(ns)
 
     ip = True
-    if phase == "S":
+    if phase.startswith("S"):
         ip = False
 
     # Remove mean and normalize.
