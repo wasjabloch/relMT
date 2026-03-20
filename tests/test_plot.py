@@ -161,3 +161,92 @@ def test_bootstrap_matrix(iplot=False):
 
     if iplot:
         fig.show()
+
+
+def test_amplitudes_p_plot():
+    amplitudes = [
+        core.P_Amplitude_Ratio("AAA", "P", 1, 2, 2.0, 0.10, 0.9, 1.0, 0.5, 1.0, 5.0),
+        core.P_Amplitude_Ratio("AAA", "P", 2, 3, 3.0, 0.30, 0.8, 1.0, 0.5, 1.0, 5.0),
+        core.P_Amplitude_Ratio("BBB", "P", 3, 4, 4.0, 0.20, 0.7, 1.0, 0.5, 1.0, 5.0),
+    ]
+
+    fig, axs = plot.amplitudes(amplitudes)
+
+    assert axs.shape == (2, 2)
+    assert fig._suptitle.get_text() == "P-amplitudes"
+    assert axs[0, 0].get_ylabel() == "Relative Amplitude"
+    assert axs[1, 0].get_ylabel() == "Norm. ampl. reconstr. misfit"
+    assert axs[1, 0].get_xlabel() == "Observation"
+    assert all(ax.get_yscale() == "log" for ax in axs[:2, :].flat)
+    assert axs[0, 0].get_legend() is not None
+
+    plt.close(fig)
+
+
+def test_amplitudes_with_weights_and_norms():
+    amplitudes = [
+        core.S_Amplitude_Ratios(
+            "AAA", "S", 1, 2, 3, 2.0, 1.5, 0.10, 0.9, 1.0, 0.5, 0.2, 1.0, 5.0
+        ),
+        core.S_Amplitude_Ratios(
+            "AAA", "S", 2, 3, 4, 3.0, 2.0, 0.50, 0.8, 1.0, 0.5, 0.2, 1.0, 5.0
+        ),
+        core.S_Amplitude_Ratios(
+            "BBB", "S", 4, 5, 6, 4.0, 2.5, 0.20, 0.7, 1.0, 0.5, 0.2, 1.0, 5.0
+        ),
+    ]
+    weights = np.array([[0.1, 0.2], [0.2, 0.3], [0.3, 0.4]])
+    norms = np.array([[1.0], [0.5], [0.8]])
+
+    fig, axs = plot.amplitudes(
+        amplitudes,
+        reference_events=[2, 4, 6],
+        title="Custom",
+        weights=weights,
+        norms=norms,
+    )
+
+    assert axs.shape == (4, 2)
+    assert fig._suptitle.get_text() == "Custom"
+    assert axs[2, 0].get_ylabel() == "Weight"
+    assert axs[3, 0].get_ylabel() == "Norm"
+    assert axs[3, 0].get_xlabel() == "Observation"
+    weight_lines = [
+        line for line in axs[2, 0].lines if line.get_label().startswith("Weight")
+    ]
+    norm_lines = [
+        line for line in axs[3, 0].lines if line.get_label().startswith("Norm")
+    ]
+    assert len(weight_lines) == 2
+    assert len(norm_lines) == 1
+    assert not axs[2, 1].axison
+    assert not axs[3, 1].axison
+    legend = axs[0, 0].get_legend()
+    assert legend is not None
+    assert [text.get_text() for text in legend.get_texts()] == ["2", "4", "6"]
+
+    plt.close(fig)
+
+
+def test_amplitudes_empty():
+    try:
+        plot.amplitudes([])
+    except ValueError as exc:
+        assert "must not be empty" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for empty amplitudes")
+
+
+def test_amplitudes_invalid_panel_shape():
+    amplitudes = [
+        core.P_Amplitude_Ratio("AAA", "P", 1, 2, 2.0, 0.10, 0.9, 1.0, 0.5, 1.0, 5.0),
+        core.P_Amplitude_Ratio("AAA", "P", 2, 3, 3.0, 0.30, 0.8, 1.0, 0.5, 1.0, 5.0),
+        core.P_Amplitude_Ratio("BBB", "P", 3, 4, 4.0, 0.20, 0.7, 1.0, 0.5, 1.0, 5.0),
+    ]
+
+    try:
+        plot.amplitudes(amplitudes, weights=np.ones((3, 4)))
+    except ValueError as exc:
+        assert "between 1 and 3 columns" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError for invalid weights shape")

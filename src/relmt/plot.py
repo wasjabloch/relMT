@@ -608,6 +608,234 @@ def amplitude_connections(
     return ax
 
 
+def amplitudes(
+    amplitudes: list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios],
+    reference_events: list[int] | None = None,
+    title: str | None = None,
+    weights: np.ndarray | None = None,
+    norms: np.ndarray | None = None,
+) -> tuple[Figure, np.ndarray]:
+    """Plot amplitude observations and misfits in the same layout as the script.
+
+    Parameters
+    ----------
+    amplitudes:
+        In-memory amplitude observations, either all P or all S observations.
+    reference_events:
+        Events to highlight. If omitted, events from the worst-misfit observation
+        are highlighted.
+    title:
+        Optional figure title.
+    weights, norms:
+        Optional arrays of shape ``(observations, n)`` with ``1 <= n <= 3``.
+        When provided, each is plotted into an additional row.
+
+    Returns
+    -------
+    Figure and axes array containing the plot
+    """
+
+    def _log_bins(values: np.ndarray) -> np.ndarray:
+        values = values[np.isfinite(values) & (values > 0)]
+        vmin = np.min(values)
+        vmax = np.max(values)
+        if np.isclose(vmin, vmax):
+            vmin *= 0.9
+            vmax *= 1.1
+        return np.logspace(np.log10(vmin), np.log10(vmax))
+
+    def _panel_values(values: np.ndarray | None, name: str) -> np.ndarray | None:
+        if values is None:
+            return None
+        values = np.asarray(values, dtype=float)
+        if values.ndim == 1:
+            values = values[:, np.newaxis]
+        if values.ndim != 2:
+            raise ValueError(f"'{name}' must have shape (observations, n)")
+        if values.shape[0] != len(amplitudes):
+            raise ValueError(
+                f"'{name}' first dimension must equal number of observations"
+            )
+        if not 1 <= values.shape[1] <= 3:
+            raise ValueError(f"'{name}' must have between 1 and 3 columns")
+        return values
+
+    def _plot_extra_panel(ax: Axes, values: np.ndarray, ylabel: str) -> None:
+        colors = ["xkcd:slate blue", "xkcd:teal", "xkcd:burnt orange"]
+        for i in range(values.shape[1]):
+            ax.plot(
+                iobs,
+                values[:, i],
+                color=colors[i],
+                marker=".",
+                markersize=2,
+                linewidth=0.8,
+                label=f"{ylabel} {i + 1}",
+            )
+        ax.set_ylabel(ylabel)
+        ax.grid(True, axis="y")
+        ax.spines[["top", "right"]].set_visible(False)
+        if values.shape[1] > 1:
+            ax.legend(loc="upper right")
+
+    if len(amplitudes) == 0:
+        raise ValueError("'amplitudes' must not be empty")
+
+    weights = _panel_values(weights, "weights")
+    norms = _panel_values(norms, "norms")
+
+    ip, _ = qc._ps_amplitudes(amplitudes)
+
+    stations = [amp.station for amp in amplitudes]
+    misfit = np.asarray([amp.misfit for amp in amplitudes], dtype=float)
+    event_a = np.asarray([amp.event_a for amp in amplitudes], dtype=int)
+    event_b = np.asarray([amp.event_b for amp in amplitudes], dtype=int)
+
+    if ip:
+        event_c = event_a.copy()
+        amp1 = np.asarray([amp.amp_ab for amp in amplitudes], dtype=float)
+        amp2 = np.full_like(amp1, np.nan)
+    else:
+        event_c = np.asarray([amp.event_c for amp in amplitudes], dtype=int)
+        amp1 = np.asarray([amp.amp_abc for amp in amplitudes], dtype=float)
+        amp2 = np.asarray([amp.amp_acb for amp in amplitudes], dtype=float)
+
+    if reference_events is None:
+        iworst = int(np.nanargmax(misfit))
+        reference_events = sorted(
+            {int(event_a[iworst]), int(event_b[iworst]), int(event_c[iworst])}
+        )
+
+    nrows = 2 + int(weights is not None) + int(norms is not None)
+    figsize = (10, 5 + 1.5 * (nrows - 2))
+    fig, axs = plt.subplots(
+        nrows,
+        2,
+        figsize=figsize,
+        layout="constrained",
+        sharex="col",
+        gridspec_kw={"width_ratios": [0.8, 0.2]},
+    )
+    axs = np.atleast_2d(axs)
+
+    if title is None:
+        title = f"{amplitudes[0].phase}-amplitudes"
+    fig.suptitle(title)
+
+    cmap = plt.colormaps["brg"]
+    colors = cmap(np.linspace(0, 1, len(reference_events)))
+    reference_color = {
+        reference_event: colors[n] for n, reference_event in enumerate(reference_events)
+    }
+
+    labels = np.full(misfit.shape, np.nan)
+    for reference_event in reference_events[::-1]:
+        iref = (
+            (event_a == reference_event)
+            | (event_b == reference_event)
+            | (event_c == reference_event)
+        )
+        labels[iref] = reference_event
+
+    iobs = np.arange(len(amplitudes))
+    station_starts = sorted((stations.index(sta), sta) for sta in set(stations))
+
+    ax = axs[0, 0]
+    ax.scatter(iobs, np.abs(amp1), color="xkcd:light salmon", marker=".", s=1)
+    ax.scatter(iobs, np.abs(amp2), color="xkcd:blush", marker=".", s=1)
+    ax.set_xlim((iobs[0], iobs[-1]))
+
+    for n, reference_event in enumerate(reference_events):
+        iref = labels == reference_event
+        ax.scatter(
+            iobs[iref],
+            np.abs(amp1[iref]),
+            color=reference_color[reference_event],
+            s=5,
+            zorder=100 - n,
+            label=reference_event,
+        )
+        ax.scatter(
+            iobs[iref],
+            np.abs(amp2[iref]),
+            color=reference_color[reference_event],
+            s=5,
+            zorder=100 - n,
+        )
+
+    trans = transforms.blended_transform_factory(ax.transData, ax.transAxes)
+    for n, (x, sta) in enumerate(station_starts):
+        label = sta
+        if n == 0:
+            label = "Station\n" + label
+        elif n % 2 == 0:
+            label = "\n" + label
+        ax.text(x, 1, label, ha="left", va="top", transform=trans)
+
+    ax.set_yscale("log")
+    ax.set_ylabel("Relative Amplitude")
+    if reference_events:
+        ax.legend(title="Event", ncols=len(reference_events), loc="lower right")
+
+    ax = axs[0, 1]
+    amp_values = np.abs(np.concatenate((amp1, amp2)))
+    ax.hist(
+        amp_values[np.isfinite(amp_values) & (amp_values > 0)],
+        bins=_log_bins(amp_values),
+        orientation="horizontal",
+        color="xkcd:light salmon",
+    )
+
+    ax = axs[1, 0]
+    ax.scatter(iobs, misfit, color="darkred", marker=".", s=1)
+    ax.set_xlim((iobs[0], iobs[-1]))
+
+    for n, reference_event in enumerate(reference_events):
+        iref = labels == reference_event
+        ax.scatter(
+            iobs[iref],
+            np.abs(misfit[iref]),
+            color=reference_color[reference_event],
+            s=5,
+            zorder=100 - n,
+        )
+
+    ax.set_yscale("log")
+    ax.set_ylabel("Norm. ampl. reconstr. misfit")
+
+    ax = axs[1, 1]
+    ax.hist(
+        misfit[np.isfinite(misfit) & (misfit > 0)],
+        bins=_log_bins(misfit),
+        orientation="horizontal",
+        color="darkred",
+    )
+
+    extra_row = 2
+    if weights is not None:
+        _plot_extra_panel(axs[extra_row, 0], weights, "Weight")
+        axs[extra_row, 1].axis("off")
+        extra_row += 1
+
+    if norms is not None:
+        _plot_extra_panel(axs[extra_row, 0], norms, "Norm")
+        axs[extra_row, 1].axis("off")
+
+    for ax in axs[:2, :].flat:
+        ax.grid(True, "major", "y")
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.set_yscale("log")
+
+    for ax in axs[:, 0]:
+        for x, _ in station_starts:
+            ax.axvline(x, color="silver", zorder=-5)
+        ax.set_xlim((iobs[0], iobs[-1]))
+
+    axs[-1, 0].set_xlabel("Observation")
+
+    return fig, axs
+
+
 def mt_matrix(
     mtd: dict[int, core.MT],
     highlight: list[int] = [],
