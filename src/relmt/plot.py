@@ -610,7 +610,7 @@ def amplitude_connections(
 
 def amplitudes(
     amplitudes: list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios],
-    reference_events: list[int] | None = None,
+    highlight: list[int] = [],
     title: str | None = None,
     weights: np.ndarray | None = None,
     norms: np.ndarray | None = None,
@@ -621,7 +621,7 @@ def amplitudes(
     ----------
     amplitudes:
         In-memory amplitude observations, either all P or all S observations.
-    reference_events:
+    highlight:
         Events to highlight. If omitted, events from the worst-misfit observation
         are highlighted.
     title:
@@ -660,23 +660,22 @@ def amplitudes(
             raise ValueError(f"'{name}' must have between 1 and 3 columns")
         return values
 
-    def _plot_extra_panel(ax: Axes, values: np.ndarray, ylabel: str) -> None:
-        colors = ["xkcd:slate blue", "xkcd:teal", "xkcd:burnt orange"]
+    def _plot_extra_panel(
+        ax: Axes, values: np.ndarray, ylabels: list[str], colors=list[str]
+    ) -> None:
         for i in range(values.shape[1]):
-            ax.plot(
+            ax.scatter(
                 iobs,
                 values[:, i],
                 color=colors[i],
                 marker=".",
-                markersize=2,
-                linewidth=0.8,
-                label=f"{ylabel} {i + 1}",
+                s=2,
+                label=f"{ylabels[i]}",
             )
-        ax.set_ylabel(ylabel)
         ax.grid(True, axis="y")
         ax.spines[["top", "right"]].set_visible(False)
-        if values.shape[1] > 1:
-            ax.legend(loc="upper right")
+        if ylabels[-1]:  # Don't make a legend for an empty label
+            ax.legend()
 
     if len(amplitudes) == 0:
         raise ValueError("'amplitudes' must not be empty")
@@ -688,6 +687,7 @@ def amplitudes(
 
     stations = [amp.station for amp in amplitudes]
     misfit = np.asarray([amp.misfit for amp in amplitudes], dtype=float)
+    sigmas = _panel_values([amp.sigma1 for amp in amplitudes], "sigmas")
     event_a = np.asarray([amp.event_a for amp in amplitudes], dtype=int)
     event_b = np.asarray([amp.event_b for amp in amplitudes], dtype=int)
 
@@ -700,13 +700,7 @@ def amplitudes(
         amp1 = np.asarray([amp.amp_abc for amp in amplitudes], dtype=float)
         amp2 = np.asarray([amp.amp_acb for amp in amplitudes], dtype=float)
 
-    if reference_events is None:
-        iworst = int(np.nanargmax(misfit))
-        reference_events = sorted(
-            {int(event_a[iworst]), int(event_b[iworst]), int(event_c[iworst])}
-        )
-
-    nrows = 2 + int(weights is not None) + int(norms is not None)
+    nrows = 3 + int(weights is not None) + int(norms is not None)
     figsize = (10, 5 + 1.5 * (nrows - 2))
     fig, axs = plt.subplots(
         nrows,
@@ -714,6 +708,7 @@ def amplitudes(
         figsize=figsize,
         layout="constrained",
         sharex="col",
+        sharey="row",
         gridspec_kw={"width_ratios": [0.8, 0.2]},
     )
     axs = np.atleast_2d(axs)
@@ -723,19 +718,19 @@ def amplitudes(
     fig.suptitle(title)
 
     cmap = plt.colormaps["brg"]
-    colors = cmap(np.linspace(0, 1, len(reference_events)))
+    colors = cmap(np.linspace(0, 1, len(highlight)))
     reference_color = {
-        reference_event: colors[n] for n, reference_event in enumerate(reference_events)
+        reference_event: colors[n] for n, reference_event in enumerate(highlight)
     }
 
     labels = np.full(misfit.shape, np.nan)
-    for reference_event in reference_events[::-1]:
+    for highl_event in highlight[::-1]:
         iref = (
-            (event_a == reference_event)
-            | (event_b == reference_event)
-            | (event_c == reference_event)
+            (event_a == highl_event)
+            | (event_b == highl_event)
+            | (event_c == highl_event)
         )
-        labels[iref] = reference_event
+        labels[iref] = highl_event
 
     iobs = np.arange(len(amplitudes))
     station_starts = sorted((stations.index(sta), sta) for sta in set(stations))
@@ -745,20 +740,20 @@ def amplitudes(
     ax.scatter(iobs, np.abs(amp2), color="xkcd:blush", marker=".", s=1)
     ax.set_xlim((iobs[0], iobs[-1]))
 
-    for n, reference_event in enumerate(reference_events):
-        iref = labels == reference_event
+    for n, highl_event in enumerate(highlight):
+        iref = labels == highl_event
         ax.scatter(
             iobs[iref],
             np.abs(amp1[iref]),
-            color=reference_color[reference_event],
+            color=reference_color[highl_event],
             s=5,
             zorder=100 - n,
-            label=reference_event,
+            label=highl_event,
         )
         ax.scatter(
             iobs[iref],
             np.abs(amp2[iref]),
-            color=reference_color[reference_event],
+            color=reference_color[highl_event],
             s=5,
             zorder=100 - n,
         )
@@ -773,9 +768,9 @@ def amplitudes(
         ax.text(x, 1, label, ha="left", va="top", transform=trans)
 
     ax.set_yscale("log")
-    ax.set_ylabel("Relative Amplitude")
-    if reference_events:
-        ax.legend(title="Event", ncols=len(reference_events), loc="lower right")
+    ax.set_ylabel("Relative\namplitude")
+    if highlight:
+        ax.legend(title="Event", ncols=len(highlight), loc="lower right")
 
     ax = axs[0, 1]
     amp_values = np.abs(np.concatenate((amp1, amp2)))
@@ -790,18 +785,18 @@ def amplitudes(
     ax.scatter(iobs, misfit, color="darkred", marker=".", s=1)
     ax.set_xlim((iobs[0], iobs[-1]))
 
-    for n, reference_event in enumerate(reference_events):
-        iref = labels == reference_event
+    for n, highl_event in enumerate(highlight):
+        iref = labels == highl_event
         ax.scatter(
             iobs[iref],
             np.abs(misfit[iref]),
-            color=reference_color[reference_event],
+            color=reference_color[highl_event],
             s=5,
             zorder=100 - n,
         )
 
     ax.set_yscale("log")
-    ax.set_ylabel("Norm. ampl. reconstr. misfit")
+    ax.set_ylabel("Misfit $\\mu$")
 
     ax = axs[1, 1]
     ax.hist(
@@ -812,19 +807,35 @@ def amplitudes(
     )
 
     extra_row = 2
+    ax = axs[extra_row, 0]
+    _plot_extra_panel(ax, sigmas, [""], ["xkcd:greenish blue"])
+    ax.set_ylabel("$\\sigma_1$")
+    axs[extra_row, 1].axis("off")
+    extra_row += 1
+
     if weights is not None:
-        _plot_extra_panel(axs[extra_row, 0], weights, "Weight")
+        ax = axs[extra_row, 0]
+        _plot_extra_panel(ax, weights, [""], ["xkcd:charcoal"])
+        ax.set_ylabel("Misfit\nweight")
         axs[extra_row, 1].axis("off")
         extra_row += 1
 
     if norms is not None:
-        _plot_extra_panel(axs[extra_row, 0], norms, "Norm")
+        ax = axs[extra_row, 0]
+        labels = ["amplitude", "equation 1", "equation 2"]
+        colors = ["xkcd:slate blue", "xkcd:teal", "xkcd:burnt orange"]
+        if ip:
+            labels = ["equation"]
+            colors = [colors[0]]
+        _plot_extra_panel(ax, norms, labels, colors)
+        ax.set_ylabel("Norm")
         axs[extra_row, 1].axis("off")
 
     for ax in axs[:2, :].flat:
         ax.grid(True, "major", "y")
         ax.spines[["top", "right"]].set_visible(False)
         ax.set_yscale("log")
+        ax.label_outer()
 
     for ax in axs[:, 0]:
         for x, _ in station_starts:
@@ -1489,7 +1500,7 @@ def alignment(
     for i, col, sym in zip(icomps, compc, comps):
         e0 = s[i] * U[:, i]
         ax.plot(e0, range(nin), sym, mec=col, mfc="none", label=f"EC{i}")
-    ax.plot(ec_score, range(nin), "|", mec="red", mfc="none", label=f"$\pm$ Norm")
+    ax.plot(ec_score, range(nin), "|", mec="red", mfc="none", label=f"$\\pm$ Norm")
     ax.plot(-ec_score, range(nin), "|", mec="red", mfc="none")
 
     if (ecn := hdr["min_expansion_coefficient_norm"]) is not None:

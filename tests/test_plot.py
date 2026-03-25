@@ -200,7 +200,7 @@ def test_amplitudes_with_weights_and_norms():
 
     fig, axs = plot.amplitudes(
         amplitudes,
-        reference_events=[2, 4, 6],
+        highlight=[2, 4, 6],
         title="Custom",
         weights=weights,
         norms=norms,
