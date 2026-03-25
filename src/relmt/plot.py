@@ -644,20 +644,18 @@ def amplitudes(
             vmax *= 1.1
         return np.logspace(np.log10(vmin), np.log10(vmax))
 
-    def _panel_values(values: np.ndarray | None, name: str) -> np.ndarray | None:
+    def _panel_values(values: np.ndarray | None) -> np.ndarray | None:
         if values is None:
             return None
         values = np.asarray(values, dtype=float)
         if values.ndim == 1:
             values = values[:, np.newaxis]
         if values.ndim != 2:
-            raise ValueError(f"'{name}' must have shape (observations, n)")
+            raise ValueError(f"must have shape (observations, n)")
         if values.shape[0] != len(amplitudes):
-            raise ValueError(
-                f"'{name}' first dimension must equal number of observations"
-            )
+            raise ValueError(f"first dimension must equal number of observations")
         if not 1 <= values.shape[1] <= 3:
-            raise ValueError(f"'{name}' must have between 1 and 3 columns")
+            raise ValueError(f"must have between 1 and 3 columns")
         return values
 
     def _plot_extra_panel(
@@ -680,14 +678,16 @@ def amplitudes(
     if len(amplitudes) == 0:
         raise ValueError("'amplitudes' must not be empty")
 
-    weights = _panel_values(weights, "weights")
-    norms = _panel_values(norms, "norms")
+    weights = _panel_values(weights)
+    norms = _panel_values(norms)
 
     ip, _ = qc._ps_amplitudes(amplitudes)
 
     stations = [amp.station for amp in amplitudes]
     misfit = np.asarray([amp.misfit for amp in amplitudes], dtype=float)
-    sigmas = _panel_values([amp.sigma1 for amp in amplitudes], "sigmas")
+    sigma1s = _panel_values([amp.sigma1 for amp in amplitudes])
+    hpas = [amp.highpass for amp in amplitudes]
+    lpas = [amp.lowpass for amp in amplitudes]
     event_a = np.asarray([amp.event_a for amp in amplitudes], dtype=int)
     event_b = np.asarray([amp.event_b for amp in amplitudes], dtype=int)
 
@@ -700,7 +700,7 @@ def amplitudes(
         amp1 = np.asarray([amp.amp_abc for amp in amplitudes], dtype=float)
         amp2 = np.asarray([amp.amp_acb for amp in amplitudes], dtype=float)
 
-    nrows = 3 + int(weights is not None) + int(norms is not None)
+    nrows = 4 + int(weights is not None) + int(norms is not None)
     figsize = (10, 5 + 1.5 * (nrows - 2))
     fig, axs = plt.subplots(
         nrows,
@@ -794,7 +794,6 @@ def amplitudes(
             s=5,
             zorder=100 - n,
         )
-
     ax.set_yscale("log")
     ax.set_ylabel("Misfit $\\mu$")
 
@@ -806,13 +805,32 @@ def amplitudes(
         color="darkred",
     )
 
-    extra_row = 2
-    ax = axs[extra_row, 0]
-    _plot_extra_panel(ax, sigmas, [""], ["xkcd:greenish blue"])
-    ax.set_ylabel("$\\sigma_1$")
-    axs[extra_row, 1].axis("off")
-    extra_row += 1
+    ax = axs[2, 0]
+    _plot_extra_panel(ax, sigma1s, [""], ["xkcd:greenish blue"])
+    ax.set_ylabel("Principal seismogram\ncontribution $\\sigma_1$")
 
+    ax = axs[2, 1]
+    ax.hist(
+        sigma1s,
+        bins=50,
+        orientation="horizontal",
+        color="xkcd:greenish blue",
+    )
+
+    ax = axs[3, 0]
+    ax.fill_between(
+        list(range(len(hpas))),
+        lpas,
+        hpas,
+        edgecolor="none",
+        facecolor="xkcd:pale lavender",
+    )
+    ax.set_yscale("log")
+    ax.set_ylabel("High- / Lowpass (Hz)")
+
+    axs[3, 1].axis("off")
+
+    extra_row = 4
     if weights is not None:
         ax = axs[extra_row, 0]
         _plot_extra_panel(ax, weights, [""], ["xkcd:charcoal"])
@@ -831,10 +849,9 @@ def amplitudes(
         ax.set_ylabel("Norm")
         axs[extra_row, 1].axis("off")
 
-    for ax in axs[:2, :].flat:
+    for nax, ax in enumerate(axs[:4, :].flat):
         ax.grid(True, "major", "y")
         ax.spines[["top", "right"]].set_visible(False)
-        ax.set_yscale("log")
         ax.label_outer()
 
     for ax in axs[:, 0]:
