@@ -1640,6 +1640,49 @@ def plot_spectra_entry(
         input("Press any key to continue...")
 
 
+def plot_amplitude_entry(
+    ampfile: Path,
+    highlight: list[int] = [],
+    saveas: Path | str | None = None,
+) -> None:
+    """Plot amlitude observations
+
+    Parameters
+    ----------
+    ampfile:
+        Path to the amplitude or amplitude-summary file to plot
+    highlight:
+        List of event IDs to highlight in the plot.
+    saveas:
+        If given, save the figure to this path instead of showing it interactively
+    """
+
+    if ampfile.stem.startswith("P-"):
+        amp = io.read_amplitudes(ampfile, "P")
+        usecols = (12, 13)
+    elif ampfile.stem.startswith("S-"):
+        amp = io.read_amplitudes(ampfile, "S")
+        usecols = (14, 15, 16, 17)
+    else:
+        raise ValueError(f"Unknown phase in file name: {ampfile}")
+
+    try:
+        norm_weigts = np.loadtxt(ampfile, usecols=usecols)
+        norms = norm_weigts[:, :-1]
+        weights = norm_weigts[:, -1:]
+    except ValueError:
+        norms = weights = None
+
+    fig, _ = plot.amplitudes(amp, highlight, norms=norms, weights=weights)
+
+    fig.suptitle(f"File: {ampfile}")
+
+    if saveas is not None:
+        fig.savefig(saveas)
+    else:
+        input("Press any key to continue...")
+
+
 # Mapping of sorting/coloring keys to their description
 _attr_keys = {
     "number": "Event ID",
@@ -2043,6 +2086,16 @@ Software for computing relative seismic moment tensors"""
     )
     plot_spec_p.add_argument(*option["saveas"][0], **option["saveas"][1])
 
+    # Plot Amplitudes
+    plot_amp_p = subpars.add_parser(
+        "plot-amplitude", help="Plot waveform amplitudes to screen"
+    )
+    plot_amp_p.add_argument(
+        "file", type=Path, help="Path to amplitude or amplitude-summary file"
+    )
+    plot_amp_p.add_argument(*option["highlight"][0], **option["highlight"][1])
+    plot_amp_p.add_argument(*option["saveas"][0], **option["saveas"][1])
+
     # Plot MTs
     plot_mt_p = subpars.add_parser("plot-mt", help="Plot waveform spectra to screen")
     plot_mt_p.add_argument(*option["config"][0], **option["config"][1])
@@ -2129,11 +2182,13 @@ def main(args=None):
         parsed.command(parent)
         return
 
-    conff = parsed.config
-    config = io.read_config(conff)
-
-    # Let's parse the keyword arguments explicitly
-    parent = conff.parent
+    try:
+        conff = parsed.config
+        config = io.read_config(conff)
+        parent = conff.parent
+    except AttributeError:
+        config = core.Config()
+        parent = Path()
 
     if not parsed.mode.startswith("plot-") and parsed.mode != "admit":
         n_align = parsed.alignment
@@ -2177,6 +2232,14 @@ def main(args=None):
             parsed.sort,
             parsed.highlight,
             parsed.cc,
+            parsed.saveas,
+        )
+        return
+
+    if parsed.mode == "plot-amplitude":
+        plot_amplitude_entry(
+            parsed.file,
+            parsed.highlight,
             parsed.saveas,
         )
         return
