@@ -723,13 +723,32 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
 
     exclude_events = set(exclude["event"])
 
-    if max_mag_diff is not None or max_ev_dist is not None:
-        try:
-            evd = io.read_event_table(directory / config["event_file"])
-        except TypeError:
+    try:
+        evd = io.read_event_table(directory / config["event_file"])
+    except TypeError:
+        if max_mag_diff is not None or max_ev_dist is not None:
             raise ValueError(
                 "No event file specified in config. Cannot apply magnitude or distance criteria."
             )
+        else:
+            logger.warning(
+                "No event file specified. Cannot sort output amplitudes by magnitude or azimuth"
+            )
+            evd = defaultdict(lambda _: core.Event(1, 1, 1, 0, 0, ""))
+
+    try:
+        std = io.read_station_table(directory / config["station_file"])
+    except TypeError:
+        logger.warning(
+            "No station file specified. Cannot sort output amplitudes by station azimuth"
+        )
+        std = defaultdict(lambda _: core.Station(-1, -1, -1, ""))
+
+    cent = utils.xyzarray(evd).mean(axis=0)  # Event centroid
+    azid = {
+        stn: angle.azimuth(*cent[:-1], *utils.xyzarray(sta)[:-1])
+        for stn, sta in std.items()
+    }
 
     try:
         phd = io.read_phase_table(directory / config["phase_file"])
@@ -875,6 +894,15 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
 
     # Write to file
     for phase_type, amps in zip("PS", [pamps, samps]):
+        amps = sorted(
+            amps,
+            # Sort amplitudes first by station azimuth, then by mangnitude
+            key=lambda amp: (
+                azid[amp.station],
+                evd[amp.event_a].mag,
+                evd[amp.event_b].mag,
+            ),
+        )
         fac = 1
         if phase_type == "S" and two_s:
             fac = 2
@@ -1035,10 +1063,16 @@ def solve_entry(
             for amp in samp_subset
         ]
     )
+    pm_wght, sm_wght, _ = ls.unpack_equation_vector(
+        mis_weights, n_p, 0, mt_elements, two_s
+    )
 
     amp_norm = np.vstack(
         [1.0 for _ in pamp_subset]
         + [ls.weight_s_amplitude(amp, two_s) for amp in samp_subset]
+    )
+    pa_norm, sa_norm, _ = ls.unpack_equation_vector(
+        amp_norm, n_p, 0, mt_elements, two_s
     )
 
     # Apply amplitude norm before measuring the equation norm.
@@ -1095,7 +1129,22 @@ def solve_entry(
 
     b = np.vstack((bh, bi))
 
-    # save_npz(core.file("amplitude_matrix", directory=directory, suffix=outsuf), A)
+    # Save weights and norms for analysis
+    io.save_amplitudes(
+        core.file("amplitude_summary", phase="P", suffix=outsuf, directory=directory),
+        pamp_subset,
+        [pa_norm.flat[:], p_norm.flat[:], pm_wght.flat[:]],
+        ["AmplNorm", "EquaNorm", "MisfitWght"],
+        ["{:8.3e}", "{:8.2e}", "{:10.8f}"],
+    )
+
+    io.save_amplitudes(
+        core.file("amplitude_summary", phase="S", suffix=outsuf, directory=directory),
+        samp_subset,
+        [sa_norm[:, 0], s_norm[:, 0], s_norm[:, 1], sm_wght[:, 0]],
+        ["AmplNorm", "EquaNorm1", "EquaNorm2", "MisfitWght"],
+        ["{:8.3e}", "{:8.2e}", "{:8.2e}", "{:10.8f}"],
+    )
 
     logger.info(
         f"Solving linear system of {A.shape[1]} variables and {A.shape[0]} equations..."
@@ -1305,83 +1354,32 @@ def solve_entry(
         # Save reduced amplitude set to file. Use the output suffix.
         io.save_amplitudes(
             core.file(
-                "amplitude_summary", phase="P", suffix=outsuf, directory=directory
+                "amplitude_summary", phase="P", suffix=synsuf, directory=directory
             ),
             pamp_subset,
-            [
-                p_residuals,
-                Ares,
-                mis_weights[:n_p].flat[:],
-                amp_norm[:n_p].flat[:],
-                p_norm.flat[:],
-                Asyn,
-                ppms,
-            ],
-            [
-                " MomResidual",
-                "AmpResidual",
-                "MisfitWght",
-                "AmplWght",
-                "EquaNorm",
-                "PredAab ",
-                "PredMis",
-            ],
-            [
-                "{:11.3e}",
-                "{:11.3e}",
-                "{:10.5f}",
-                "{:8.4f}",
-                "{:7.2e}",
-                "{:8.2e}",
-                "{:7.5f}",
-            ],
+            [p_residuals, Ares, mis_weights[:n_p].flat[:], amp_norm[:n_p].flat[:]]
+            + [p_norm.flat[:], Asyn, ppms],
+            [" MomResidual", "AmpResidual", "MisfitWght", "AmplWght", "EquaNorm"]
+            + ["PredAab ", "PredMis"],
+            ["{:11.3e}", "{:11.3e}", "{:10.5f}", "{:8.4f}", "{:7.2e}"]
+            + ["{:8.2e}", "{:7.5f}"],
         )
 
         # Recall: s_residual and eq_norm do not have nan for the 2nd S equation, if we excluded them
         io.save_amplitudes(
             core.file(
-                "amplitude_summary", phase="S", suffix=outsuf, directory=directory
+                "amplitude_summary", phase="S", suffix=synsuf, directory=directory
             ),
             samp_subset,
-            [
-                s_residuals[:, 0],
-                s_residuals[:, 1],
-                B1res,
-                B2res,
-                mis_weights[n_p : n_p + n_s : sfac].flat[:],
-                amp_norm[n_p : n_p + n_s : sfac].flat[:],
-                s_norm[:, 0],
-                s_norm[:, 1],
-                Bsyn[:, 0],
-                Bsyn[:, 1],
-                spms,
-            ],
-            [
-                " MomResidual1",
-                "MomResidual2",
-                "AmpResidual1",
-                "AmpResidual2",
-                "MisfitWght",
-                "AmplWght",
-                "EquaNorm1",
-                "EquaNorm2",
-                "PredBabc",
-                "PredBacb",
-                "PredMis",
-            ],
-            [
-                "{:12.3e}",
-                "{:12.3e}",
-                "{:12.3e}",
-                "{:12.3e}",
-                "{:10.5f}",
-                "{:8.4f}",
-                "{:9.3e}",
-                "{:9.3e}",
-                "{:8.2e}",
-                "{:8.2e}",
-                "{:7.5f}",
-            ],
+            [s_residuals[:, 0], s_residuals[:, 1], B1res, B2res]
+            + [mis_weights[n_p : n_p + n_s : sfac].flat[:]]
+            + [amp_norm[n_p : n_p + n_s : sfac].flat[:]],
+            +[s_norm[:, 0], s_norm[:, 1], Bsyn[:, 0], Bsyn[:, 1], spms],
+            [" MomResidual1", "MomResidual2", "AmpResidual1", "AmpResidual2"]
+            + ["MisfitWght", "AmplWght", "EquaNorm1", "EquaNorm2", "PredBabc"]
+            + ["PredBacb", "PredMis"],
+            ["{:12.3e}", "{:12.3e}", "{:12.3e}", "{:12.3e}", "{:10.5f}"]
+            + ["{:8.4f}", "{:9.3e}", "{:9.3e}", "{:8.2e}", "{:8.2e}", "{:7.5f}"],
         )
 
     # Moment RMS per event
