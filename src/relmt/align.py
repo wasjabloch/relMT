@@ -751,6 +751,9 @@ def run(
     header["min_signal_noise_ratio"] = None
     header["min_correlation"] = None
 
+    # Don't accidentialy combine only few neighbors in amplitude
+    header["combine_neighbors"] = None
+
     # Write out header and array files
     arrf = core.file("waveform_array", *destination)
     hdrf = core.file("waveform_header", *destination)
