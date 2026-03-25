@@ -26,11 +26,8 @@
 import numpy as np
 from numpy.linalg import LinAlgError
 from scipy.linalg import svd, norm, solve
-from relmt import core, signal, qc, mt, utils, amp
+from relmt import core, signal, qc, mt, utils, angle
 from multiprocessing import shared_memory
-import multiprocessing as mp
-
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 logger = core.register_logger(__name__)
 
@@ -939,3 +936,29 @@ def info(
         previous = llength
 
     print(out)
+
+
+def sort_amplitudes(
+    amplitudes: list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios],
+    event_dict: dict[int, core.Event],
+    station_dict: dict[str, core.Station],
+) -> list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios]:
+    """Sort amplitudes first by station azimuth, then by event magnitude"""
+    # Event centroid
+    cent = utils.xyzarray(event_dict).mean(axis=0)
+
+    # Station azimuth lookup
+    azid = {
+        stn: angle.azimuth(*cent[:-1], *utils.xyzarray(sta)[:-1])
+        for stn, sta in station_dict.items()
+    }
+
+    # Sort amplitudes first by station azimuth, then by mangnitude
+    def _sorter(amp):
+        return (
+            azid[amp.station],
+            event_dict[amp.event_a].mag,
+            event_dict[amp.event_b].mag,
+        )
+
+    return sorted(amplitudes, key=_sorter)

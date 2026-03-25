@@ -361,6 +361,7 @@ def amplitude_entry(
 
     try:
         evf = directory / config["event_file"]
+        stf = directory / config["station_file"]
     except TypeError:
         raise ValueError(
             "No event file specified in config. Cannot compute amplitudes."
@@ -381,6 +382,7 @@ def amplitude_entry(
 
     # Read the events
     event_dict = io.read_event_table(evf)
+    station_dict = io.read_station_table(stf)
 
     pasbnds = {}
     if filter_method == "manual":
@@ -633,6 +635,8 @@ def amplitude_entry(
     else:
         abA = result
 
+    abA = amp.sort_amplitudes(abA, event_dict, station_dict)
+
     io.save_amplitudes(
         core.file(
             "amplitude_observation",
@@ -659,6 +663,8 @@ def amplitude_entry(
             abcB.extend(samplist)
     else:
         abcB = result
+
+    abcB = amp.sort_amplitudes(abcB, event_dict, station_dict)
 
     io.save_amplitudes(
         core.file(
@@ -734,7 +740,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
             logger.warning(
                 "No event file specified. Cannot sort output amplitudes by magnitude or azimuth"
             )
-            evd = defaultdict(lambda _: core.Event(1, 1, 1, 0, 0, ""))
+            evd = {}
 
     try:
         std = io.read_station_table(directory / config["station_file"])
@@ -742,13 +748,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
         logger.warning(
             "No station file specified. Cannot sort output amplitudes by station azimuth"
         )
-        std = defaultdict(lambda _: core.Station(-1, -1, -1, ""))
-
-    cent = utils.xyzarray(evd).mean(axis=0)  # Event centroid
-    azid = {
-        stn: angle.azimuth(*cent[:-1], *utils.xyzarray(sta)[:-1])
-        for stn, sta in std.items()
-    }
+        std = {}
 
     try:
         phd = io.read_phase_table(directory / config["phase_file"])
@@ -894,15 +894,8 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
 
     # Write to file
     for phase_type, amps in zip("PS", [pamps, samps]):
-        amps = sorted(
-            amps,
-            # Sort amplitudes first by station azimuth, then by mangnitude
-            key=lambda amp: (
-                azid[amp.station],
-                evd[amp.event_a].mag,
-                evd[amp.event_b].mag,
-            ),
-        )
+        if evd and std:
+            amps = amp.sort_amplitudes(amps, evd, std)
         fac = 1
         if phase_type == "S" and two_s:
             fac = 2
