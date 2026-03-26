@@ -444,7 +444,7 @@ def s_reconstruction(
 def amplitude_connections(
     amplitudes: list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios],
     s_amplitudes: list[core.S_Amplitude_Ratios] | None = None,
-    reference_mts: list[int] | None = None,
+    highlight: list[int] | None = None,
     ax: Axes | None = None,
     node_size: float = 250.0,
     node_linewidth: float = 1.0,
@@ -464,9 +464,8 @@ def amplitude_connections(
         Event pair- or tripletwise P- or S-amplitude mesuremetns.
     s_samplitudes:
         Second set of S-amplitude measurements. Observations will be combined
-    referenc_mts:
-        Highlight these reference moment tensors with a larger node and thicker
-        outline
+    highlight:
+        Highlight these events with a larger node and thicker outline
     ax:
         Plot into this axis. If `None`, create one
     node_size:
@@ -481,6 +480,8 @@ def amplitude_connections(
 
     # Prototype by ChatGPT o4-mini-high
     import networkx as nx
+
+    edgecolor = "white"
 
     ip, _ = qc._ps_amplitudes(amplitudes)
 
@@ -515,6 +516,8 @@ def amplitude_connections(
     deg = MG.degree()
     nodes = MG.nodes()
 
+    dig = int(np.log10(abs(max(nodes)))) + 1  # Max number of digits
+
     # A connection between two nodes counts only once, even when it occurs in
     # many triplets.
     connections = np.array([deg[n] for n in nodes])
@@ -522,16 +525,15 @@ def amplitude_connections(
     # Constant node sizes and line widhts
     node_sizes = [node_size] * len(nodes)
     linewidths = [node_linewidth] * len(nodes)
+    edgecolors = [edgecolor] * len(nodes)
 
     # When given, make reference MTs larger and line thicker
-    if reference_mts is not None:
-        node_sizes = [
-            node_size if n not in reference_mts else node_size * 2 for n in nodes
-        ]
+    if highlight is not None:
+        node_sizes = [node_size if n not in highlight else node_size * 2 for n in nodes]
         linewidths = [
-            node_linewidth if n not in reference_mts else node_linewidth * 2
-            for n in nodes
+            node_linewidth if n not in highlight else node_linewidth * 2 for n in nodes
         ]
+        edgecolors = [edgecolor if n not in highlight else "red" for n in nodes]
 
     # Collapse to graph after counting connections for efficient plotting
     G = nx.Graph()
@@ -565,7 +567,7 @@ def amplitude_connections(
         node_size=node_sizes,
         linewidths=linewidths,
         node_color=connections,
-        edgecolors="white",
+        edgecolors=edgecolors,
         cmap=cmap,
         ax=ax,
     )
