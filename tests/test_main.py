@@ -440,6 +440,38 @@ def test_plot_spectra_entry_saves_figure(muji_mini_project, monkeypatch):
     assert call["args"][3] == [7508]
 
 
+def test_plot_connections_entry_saves_figure(muji_mini_project, muji_config):
+
+    # Make amplitude observations
+    main.amplitude_entry(muji_config, muji_mini_project, 0, overwrite=True)
+
+    # Read them
+    pampf = core.file(
+        "amplitude_observation",
+        phase="P",
+        directory=muji_mini_project,
+        suffix=muji_config["amplitude_suffix"],
+    )
+    sampf = core.file(
+        "amplitude_observation",
+        phase="S",
+        directory=muji_mini_project,
+        suffix=muji_config["amplitude_suffix"],
+    )
+
+    # Plot and save
+    saveas = muji_mini_project / "amplitude-connections.png"
+    main.plot_connections_entry(
+        pampf,
+        sfile=sampf,
+        highlight=[7508],
+        saveas=saveas,
+    )
+
+    # Test if a figure was written
+    assert saveas.exists()
+
+
 def test_plot_mt_entry_saves_figure(muji_mini_project, muji_config, monkeypatch):
     fig = DummyFigure()
     call = {}

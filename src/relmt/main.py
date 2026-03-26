@@ -1674,6 +1674,51 @@ def plot_amplitude_entry(
         input("Press any key to continue...")
 
 
+def plot_connections_entry(
+    ampfile: Path,
+    sfile: Path | None = None,
+    highlight: list[int] | None = None,
+    saveas: Path | str | None = None,
+) -> None:
+    """Plot graph representation of amplitude-observation event connections.
+
+    Parameters
+    ----------
+    ampfile:
+        Path to the primary amplitude or amplitude-summary file to plot.
+    sfile:
+        Optional second S-amplitude file to combine with the primary file.
+    highlight:
+        Event IDs to highlight.
+    saveas:
+        If given, save the figure to this path instead of showing it interactively.
+    """
+
+    if ampfile.stem.startswith("P-"):
+        amp = io.read_amplitudes(ampfile, "P")
+    elif ampfile.stem.startswith("S-"):
+        amp = io.read_amplitudes(ampfile, "S")
+    else:
+        raise ValueError(f"Unknown phase in file name: {ampfile}")
+
+    s_amp = None
+    if sfile is not None:
+        s_amp = io.read_amplitudes(sfile, "S")
+
+    ax = plot.amplitude_connections(amp, s_amp, highlight=highlight)
+    fig = ax.figure
+
+    title = f"File: {ampfile}"
+    if sfile is not None:
+        title += f"\nS file: {sfile}"
+    fig.suptitle(title)
+
+    if saveas is not None:
+        fig.savefig(saveas)
+    else:
+        input("Press any key to continue...")
+
+
 # Mapping of sorting/coloring keys to their description
 _attr_keys = {
     "number": "Event ID",
@@ -2087,6 +2132,23 @@ Software for computing relative seismic moment tensors"""
     plot_amp_p.add_argument(*option["highlight"][0], **option["highlight"][1])
     plot_amp_p.add_argument(*option["saveas"][0], **option["saveas"][1])
 
+    # Plot amplitude connections
+    plot_conn_p = subpars.add_parser(
+        "plot-connections",
+        help="Plot event connections of relative amplitude observations",
+    )
+    plot_conn_p.add_argument(
+        "file", type=Path, help="Path to primary P- or S-amplitude file"
+    )
+    plot_conn_p.add_argument(
+        "--sfile",
+        type=Path,
+        default=None,
+        help="Optional second S-amplitude file",
+    )
+    plot_conn_p.add_argument(*option["highlight"][0], **option["highlight"][1])
+    plot_conn_p.add_argument(*option["saveas"][0], **option["saveas"][1])
+
     # Plot MTs
     plot_mt_p = subpars.add_parser("plot-mt", help="Plot waveform spectra to screen")
     plot_mt_p.add_argument(*option["config"][0], **option["config"][1])
@@ -2230,6 +2292,15 @@ def main(args=None):
     if parsed.mode == "plot-amplitude":
         plot_amplitude_entry(
             parsed.file,
+            parsed.highlight,
+            parsed.saveas,
+        )
+        return
+
+    if parsed.mode == "plot-connections":
+        plot_connections_entry(
+            parsed.file,
+            parsed.sfile,
             parsed.highlight,
             parsed.saveas,
         )
