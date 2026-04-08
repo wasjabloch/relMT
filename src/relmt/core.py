@@ -756,6 +756,15 @@ Include frequencies with this signal-to-noise ratio to optimal bandpass filter.
 Respects low-pass constraint. If not supplied, do not attempt to optimize
 passband.""",
     ),
+    "lowpass_event_phase_quantile": (
+        "float",
+        """
+Find a lowpass filter corner common to event phase observations accross
+stations. Use the given quantile of the previously assigned lowpasses (0
+indicates minimum value, 0.5 median, 1 maximum value). The criterion is applied
+after the the individual waveform bandpasses are calculated or loaded from
+file.""",
+    ),
     "amplitude_measure": (
         "str",
         """
@@ -939,6 +948,7 @@ class Config:
         auto_lowpass_stressdrop_range: tuple[float, float] | None = None,
         auto_lowpass_vs: float | None = None,
         auto_bandpass_snr_target: float | None = None,
+        lowpass_event_phase_quantile: float | None = None,
         amplitude_measure: str | None = None,
         min_dynamic_range: float | None = None,
         min_amplitude_misfit: float | None = None,

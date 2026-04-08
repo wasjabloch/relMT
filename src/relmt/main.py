@@ -458,6 +458,11 @@ def amplitude_entry(
     else:
         raise ValueError(f"Unknown 'amplitude_filter': {filter_method}")
 
+    if config["lowpass_event_phase_quantile"] is not None:
+        pasbnds = utils.common_event_phase_lowpass(
+            pasbnds, config["lowpass_event_phase_quantile"]
+        )
+
     # Collect the arguments to the amplitude function
     pargs = []
     sargs = []

@@ -33,6 +33,7 @@ from typing import Iterable
 from relmt import core, mt, signal, qc, angle
 from collections import defaultdict
 from itertools import combinations
+from warnings import filterwarnings
 
 logger = core.register_logger(__name__)
 
@@ -1084,6 +1085,57 @@ def corner_frequency(
     M0 = mt.moment_of_magnitude(magnitude)
 
     return (stress_drop * ks**3 * vs**3 * 16 / 7 / M0) ** (1 / 3)
+
+
+def common_event_phase_lowpass(
+    passbands: dict[str, dict[int, tuple[float, float]]], quantile: float
+) -> dict[str, dict[int, tuple[float, float]]]:
+    """Find common lowpass frequency across events for each station and phase
+
+    Parameters
+    ----------
+    passbands:
+        Mapping from waveform ID to mapping of event number to high- and lowpass
+        filter corener (Hz)
+    quantile:
+        Quantile of the lowpass frequencies across events to use as the common
+        lowpass frequency
+
+    Returns
+    -------
+    New passbands dictionary with a common lowpass frequency for each phase of each event.
+    """
+
+    # nan lowpasses are handled correctly, so do not bother.
+    filterwarnings("ignore", "All-NaN slice encountered")
+
+    # Collect event numbers and phases
+    evps = set()
+    for wvid, bpd in passbands.items():
+        pha = core.split_waveid(wvid)[1]
+        evps.update([(evn, pha) for evn in bpd.keys()])
+
+    # Collect lowpass frequencies for each event and phase
+    lps = {evp: np.nan for evp in evps}
+
+    for evp in evps:
+        evn, pha = evp
+        lpf = [
+            passbands[wid][evn][1]
+            for wid in passbands
+            if evn in passbands[wid] and core.split_waveid(wid)[1] == pha
+        ]
+
+        # Get common lowpass
+        lps[evp] = np.nanquantile(lpf, quantile)
+
+    # Create new passbands dictionary with common lowpass frequencies
+    new_passbands = {}
+    for wid, bpd in passbands.items():
+        pha = core.split_waveid(wid)[1]
+        new_passbands[wid] = {evn: (bpd[evn][0], lps[(evn, pha)]) for evn in bpd}
+
+    return new_passbands
 
 
 def pc_index(mtx: np.ndarray, phase: str) -> np.ndarray:
