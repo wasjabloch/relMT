@@ -931,6 +931,7 @@ def phase_passbands(
     auto_lowpass_method: str | None = None,
     fixed_lowpass: float | None = None,
     auto_lowpass_stressdrop_range: tuple[float, float] = [1.0e6, 1.0e6],
+    auto_lowpass_vs: float = 4000,
     auto_bandpass_snr_target: float | None = None,
 ) -> dict[str, list[float]]:
     """Compute the bandpass filter corners for a waveform array.
@@ -984,6 +985,10 @@ def phase_passbands(
     auto_lowpass_stressdrop_range:
         Tuple of lower and upper bound of stress drop (Pa) to consider when
         `auto_lowpass_method` is 'corner'. Ignored otherwise.
+    auto_lowpass_vs:
+        Near source S-wave velocity (m/s) used to constrain spectral corner
+        frequency estimate when `auto_lowpass_method` is 'corner'. Ignored
+        otherwise.
     auto_bandpass_snr_target:
         Minimum signal-to-noise ratio (dB) to consider when optimizing the
         bandpass filter corners. If None, no optimization is applied and the
@@ -1030,19 +1035,25 @@ def phase_passbands(
         elif auto_lowpass_method == "corner":
             # Corner frequency from stress drop
 
+            if not all(auto_lowpass_stressdrop_range) and auto_lowpass_vs:
+                msg = "'auto_lowpass_stressdrop_range' and 'auto_lowpass_vs' "
+                msg += "must be set when using the 'corner' "
+                msg += "'auto_lowpass_method'"
+                raise ValueError(msg)
+
             if auto_lowpass_stressdrop_range[0] >= auto_lowpass_stressdrop_range[1]:
                 # If no range is given, don't look into the spectrum
                 fc = utils.corner_frequency(
-                    ev.mag, pha, auto_lowpass_stressdrop_range[0], 4000
+                    ev.mag, pha, auto_lowpass_stressdrop_range[0], auto_lowpass_vs
                 )
 
             else:
                 # Convert stressdrop range to possile corner frequencies
                 fcmin = utils.corner_frequency(
-                    ev.mag, pha, auto_lowpass_stressdrop_range[0], 4000
+                    ev.mag, pha, auto_lowpass_stressdrop_range[0], auto_lowpass_vs
                 )
                 fcmax = utils.corner_frequency(
-                    ev.mag, pha, auto_lowpass_stressdrop_range[1], 4000
+                    ev.mag, pha, auto_lowpass_stressdrop_range[1], auto_lowpass_vs
                 )
 
                 # Isolate the signal

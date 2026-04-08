@@ -743,6 +743,12 @@ When estimating the low-pass frequency of an event as the corner frequency
 When second value is less or equal first value, use a fixed stress drop of first
 value.""",
     ),
+    "auto_lowpass_vs": (
+        "float",
+        """
+Near source S-wave velocity (m/s) used to constrain corner frequency estimate
+from spectrum when `auto_lowpass_method` is 'corner'. Ignored otherwise.""",
+    ),
     "auto_bandpass_snr_target": (
         "float",
         """
@@ -931,6 +937,7 @@ class Config:
         auto_lowpass_method: str | None = None,
         fixed_lowpass: float | None = None,
         auto_lowpass_stressdrop_range: tuple[float, float] | None = None,
+        auto_lowpass_vs: float | None = None,
         auto_bandpass_snr_target: float | None = None,
         amplitude_measure: str | None = None,
         min_dynamic_range: float | None = None,

@@ -378,6 +378,7 @@ def test_phase_passbands_fixed():
         evd,
         exclude=exclude,
         auto_lowpass_method="fixed",
+        auto_lowpass_vs=4000,
         fixed_lowpass=8.0,
     )
 
