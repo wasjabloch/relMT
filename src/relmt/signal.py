@@ -1068,12 +1068,14 @@ def phase_passbands(
                 except ValueError:
                     # It might be outside the range of the signal
                     fc = fcmax
+
         elif auto_lowpass_method == "fixed":
             if fixed_lowpass is None:
                 raise ValueError(
                     "Missing 'fixed_lowpass' for auto_lowpass_method='fixed'"
                 )
             fc = fixed_lowpass
+
         else:
             raise ValueError(f"Unknown lowpass method: {auto_lowpass_method}")
 
