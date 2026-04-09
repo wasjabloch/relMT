@@ -222,6 +222,7 @@ def write_event_table(
 def write_mt_table(
     mt_dict: dict[int, core.MT] | dict[int, list[core.MT]],
     filename: Path | str | None = None,
+    harvard_convention: bool = False,
 ) -> str:
     """
     Convert moment tensor dictionary to relMT compliant moment tensor table.
@@ -242,6 +243,9 @@ def write_mt_table(
 
     filename:
         If Write table to this file
+    harvard_convention:
+        If True, write in Harvard convention (Mrr, Mtt, Mff, Mrt, Mrf, Mtf)
+        rather than North-East-Down convention (Mnn, Mee, Mdd, Mne, Mnd, Med).
 
 
     Returns
@@ -252,21 +256,32 @@ def write_mt_table(
     # Header
     out = "#Number            nn            ee            dd            ne"
     out += "            nd            ed\n"
+
+    if harvard_convention:
+        out = "#Number            rr            tt            ff            rt"
+        out += "            rf            tf\n"
+
     out += "# (int)          (Nm)          (Nm)          (Nm)          (Nm)"
     out += "           (Nm)         (Nm)\n"
 
     # Format
     form = "{:>7d} {:>13.6e} {:>13.6e} {:>13.6e} {:>13.6e} {:>13.6e} {:>13.6e}\n"
 
-    try:
+    # Transform coordinate axes if necessary.
+    trans = lambda *x: x
+    if harvard_convention:
+        trans = mt.ned2rtf
+
+    if isinstance(mt_dict[list(mt_dict.keys())[0]], list):
         # Each Key holds a list of moment tensors
         out += "".join(
-            form.format(iev, *momt) for iev, mts in mt_dict.items() for momt in mts
+            form.format(iev, *trans(*momt))
+            for iev, mts in mt_dict.items()
+            for momt in mts
         )
-    except TypeError:
+    else:
         # Each Key holds a moment tensor
-        out += "".join(form.format(iev, *momt) for iev, momt in mt_dict.items())
-
+        out += "".join(form.format(iev, *trans(*momt)) for iev, momt in mt_dict.items())
     if filename is not None:
         with open(filename, "w") as fid:
             fid.write(out)
@@ -278,6 +293,7 @@ def read_mt_table(
     filename: str,
     force_list: bool = False,
     unpack: bool = False,
+    harvard_convention: bool = False,
 ) -> (
     dict[int, core.MT]
     | dict[int, list[core.MT]]
@@ -306,6 +322,11 @@ def read_mt_table(
         Always return a dict of lists. Ignored if `unpack=True`
     unpack:
         Return each variable as separate array. Superceeds `force_list`
+    harvard_convention:
+        If False, assume input is in North-East-Down convention
+        (Mnn, Mee, Mdd, Mne, Mnd, Med).
+        If True, assume input is in Harvard convention
+        (Mrr, Mtt, Mff, Mrt, Mrf, Mtf).
 
     Returns
     -------
@@ -331,6 +352,18 @@ def read_mt_table(
     )
 
     mtarr = np.array(mts).T
+
+    if harvard_convention:
+        mtarr = np.array(
+            [
+                mtarr[:, 1],
+                mtarr[:, 2],
+                mtarr[:, 0],
+                -mtarr[:, 5],
+                mtarr[:, 3],
+                -mtarr[:, 4],
+            ]
+        ).T
 
     if unpack:
         return ievs.astype(int), *mts

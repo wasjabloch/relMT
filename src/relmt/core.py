@@ -675,6 +675,15 @@ Path to the phase file, e.g. 'data/phases.txt'""",
         """
 Path to the reference moment tensor file, e.g. 'data/reference_mt.txt'""",
     ),
+    "harvard_convention": (
+        "bool",
+        """
+Read and write moment tensors in Harvard Up-South-East rather than
+North-East-Down convention.
+False, the default, assumes (Mnn, Mee, Mdd, Mne, Mnd, Med).
+True assumes (Mrr, Mtt, Mff, Mrt, Mrf, Mtf).
+""",
+    ),
     "loglevel": (
         "str",
         """
@@ -934,6 +943,7 @@ class Config:
         station_file: str | None = None,
         phase_file: str | None = None,
         reference_mt_file: str | None = None,
+        harvard_convention: bool | None = None,
         lag_times: list[str] | None = None,
         amplitude_suffix: str = "",
         admit_suffix: str = "",

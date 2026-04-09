@@ -26,6 +26,7 @@
 from numpy import inf
 
 config = dict(
+    harvard_convention=False,
     lag_times=[],
     loglevel="INFO",
     mt_constraint="none",

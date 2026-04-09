@@ -977,7 +977,7 @@ def solve_entry(
     evd = io.read_event_table(evf)
     phd = io.read_phase_table(phf)
     stad = io.read_station_table(stf)
-    mtd = io.read_mt_table(refmtf)
+    mtd = io.read_mt_table(refmtf, harvard_convention=config["harvard_convention"])
 
     # Read amplitudes from file
     p_amplitudes = io.read_amplitudes(
@@ -1164,7 +1164,9 @@ def solve_entry(
 
     # Save the results right away
     io.write_mt_table(
-        relmts, core.file("relative_mt", suffix=outsuf, directory=directory)
+        relmts,
+        core.file("relative_mt", suffix=outsuf, directory=directory),
+        harvard_convention=config["harvard_convention"],
     )
 
     # Indices in subsets of events
@@ -1425,6 +1427,7 @@ def solve_entry(
         io.write_mt_table(
             bootmts,
             core.file("relative_mt", suffix=outsuf + "-boot", directory=directory),
+            harvard_convention=config["harvard_convention"],
         )
 
         boot_rms = mt.norm_rms(bootmts, relmts)
@@ -1778,7 +1781,7 @@ def plot_mt_entry(
         "boot-kagan",
     ]
 
-    mtd = io.read_mt_table(mtfile)
+    mtd = io.read_mt_table(mtfile, harvard_convention=config["harvard_convention"])
     evd = io.read_event_table(config["event_file"])
 
     evns = np.array(list(mtd))

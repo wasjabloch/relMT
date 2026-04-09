@@ -363,11 +363,11 @@ def rtf2ned(
     mrr: float, mtt: float, mff: float, mrt: float, mrf: float, mtf: float
 ) -> tuple[float, float, float, float, float, float]:
     """
-    Convert moment tensor in `r` (up), `t` (south), `p` (east) coordinates to
+    Convert moment tensor in `r` (up), `t` (south), `f` (east) coordinates to
     north-east-down
     """
     #      mnn, mee, mdd,  mne, mnd,  med
-    return core.MT(mtt, mff, mrr, -mtf, mrt, -mrf)
+    return mtt, mff, mrr, -mtf, mrt, -mrf
 
 
 def ned2rtf(

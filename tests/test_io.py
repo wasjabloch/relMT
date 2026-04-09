@@ -141,13 +141,21 @@ def test_read_mt_table_unpack(mock_mt_table_file):
     assert len(result[0]) == 2  # Event IDs
 
 
-def test_make_mt_table():
+def test_read_mt_table_harvard(mock_mt_table_file):
+    result = io.read_mt_table(str(mock_mt_table_file), harvard_convention=True)
+    assert isinstance(result, dict)
+    assert len(result) == 2
+    assert result[1] == core.MT(0.2, 0.3, 0.1, -0.6, 0.4, -0.5)
+
+
+@pytest.mark.parametrize("harvard_convention", [True, False])
+def test_make_mt_table(harvard_convention):
     # Test if a station table is read correctly
     mtin = {0: core.MT(0.0, 1.0, 2.0, 3.0, 4.0, 5.0)}
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
-        tab = io.write_mt_table(mtin, fid.name)
+        tab = io.write_mt_table(mtin, fid.name, harvard_convention=harvard_convention)
         fid.close()
-        mtout = io.read_mt_table(fid.name)
+        mtout = io.read_mt_table(fid.name, harvard_convention=harvard_convention)
     os.remove(fid.name)
 
     # Assert that something meaningful it written in the table
@@ -159,7 +167,8 @@ def test_make_mt_table():
         assert inv == outv
 
 
-def test_make_mt_table_list():
+@pytest.mark.parametrize("harvard_convention", [True, False])
+def test_make_mt_table_list(harvard_convention):
     # Test if a station table is read correctly
     mtin = {
         0: [
@@ -169,9 +178,9 @@ def test_make_mt_table_list():
     }
 
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
-        tab = io.write_mt_table(mtin, fid.name)
+        tab = io.write_mt_table(mtin, fid.name, harvard_convention=harvard_convention)
         fid.close()
-        mtout = io.read_mt_table(fid.name)
+        mtout = io.read_mt_table(fid.name, harvard_convention=harvard_convention)
     os.remove(fid.name)
 
     # Assert that something meaningful it written in the table
