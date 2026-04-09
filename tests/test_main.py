@@ -172,6 +172,7 @@ def _make_config(project: Path) -> core.Config:
             "amplitude_suffix": "testamp",
             "admit_suffix": "testadm",
             "result_suffix": "testres",
+            "auto_lowpass_vs": 4000.0,
             "amplitude_filter": "manual",
             "amplitude_measure": "indirect",
             "min_equations": 1,

@@ -352,7 +352,6 @@ def test_read_waveform_array_header():
 
     assert pytest.approx(wvarr2) == wvarr
 
-    hdr2.update(def_hdr)
     for key in hdr:
         assert hdr[key] == hdr2[key]
 

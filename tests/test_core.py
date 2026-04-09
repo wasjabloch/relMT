@@ -34,7 +34,11 @@ import pytest
 def test_config_init_empty():
     # Test if an empty config is produced correctly
     config = core.Config()
-    assert all(value is None or value == "" for value in config.values())
+    for key, value in config.items():
+        if key in default.config:
+            assert value == default.config[key]
+        else:
+            assert (value is None) or (value == "")
 
 
 def test_config_init_floats():
@@ -160,31 +164,15 @@ def test_config_iter():
         result_suffix="res",
         admit_suffix="qc",
     )
-    notgiven = [
-        key for key in core._config_args_comments.keys() if key not in given.keys()
-    ]
     conf = core.Config(**given)
     for key in conf:
-        assert key in given.keys()
-        assert key not in notgiven
+        assert (key in given.keys()) or (key in default.config.keys())
 
 
 def test_config_repr():
-    given = dict(
-        max_amplitude_misfit=99.0,
-        bootstrap_samples=99.0,
-        amplitude_suffix="amp",
-        result_suffix="res",
-        admit_suffix="qc",
-    )
-    notgiven = [
-        key for key in core._config_args_comments.keys() if key not in given.keys()
-    ]
-    conf = core.Config(**given)
-    for key in given:
+    conf = core.Config()
+    for key in core._config_args_comments.keys():
         assert key in conf.__repr__()
-    for key in notgiven:
-        assert key not in conf.__repr__()
 
 
 def test_config_update():
@@ -198,12 +186,11 @@ def test_config_update():
 def test_config_get():
     conf = core.Config(max_amplitude_misfit=99.0, bootstrap_samples=99.0)
     assert conf.get("max_amplitude_misfit", None) == 99.0
-    assert conf.get("ncpu", None) == None
     assert conf.get("ncpu", 1) == 1
 
-    # Test the case, where a None was set, but we want a value
-    conf["ncpu"] = None
-    assert conf.get("ncpu", 1) == 1
+    # Test the case, where a None was set, but we want the default value
+    conf["bootstrap_samples"] = None
+    assert conf.get("bootstrap_samples", 1) == 0
 
 
 def test_config_kwargs():
@@ -398,14 +385,6 @@ def test_header():
     hdr = core.Header(**hdrkws)
     for kw in hdrkws:
         assert hdrkws[kw] == hdr[kw]
-
-
-def test_default_header():
-    dhead = default.header
-
-    # Assert all keys are present
-    for key in core._header_args_comments:
-        assert dhead[key] is not None
 
 
 def test_default_exclude():
