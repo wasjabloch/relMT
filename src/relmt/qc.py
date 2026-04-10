@@ -277,6 +277,84 @@ def clean_by_event_distance(
 
     return [amplitudes[n] for n in iin]
 
+
+def clean_by_shared_path(
+    amplitudes: list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios],
+    event_dict: dict[int, core.Event],
+    station_dict: dict[int, core.Event],
+    min_shared_path: float,
+) -> list[core.P_Amplitude_Ratio | core.S_Amplitude_Ratios]:
+    """Remove amplitude readings of event combinations with small shared path
+
+    Event pairs or triplets whose shared path to the station smaller than
+    `min_shared_path` will be removed. Shared path is
+
+    ..math::
+        1 - 2 |r - r'| / |r + r'|
+
+    Parameters
+    ----------
+    amplitudes:
+        List of amplitude observations
+    event_dict:
+        The seismic event catalog
+    station_dict:
+        Seismic stations
+    min_shared_path:
+        Minimum shared path fraction
+
+    Returns
+    -------
+    Cleaned list of amplitude observations
+    """
+
+    if min_shared_path is None or len(amplitudes) == 0:
+        return amplitudes
+
+    def _shared_path(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+        return 1 - 2 * np.abs(a - b) / (a + b)
+
+    ip, _ = _ps_amplitudes(amplitudes)
+
+    evxyz = utils.xyzarray(event_dict)
+    stxyz = utils.xyzarray(station_dict)
+
+    # Event and station indices
+    ievd = {evn: iev for iev, evn in enumerate(event_dict)}
+    istd = {stn: ist for ist, stn in enumerate(station_dict)}
+
+    # Station indices
+    ists = np.array([istd[amp.station] for amp in amplitudes])
+
+    if ip:
+        ievs = np.array([(ievd[amp.event_a], ievd[amp.event_b]) for amp in amplitudes])
+    else:
+        ievs = np.array(
+            [
+                (ievd[amp.event_a], ievd[amp.event_b], ievd[amp.event_c])
+                for amp in amplitudes
+            ]
+        )
+        rc = utils.cartesian_distance(*evxyz[ievs[:, 2], :].T, *stxyz[ists, :].T)
+
+    ra = utils.cartesian_distance(*evxyz[ievs[:, 0], :].T, *stxyz[ists, :].T)
+    rb = utils.cartesian_distance(*evxyz[ievs[:, 1], :].T, *stxyz[ists, :].T)
+
+    if ip:
+        shared_path = _shared_path(ra, rb)
+    else:
+        ab = _shared_path(ra, rb)
+        ac = _shared_path(ra, rc)
+        bc = _shared_path(rb, rc)
+        shared_path = np.min(np.array([ab, ac, bc]), axis=0)
+
+    iin = (shared_path >= min_shared_path).nonzero()[0]
+
+    logger.info(
+        f"Excluded {len(amplitudes) - len(iin)} observations with shared path fraction "
+        f"smaller than {min_shared_path}."
+    )
+
     if not any(iin):
         logger.warning("Excluded all observations.")
 

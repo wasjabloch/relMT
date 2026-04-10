@@ -708,6 +708,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
     max_mis = config["max_amplitude_misfit"]
     max_smis = config["max_s_amplitude_misfit"] or max_mis
     max_mag_diff = config["max_magnitude_difference"]
+    min_shared_path = config["min_shared_path"]
     max_s1 = config["max_s_sigma1"]
     max_ev_dist = config["max_event_distance"]
     min_eq = config["min_equations"]
@@ -862,6 +863,9 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
         # ... within inter-event distance ...
         if max_ev_dist is not None:
             amps = qc.clean_by_event_distance(amps, evd, max_ev_dist)
+
+        if min_shared_path is not None:
+            amps = qc.clean_by_shared_path(amps, evd, std, min_shared_path)
 
         # Let's not overwrite, but save for later use
         if phase_type == "P":

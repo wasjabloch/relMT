@@ -829,6 +829,12 @@ measurement.""",
         """
 Maximum allowed distance (m) between two events.""",
     ),
+    "min_shared_path": (
+        "float",
+        """
+Minimum shared path length fraction between events and station to allow an
+amplitude measurement.""",
+    ),
     "min_equations": (
         "int",
         """
@@ -968,6 +974,7 @@ class Config:
         max_s_sigma1: float | None = None,
         max_magnitude_difference: float | None = None,
         max_event_distance: float | None = None,
+        min_shared_path: float | None = None,
         two_s_equations: bool | None = None,
         max_p_equations: int | None = None,
         max_s_equations: int | None = None,
