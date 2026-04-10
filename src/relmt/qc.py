@@ -103,7 +103,14 @@ def clean_by_station(
     -------
     Cleaned list of amplitude observations
     """
-    return [amp for amp in amplitudes if amp.station not in exclude_stations]
+    ampout = [amp for amp in amplitudes if amp.station not in exclude_stations]
+
+    logger.info(
+        f"Excluded {len(amplitudes) - len(ampout)} observations with stations "
+        f"in {exclude_stations}."
+    )
+
+    return ampout
 
 
 def clean_by_event(
@@ -128,19 +135,26 @@ def clean_by_event(
 
     if ip:
         # P phases
-        return [
+        ampout = [
             amp
             for amp in amplitudes
             if amp.event_a not in exclude_events and amp.event_b not in exclude_events
         ]
     else:
-        return [
+        ampout = [
             amp
             for amp in amplitudes
             if amp.event_a not in exclude_events
             and amp.event_b not in exclude_events
             and amp.event_c not in exclude_events
         ]
+
+    logger.info(
+        f"Excluded {len(amplitudes) - len(ampout)} observations with events "
+        f"in {exclude_events}."
+    )
+
+    return ampout
 
 
 def clean_by_magnitude_difference(
@@ -169,27 +183,36 @@ def clean_by_magnitude_difference(
         return amplitudes
 
     ip, _ = _ps_amplitudes(amplitudes)
+
     if ip:
-        return [
+        ampout = [
             amp
             for amp in amplitudes
             if abs(event_dict[amp[2]].mag - event_dict[amp[3]].mag)
             < magnitude_difference
         ]
-    return [
-        amp
-        for amp in amplitudes
-        if all(
-            [
-                abs(event_dict[amp[2]].mag - event_dict[amp[3]].mag)
-                < magnitude_difference,
-                abs(event_dict[amp[2]].mag - event_dict[amp[4]].mag)
-                < magnitude_difference,
-                abs(event_dict[amp[3]].mag - event_dict[amp[4]].mag)
-                < magnitude_difference,
-            ]
-        )
-    ]
+    else:
+        ampout = [
+            amp
+            for amp in amplitudes
+            if all(
+                [
+                    abs(event_dict[amp[2]].mag - event_dict[amp[3]].mag)
+                    < magnitude_difference,
+                    abs(event_dict[amp[2]].mag - event_dict[amp[4]].mag)
+                    < magnitude_difference,
+                    abs(event_dict[amp[3]].mag - event_dict[amp[4]].mag)
+                    < magnitude_difference,
+                ]
+            )
+        ]
+
+    logger.info(
+        f"Excluded {len(amplitudes) - len(ampout)} observations with "
+        f"magnitude difference larger than {magnitude_difference}."
+    )
+
+    return ampout
 
 
 def clean_by_event_distance(
@@ -243,6 +266,16 @@ def clean_by_event_distance(
         dist = np.max(np.array([ab, ac, bc]), axis=0)
 
     iin = (dist <= event_distance).nonzero()[0]
+
+    logger.info(
+        f"Excluded {len(amplitudes) - len(iin)} observations with event distance larger "
+        f"than {event_distance} m."
+    )
+
+    if not any(iin):
+        logger.warning("Excluded all observations.")
+
+    return [amplitudes[n] for n in iin]
 
     if not any(iin):
         logger.warning("Excluded all observations.")
