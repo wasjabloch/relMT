@@ -943,21 +943,22 @@ def sort_amplitudes(
     event_dict: dict[int, core.Event],
     station_dict: dict[str, core.Station],
 ) -> list[core.P_Amplitude_Ratio] | list[core.S_Amplitude_Ratios]:
-    """Sort amplitudes first by station azimuth, then by event magnitude"""
+    """Sort amplitudes first by station distance, then by event magnitude
+    difference (large to small"""
     # Event centroid
     cent = utils.xyzarray(event_dict).mean(axis=0)
 
-    # Station azimuth lookup
-    azid = {
-        stn: angle.azimuth(*cent[:-1], *utils.xyzarray(sta)[:-1])
+    # Station distance lookup
+    distd = {
+        stn: utils.cartesian_distance(*cent[:-1], 0, *utils.xyzarray(sta)[:-1], 0)
         for stn, sta in station_dict.items()
     }
 
     # Sort amplitudes first by station azimuth, then by mangnitude
     def _sorter(amp):
         return (
-            azid[amp.station],
-            event_dict[amp.event_a].mag,
+            distd[amp.station],
+            -event_dict[amp.event_a].mag,
             event_dict[amp.event_b].mag,
         )
 
