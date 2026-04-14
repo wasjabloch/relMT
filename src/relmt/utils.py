@@ -332,6 +332,7 @@ def phase_dict_hash_plunge(
     strict: bool = False,
     nquerry: int = 100,
     nray=1000,
+    station_depth: bool = True,
 ) -> dict[str, core.Phase]:
     """
     Fill phase dictionary with plunge values from HASH.
@@ -358,6 +359,11 @@ def phase_dict_hash_plunge(
         Number of distance and depth querry points for plunge lookup table
     nray:
         Number of trail rays (should be larger than `nquerry`)
+    station_depth:
+        If `True`, consider station depth by cropping velocity model above to
+        the depth of the station.  Produces NaN plunges for events above the
+        station. `False` places all stations at the shallowest depth of the
+        velocity model, consistent with SKHASH behavior.
 
     Returns
     -------
@@ -373,40 +379,77 @@ def phase_dict_hash_plunge(
             and core.split_phaseid(phid)[0] in event_dict
         }
 
-    dist_dep = np.array(
+    dist_dep_stdep = np.array(
         [
             (
                 cartesian_distance(
-                    *xyzarray(station_dict[core.split_phaseid(phid)[1]])[:2],
+                    *station_dict[core.split_phaseid(phid)[1]][:2],
                     0,
-                    *xyzarray(event_dict[core.split_phaseid(phid)[0]])[:2],
+                    *event_dict[core.split_phaseid(phid)[0]][:2],
                     0,
                 ),
                 event_dict[core.split_phaseid(phid)[0]].depth,
+                station_dict[core.split_phaseid(phid)[1]].depth,
             )
             for phid in phase_dict
         ]
     )
 
     # Distance and depth coordinate vectors
-    # Distance is expected to begin at 0, else strange IndexErrors occurr
-    maxdist = max(dist_dep[:, 0])
-    maxdep = max(dist_dep[:, 1])
+    # Distance is expected to begin at 0, else strange IndexErrors occur
+    maxdist = max(dist_dep_stdep[:, 0])
+    maxdep = max(dist_dep_stdep[:, 1])
     logger.debug(f"Found maximum event-station distance: {maxdist} m")
     logger.debug(f"Found maximum event depth: {maxdep} m")
 
     distv = np.linspace(0.0, maxdist, nquerry)
     depv = np.linspace(0.0, maxdep, nquerry)
 
-    # P wave ...
-    pluta_p = angle.hash_plunge_table(vmodel[:, :2], depv, distv, nray)
+    vpmodel = vmodel[:, :2]
+    vsmodel = vmodel[:, [0, 2]]
 
-    # S wave plunge lookup table
-    pluta_s = angle.hash_plunge_table(vmodel[:, [0, 2]], depv, distv, nray)
+    if station_depth:
+        stdeps = set(dist_dep_stdep[:, 2])
 
-    # Interpolate P and S plunges, regardless of phase
-    plup = interpn((distv, depv), pluta_p, dist_dep)
-    plus = interpn((distv, depv), pluta_s, dist_dep)
+        # Find discrete station depth levels
+        udeps = set([depv[np.argmin(np.abs(depv - stdep))] for stdep in stdeps])
+
+        # Lookup station name -> udep
+        stdep = {
+            stn: depv[np.argmin(np.abs(depv - station_dict[stn].depth))]
+            for stn in station_dict
+        }
+
+    else:
+        udeps = [None]
+        stdep = {stn: None for stn in station_dict}
+
+    # P and S plunge lookup tables by station name
+    plup = {}
+    plus = {}
+    for udep in udeps:
+        pluta_p = angle.hash_plunge_table(
+            vpmodel, depv, distv, nray, station_depth=udep
+        )
+
+        # S wave plunge lookup table only when not a constant factor of P model
+        if np.all(
+            np.isclose(vpmodel[:, 1] / vsmodel[:, 1], vpmodel[0, 1] / vsmodel[0, 1])
+        ):
+            pluta_s = pluta_p
+        else:
+            pluta_s = angle.hash_plunge_table(
+                vsmodel, depv, distv, nray, station_depth=udep
+            )
+
+        # Station depth considered by using correct udep. We will look up the
+        # correct udep for each station below.
+        # TODO: We still interpolate the entire distv and depv for all station,
+        # even though this is not necessary. One could make unique lookup
+        # vectors per station above, which also requires to enumerate the lookup
+        # vector correctly below
+        plup[udep] = interpn((distv, depv), pluta_p, dist_dep_stdep[:, :2])
+        plus[udep] = interpn((distv, depv), pluta_s, dist_dep_stdep[:, :2])
 
     new_phase_dict = {
         phid: (
@@ -415,9 +458,13 @@ def phase_dict_hash_plunge(
             if np.isfinite(ph.plunge) and not overwrite
             # Else, Assign P or S plunge, depending on phase id
             else (
-                core.Phase(ph.time, ph.azimuth, plup[nph])
-                if core.split_phaseid(phid)[2] == "P"
-                else core.Phase(ph.time, ph.azimuth, plus[nph])
+                core.Phase(
+                    ph.time, ph.azimuth, plup[stdep[core.split_phaseid(phid)[1]]][nph]
+                )
+                if core.split_phaseid(phid)[2].startswith("P")
+                else core.Phase(
+                    ph.time, ph.azimuth, plus[stdep[core.split_phaseid(phid)[1]]][nph]
+                )
             )
         )
         for nph, (phid, ph) in enumerate(phase_dict.items())

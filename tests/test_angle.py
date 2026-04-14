@@ -46,19 +46,57 @@ def test_hash_plunge_table():
     # Table has Depth, Vp, Vs
     vmodel = io.read_velocity_model(vmodf, has_kilometer=True)
 
-    # Make sure vecorts start at 0
+    # Make sure vectors start at 0
     disv = np.linspace(0, max(dists), 100)
     depv = np.linspace(0, 2 * depth[0], 100)
 
     # Supply only Vp
     # Output is distance, depth
-    tab = angle.hash_plunge_table(vmodel[:, :2], depv, disv, nray=5000)
+    tab1 = angle.hash_plunge_table(
+        vmodel[:, :2], depv, disv, nray=5000, station_depth=None
+    )
 
-    plunge_out = interpn((disv, depv), tab, np.array([dists, depth]).T)
+    # Station depth = 0 is the implicit default
+    tab2 = angle.hash_plunge_table(
+        vmodel[:, :2], depv, disv, nray=5000, station_depth=0
+    )
+
+    assert pytest.approx(tab1) == tab2
+
+    plunge_out = interpn((disv, depv), tab1, np.array([dists, depth]).T)
 
     # Near-horizontal angle is least stable. Increasing distance and depth
     # sampling helps at the cost of longer runtimes
     assert pytest.approx(plunge_out, abs=2) == plunge
+
+
+def test_hash_plunge_table_station_depth():
+
+    # Simple gradiant model
+    vmodel = np.array(
+        [[0, 1000], [2000, 2000], [3000, 3000], [10000, 10000]], dtype=float
+    )
+
+    # Make sure vectors start at 0
+    disv = np.linspace(0.0, 10000.0, 10)
+    depv = np.linspace(0.0, 6000.0, 20)
+
+    sdep = 600
+    idep = np.argmin(np.abs(depv - sdep))
+
+    # Supply only Vp
+    # Output is distance, depth
+    tab = angle.hash_plunge_table(vmodel, depv, disv, nray=5000, station_depth=sdep)
+
+    # Above the station, we have all NaNs
+    assert np.all(np.isnan(tab[:, :idep]))
+
+    # Plunge should decrease with depth, but does so only at certain slices, due
+    # to numerical inaccuracy
+    assert np.all(np.diff(tab[5, idep:]) <= 0)
+
+    # Plunge should increase with distance, same numerical issues
+    assert np.all(np.diff(tab[:, idep]) >= 0)
 
 
 def test_azimuth():

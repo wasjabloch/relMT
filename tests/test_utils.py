@@ -210,7 +210,7 @@ def test_phase_dict_hash_plunge():
     # Table has Depth, Vp, Vs
     vmodel = io.read_velocity_model(vmodf, has_kilometer=True)
 
-    newphd = utils.phase_dict_hash_plunge(phd, evd, std, vmodel)
+    newphd = utils.phase_dict_hash_plunge(phd, evd, std, vmodel, station_depth=False)
 
     for sta, plunge in zip(stas, plunges):
         pp = newphd[core.join_phaseid(0, sta, "P")].plunge
@@ -225,8 +225,52 @@ def test_phase_dict_hash_plunge():
     phd["0_BARR_S"] = core.Phase(-1, -1, 101.0)
 
     # Let's try not to overwrite the set value
-    newphd = utils.phase_dict_hash_plunge(phd, evd, std, vmodel, overwrite=False)
+    newphd = utils.phase_dict_hash_plunge(
+        phd, evd, std, vmodel, overwrite=False, station_depth=False
+    )
     assert newphd["0_BARR_S"].plunge == 101.0
+
+
+def test_phase_dict_hash_plunge_station_depth():
+    # Test if phases arrival times are estimated correctly when considering
+    # station depth
+
+    # Gradiant Vp model and differnt Vs model
+    vmodel = np.array(
+        [[0, 1000, 2000], [2000, 2000, 3000], [3000, 3000, 4000], [10000, 10000, 6000]],
+        dtype=float,
+    )
+
+    # Surface and borehole station
+    std = {
+        "SURF": core.Station(1000, 0, 0, "SURF"),
+        "BORE": core.Station(1000, 0, 2500, "BORE"),
+    }
+
+    # Event below BORE station
+    evd = {
+        0: core.Event(0, 0, 4000, 0, 0, "Deep"),
+        1: core.Event(0, 0, 2000, 0, 0, "Shallow"),
+    }
+
+    phd = {
+        "0_SURF_P": core.Phase(-1, -1, np.nan),
+        "0_BORE_P": core.Phase(-1, -1, np.nan),
+        "0_SURF_S": core.Phase(-1, -1, np.nan),
+        "0_BORE_S": core.Phase(-1, -1, np.nan),
+        "1_BORE_P": core.Phase(-1, -1, np.nan),
+        "1_BORE_S": core.Phase(-1, -1, np.nan),
+    }
+
+    newphd = utils.phase_dict_hash_plunge(phd, evd, std, vmodel)
+
+    # Plunge increases with sensor depth
+    assert newphd["0_SURF_P"].plunge < newphd["0_BORE_P"].plunge
+    assert newphd["0_SURF_S"].plunge < newphd["0_BORE_S"].plunge
+
+    # Event above sensor yields NaN
+    assert np.isnan(newphd["1_BORE_P"].plunge)
+    assert np.isnan(newphd["1_BORE_S"].plunge)
 
 
 def test_interpolate_phd_time():

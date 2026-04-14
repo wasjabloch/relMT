@@ -43,6 +43,7 @@ def hash_plunge_table(
     depths: np.ndarray,
     distances: np.ndarray,
     nray: int,
+    station_depth: float | None = None,
 ):
     """
     Create tables of takeoff plunge angles given a 1D velocity model.
@@ -53,14 +54,18 @@ def hash_plunge_table(
     Parameters
     ----------
     depth_velocity:
-        ``(layers, 2)`` array of depth and seismic velocity (arbitrary consitent
-        units, e.g. m and m/s or km and km/s)
+        ``(layers, 2)`` array of depth and seismic velocity (arbitrary
+        consistent units, e.g. m and m/s or km and km/s)
     depths:
-        Array of depths of the seimic source (unit as above)
+        Array of depths of the seismic source (unit as above)
     dists:
         Array of source-receiver distances (unit as above). Must start at 0-range
     nray:
         Number of rays traced
+    station_depth:
+        Depth of the station in the velocity model (unit as above). If None,
+        station is assumed at the top of the velocity model, consistent with
+        SKHASH implementation.
 
     Returns
     -------
@@ -69,29 +74,34 @@ def hash_plunge_table(
 
     # TODO: consider station at depth (borehole)
 
+    # If the velocity model does not reach to the deepest depth, extend to that
+    # point
     if depth_velocity[:, 0][-1] < depths[-1]:
         depth_velocity = np.vstack((depth_velocity, depth_velocity[-1, :]))
         depth_velocity[-1, 0] = depths[-1] + 1
         depth_velocity[-1, 1] = depth_velocity[-1, 1] + 0.001
 
+    # Querry source depth and and station distance
     ndel = len(distances)
     ndep = len(depths)
 
-    table = np.zeros((ndel, ndep)) - 999
+    table = np.full((ndel, ndep), np.nan)
 
     pmin = 0
 
-    # Code internally works in km/s. Let's respect that
+    # Pull out irregularly spaced model depth and value...
     z = depth_velocity[:, 0]
     alpha = depth_velocity[:, 1]
 
+    # ... now add one extra layer at the bottom
     nz = len(z)
     z = np.hstack((z, z[nz - 1]))
     alpha = np.hstack((alpha, alpha[nz - 1]))
 
     # Re-sample velocity model onto depth-vector
-    for i in range(nz - 1, 0, -1):
-        for idep in range(ndep - 1, -1, -1):
+    # Add velocity steps in-between grid points.
+    for i in range(nz - 1, 0, -1):  # Irregular depth of the v model from bottom up
+        for idep in range(ndep - 1, -1, -1):  # Regular depth vector
             if (z[i - 1] <= (depths[idep] - 0.00001)) & (
                 z[i] >= (depths[idep] + 0.00001)
             ):
@@ -101,6 +111,24 @@ def hash_plunge_table(
                 frac = (z[i] - z[i - 1]) / (z[i + 1] - z[i - 1])
                 alpha[i] = alpha[i - 1] + frac * (alpha[i + 1] - alpha[i - 1])
 
+    # Decimal places to round to when comparing depths.
+    dec = -int(np.floor(np.log10(min(np.diff(z[:-1])))))
+
+    if station_depth is not None:
+        if station_depth < z[0] or station_depth > z[-1]:
+            raise ValueError(
+                f"Station depth ({station_depth}) is outside the velocity model "
+                f"bounds ({z[0]}, {z[-1]})."
+            )
+
+        # Depth index and depth on grid of the station
+        ista = np.argmin(np.abs(z - station_depth))
+        sdep = z[ista]
+
+        # Crop velocity model at station depth
+        z = z[ista:] - sdep
+        alpha = alpha[ista:]
+
     # do the ray tracing
     slow = 1 / alpha
     pmax = slow[0]
@@ -109,11 +137,8 @@ def hash_plunge_table(
     npmax = int((pmax + pstep / 2 - pmin) / pstep) + 1
 
     depxcor = np.zeros((npmax, ndep))
-    depucor = np.zeros((npmax, ndep))
+    # depucor = np.zeros((npmax, ndep))  # Get's initialized at correct size below
     deptcor = np.zeros((npmax, ndep))
-
-    # Overwritten in the next line? TODO: test delete
-    tmp_ind = np.where(depths == 0)[0]
 
     tmp_ind = np.where(depths != 0)[0]
     depxcor[:, tmp_ind] = -999
@@ -216,15 +241,23 @@ def hash_plunge_table(
 
     depxcor = np.cumsum(dx, axis=1)
     deptcor = np.cumsum(dt, axis=1)
-    output_col_ind = np.where(np.isin(z, depths))[0] - 1
+
+    # Find the corresponding indices, round to avoid floating point issues.
+    output_col_ind = np.where(np.isin(np.round(z, dec), np.round(depths, dec)))[0] - 1
+
     depxcor = depxcor[:, output_col_ind]
     deptcor = deptcor[:, output_col_ind]
     depxcor[:, 0] = 0
     deptcor[:, 0] = 0
-    depucor[:] = slow[output_col_ind + 1]
+    # Original code fails if size changes because velocity model is cropped
+    # depucor[:] = slow[output_col_ind + 1]
+    depucor = np.vstack([slow[output_col_ind + 1]] * npmax)
     depucor[np.isnan(depxcor)] = -999
     depxcor[np.isnan(depxcor)] = -999
     deptcor[np.isnan(deptcor)] = -999
+
+    # Only this many dephts are recoverd, given cropped velocity model
+    ndep = len(output_col_ind)
 
     x = np.diff(depxcor, axis=0) <= 0
     idx = x.argmax(axis=0) + 1
@@ -287,6 +320,13 @@ def hash_plunge_table(
 
     # relMT convention
     table -= 90.0
+
+    if station_depth is not None and ista > 0:
+        # Move values from surface to station depth
+        table[:, ista:] = table[:, :-ista]
+
+        # Set values above the station to nan
+        table[:, :ista] = np.nan
 
     return table
 
