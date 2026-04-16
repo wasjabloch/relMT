@@ -1381,11 +1381,11 @@ def alignment(
     ax = axs["dt"]
 
     if dt_pca is not None:
-        ax.plot(dt_pca[isort], range(nin), color="blue", label="pca")
+        ax.plot(dt_pca[isort], range(nin), color="blue", label="PCA")
 
     if dt_mccc is not None:
         dt_mccc = dt_mccc[isort]
-        ax.plot(dt_mccc, range(nin), color="green", label="mccc")
+        ax.plot(dt_mccc, range(nin), color="green", label="MCCC")
         if dt_rms is not None:
             dt_rms = dt_rms[isort]
             ax.errorbar(dt_mccc, range(nin), xerr=dt_rms, color="green")
@@ -1395,7 +1395,7 @@ def alignment(
         ax.set_ylabel("Event #")
         ax.set_yticks(range(nin), evlabels)
         ax.grid(axis="y")
-        ax.legend()
+        ax.legend(title="Method")
         hlaxs += ["dt"]
 
     else:
@@ -1424,7 +1424,7 @@ def alignment(
 
     phi = align.pca_objective(s, phase, mat.shape[0])
     section_2d(Vh[icomps, :], **hdr.kwargs(section_2d), ax=ax)
-    ax.set_yticks(icomps, [f"{i}" for i in icomps])
+    ax.set_yticks(icomps, [f"{i+1}" for i in icomps])
     ax.label_outer()
     ax.tick_params(left=True, labelleft=True)
     ax.set_title("$\\Phi={:.4f}$".format(phi), pad=12)
@@ -1518,7 +1518,9 @@ def alignment(
 
     for i, col, sym in zip(icomps, compc, comps):
         e0 = s[i] * U[:, i]
-        ax.plot(e0, range(nin), sym, mec=col, mfc="none", label=f"EC{i}")
+        ax.plot(
+            e0, range(nin), sym, mec=col, mfc="none", label=f"$\\sigma_{i+1}V_{i+1}$"
+        )
     ax.plot(ec_score, range(nin), "|", mec="red", mfc="none", label=f"$\\pm$ Norm")
     ax.plot(-ec_score, range(nin), "|", mec="red", mfc="none")
 

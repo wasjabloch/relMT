@@ -188,7 +188,7 @@ def event_indices(
 ) -> dict[int, np.ndarray]:
     """Index arrays of unique event numbers
 
-    For each event, find the constributing pair or triplet wise amplitude observations
+    For each event, find the constituting pair or triplet wise amplitude observations
 
     Parameters
     ----------

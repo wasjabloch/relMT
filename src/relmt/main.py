@@ -1023,7 +1023,8 @@ def solve_entry(
 
     # Build homogenos part of linear system
     logger.info(
-        f"Building linear system of {n_p} P, {n_s} S, and {n_ref} reference equations."
+        f"Building linear system of {n_p} P, {n_s} S, and {n_ref * mt_elements} "
+        "reference equations."
     )
     isparse = True
     if isparse:
@@ -2156,6 +2157,7 @@ Software for computing relative seismic moment tensors"""
     )
     plot_conn_p.add_argument(
         "--sfile",
+        "-f",
         type=Path,
         default=None,
         help="Optional second S-amplitude file",
