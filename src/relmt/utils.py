@@ -200,6 +200,9 @@ def event_indices(
     Mapping from event number to observation indices
     """
 
+    if len(amps) == 0:
+        return defaultdict(list)
+
     ip, _ = qc._ps_amplitudes(amps)
 
     if ip:
