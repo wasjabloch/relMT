@@ -712,6 +712,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
     max_s1 = config["max_s_sigma1"]
     max_ev_dist = config["max_event_distance"]
     min_eq = config["min_equations"]
+    min_sta = config["min_stations"]
     max_gap = config["max_gap"]
     two_s = config["two_s_equations"]
     max_p_equations = config["max_p_equations"]
@@ -874,8 +875,8 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
             samps = amps  # No need to copy as we leave the "PS"-loop either way
 
     # Make sure we have enough equations
-    pamps, samps = qc.clean_by_equation_count_gap(
-        pamps, samps, phd, min_eq, max_gap, two_s
+    pamps, samps = qc.clean_by_equation_station_count_gap(
+        pamps, samps, phd, min_eq, min_sta, max_gap, two_s
     )
 
     # Make sure we don't have too many equations
@@ -891,6 +892,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
             two_s,
             keep_ev,
             min_eq,
+            min_sta,
             max_gap,
             max_mis,
             max_smis,

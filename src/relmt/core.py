@@ -840,6 +840,11 @@ amplitude measurement.""",
         """
 Minimum number of equations required to constrain one moment tensor""",
     ),
+    "min_stations": (
+        "int",
+        """
+Minimum number of stations required to constrain one moment tensor""",
+    ),
     "max_gap": (
         "float",
         """
@@ -981,6 +986,7 @@ class Config:
         keep_events: list[int] | None = None,
         equation_batches: int | None = None,
         min_equations: int | None = None,
+        min_stations: int | None = None,
         max_gap: float | None = None,
         bootstrap_samples: int | None = None,
         ncpu: int | None = None,

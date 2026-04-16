@@ -348,6 +348,57 @@ def _phase_dict_for_amplitudes(pamps=None, samps=None):
     return phase_dict
 
 
+@pytest.mark.parametrize(
+    ("phase_dict", "kwargs"),
+    [
+        pytest.param(
+            {
+                core.join_phaseid(0, "STA1", "S"): core.Phase(0.0, 0.0, 0.0),
+                core.join_phaseid(1, "STA1", "S"): core.Phase(0.0, 0.0, 0.0),
+                core.join_phaseid(2, "STA1", "S"): core.Phase(0.0, 0.0, 0.0),
+            },
+            {"min_equations": 3},
+            id="min_equations",
+        ),
+        pytest.param(
+            {
+                core.join_phaseid(0, "STA1", "P"): core.Phase(0.0, 0.0, 0.0),
+                core.join_phaseid(1, "STA1", "P"): core.Phase(0.0, 0.0, 0.0),
+            },
+            {"min_stations": 2},
+            id="min_stations",
+        ),
+        pytest.param(
+            {
+                core.join_phaseid(0, "STA1", "P"): core.Phase(0.0, 0.0, 0.0),
+                core.join_phaseid(1, "STA1", "P"): core.Phase(0.0, 0.0, 0.0),
+                core.join_phaseid(0, "STA2", "P"): core.Phase(0.0, 10.0, 0.0),
+                core.join_phaseid(1, "STA2", "P"): core.Phase(0.0, 10.0, 0.0),
+            },
+            {"min_equations": 2, "min_stations": 2, "max_gap": 340.0},
+            id="max_gap",
+        ),
+    ],
+)
+def test_clean_by_equation_station_count_gap_thresholds(phase_dict, kwargs):
+    pamps = [
+        core.P_Amplitude_Ratio("STA1", "P", 0, 1, 1.0, 0.1, 0.8, 0.9, 0.1, 0.5, 20.0),
+        core.P_Amplitude_Ratio("STA2", "P", 0, 1, 1.0, 0.1, 0.8, 0.9, 0.1, 0.5, 20.0),
+    ]
+    samps = [
+        core.S_Amplitude_Ratios(
+            "STA1", "S", 0, 1, 2, 1.0, 1.0, 0.1, 0.8, 0.2, 0.1, 0.0, 0.5, 20.0
+        )
+    ]
+
+    cpamps, csamps = qc.clean_by_equation_station_count_gap(
+        pamps, samps, phase_dict, **kwargs
+    )
+
+    assert cpamps == []
+    assert csamps == []
+
+
 def test_reduce_equations_reduces_only_p_amplitudes():
     pamps = [
         core.P_Amplitude_Ratio("STA1", "P", 0, 1, 1.0, 0.1, 0.8, 0.9, 0.1, 0.5, 20.0),
@@ -368,6 +419,7 @@ def test_reduce_equations_reduces_only_p_amplitudes():
         two_s=False,
         keep_ev=[],
         min_equations=0,
+        min_stations=0,
         max_gap=360.0,
         max_amplitude_misfit=1.0,
         max_s_amplitude_misfit=1.0,
@@ -401,6 +453,7 @@ def test_reduce_equations_reduces_only_s_amplitudes():
         two_s=False,
         keep_ev=[],
         min_equations=0,
+        min_stations=0,
         max_gap=360.0,
         max_amplitude_misfit=1.0,
         max_s_amplitude_misfit=1.0,
@@ -435,6 +488,7 @@ def test_reduce_equations_reduces_p_and_s_amplitudes_together():
         two_s=False,
         keep_ev=[],
         min_equations=0,
+        min_stations=0,
         max_gap=360.0,
         max_amplitude_misfit=1.0,
         max_s_amplitude_misfit=1.0,

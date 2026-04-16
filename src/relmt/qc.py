@@ -32,7 +32,7 @@ from scipy.linalg import svd
 from scipy.sparse import csr_array
 from scipy.sparse.csgraph import connected_components
 from typing import Iterable
-from collections import Counter
+from collections import Counter, defaultdict
 
 logger = core.register_logger(__name__)
 
@@ -361,20 +361,23 @@ def clean_by_shared_path(
     return [amplitudes[n] for n in iin]
 
 
-def clean_by_equation_count_gap(
+def clean_by_equation_station_count_gap(
     p_amplitudes: list[core.P_Amplitude_Ratio],
     s_amplitudes: list[core.S_Amplitude_Ratios],
     phase_dict: dict[str, core.Phase],
-    min_equations: int | None,
-    max_gap: float | None = None,
+    min_equations: int = 1,
+    min_stations: int = 1,
+    max_gap: float = 360.0,
     two_s_equations: bool = True,
 ) -> tuple[list[core.P_Amplitude_Ratio], list[core.S_Amplitude_Ratios]]:
-    """Remove observations that occurr in less than `min_equations` iteratively
+    """Remove observations below equation, station, gap thresholds iteratively
 
-    Counts the number of ocurrences of each event. Events that occurr fewer than
-    `min_equations` times are discarded, togther with the events they are
-    connected to. This procedure is repeated until all remaining events are
-    constrained by at least 'min_equations` equations.
+    Counts the number of ocurrences of each event. Events that occur fewer than
+    `min_equations` times, are observed on fewer stations than `min_stations` or
+    have an azimuthal gap larger than `max_gap` are discarded, togther with the
+    events they are connected to. This procedure is repeated until all remaining
+    events are constrained by at least 'min_equations` equations, `min_stations`
+    stations and with a maximum azimuthal gap of `max_gap`.
 
     Parameters
     ----------
@@ -386,6 +389,8 @@ def clean_by_equation_count_gap(
         Phase dictionary with take-off azimuths
     min_equations:
         Minimum number of occurrences of each event
+    min_stations:
+        Minimum number of stations observing each event
     max_gap:
         Maximum allowed azimuthal gap
     two_s_equations:
@@ -396,17 +401,8 @@ def clean_by_equation_count_gap(
     Cleaned list of P- and S-amplitude observations
     """
 
-    if min_equations is None:
-        min_equations = 0
-
-    if max_gap is None:
-        max_gap = 360.0
-
-    if min_equations is None and max_gap is None:
+    if min_equations == 1 and max_gap == 360.0 and min_stations == 1:
         return p_amplitudes, s_amplitudes
-
-    # Count S twice if we keep the redundant equations
-    sfac = 1 + int(two_s_equations)
 
     p_pairs = np.array([(amp.event_a, amp.event_b) for amp in p_amplitudes])
     s_triplets = np.array(
@@ -440,11 +436,29 @@ def clean_by_equation_count_gap(
 
         gap = angle.azimuth_gap(phase_dict, psub, ssub)
 
+        # Count unique stations
+        scnt = defaultdict(set, {})
+        for amp in psub + ssub:
+            for evn in [amp.event_a, amp.event_b]:
+                scnt[evn].add(amp.station)
+            if hasattr(amp, "event_c"):
+                scnt[amp.event_c].add(amp.station)
+
         # Events with too few observations
-        bad = {evn for evn in cnt if cnt[evn] < min_equations or gap[evn][0] > max_gap}
+        bad = {
+            evn
+            for evn in cnt
+            if cnt[evn] < min_equations
+            or gap.get(evn, [360.0])[0] >= max_gap
+            or len(scnt[evn]) < min_stations
+        }
 
         if any(bad):
-            logger.debug("Excluding events: " + ", ".join(f"{f}" for f in bad))
+            logger.info(
+                f"Excluding {len(bad)} events with too few equations, "
+                "stations, or too large gap."
+            )
+            logger.debug(f"Events: {', '.join(f'{f}' for f in bad)}")
 
         # Drop all occurrences of the events with too few observations
         new_keep_p = keep_p.copy()
@@ -1031,6 +1045,7 @@ def reduce_equations(
     two_s: bool,
     keep_ev: list[str],
     min_equations: int,
+    min_stations: int,
     max_gap: float,
     max_amplitude_misfit: float,
     max_s_amplitude_misfit: float,
@@ -1056,15 +1071,17 @@ def reduce_equations(
     keep_ev:
         List of event IDs to keep, even if they are redundant
     min_equations:
-        Minimum number of equations per event to keep
+        Minimum number of equations requied to keep event
+    min_stations:
+        Minimum number of stations required to keep event
     max_gap:
-        Maximum allowed azimuthal gap per event to keep
+        Maximum allowed azimuthal gap allowed to keep event
     max_amplitude_misfit:
-        Maximum allowed misfit for P-amplitude observations to keep
+        Maximum allowed misfit to keep P-amplitude observations
     max_s_amplitude_misfit:
-        Maximum allowed misfit for S-amplitude observations to keep
+        Maximum allowed misfit to keep S-amplitude observations
     max_s_sigma1:
-        Maximum allowed sigma1 for S-amplitude observations to keep
+        Maximum allowed sigma1 to keep S-amplitude observations
     equation_batches:
         Reduce equations in batches. Larger number, reduces in smaller batches,
         which can lead to a more optimal selection of equations, but takes
@@ -1143,8 +1160,8 @@ def reduce_equations(
         pamps = [pamps[i] for i in psort[:nex_p]]
 
         # Check once more we have enough equations
-        pamps, samps = qc.clean_by_equation_count_gap(
-            pamps, samps, phd, min_equations, max_gap, two_s
+        pamps, samps = qc.clean_by_equation_station_count_gap(
+            pamps, samps, phd, min_equations, min_stations, max_gap, two_s
         )
         s_equations = len(samps) * (1 + int(two_s))
         p_equations = len(pamps)
