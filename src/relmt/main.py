@@ -1793,8 +1793,10 @@ def plot_mt_entry(
 
     evns = np.array(list(mtd))
     names = [evd[evn].name for evn in mtd]
-    mags = [evd[evn].mag for evn in mtd]
-    mws = [mt.magnitude_of_moment(mt.moment_of_vector(momt)) for momt in mtd.values()]
+    mags = np.array([evd[evn].mag for evn in mtd])
+    mws = np.array(
+        [mt.magnitude_of_moment(mt.moment_of_vector(momt)) for momt in mtd.values()]
+    )
 
     if sort_by in summary_atts or color_by in summary_atts:
         try:
@@ -1811,8 +1813,8 @@ def plot_mt_entry(
         None: np.arange(len(mtd)),
         "number": evns,
         "name": names,
-        "mag": mags,
-        "mw": mws,
+        "mag": -mags,
+        "mw": -mws,
         "gap": gap,
         "links": plinks + slinks,
         "p-links": plinks,
