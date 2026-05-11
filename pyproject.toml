@@ -20,7 +20,7 @@ maintainers = [{ name = "Wasja Bloch", email = "wasja@norsar.no" }]
 
 readme = "README.md"
 
-dependencies = ["numpy>=1.26", "scipy", "pyyaml"]
+dependencies = ["numpy>=1.26", "scipy", "pyyaml", "threadpoolctl"]
 
 classifiers = [
   "Development Status :: 4 - Beta",

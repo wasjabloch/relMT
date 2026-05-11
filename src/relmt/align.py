@@ -28,6 +28,7 @@ from scipy.linalg import svd
 from scipy.sparse import coo_matrix
 from itertools import combinations as combs
 from relmt import utils, signal, core, ls, io
+from threadpoolctl import threadpool_limits
 import mccore
 
 logger = core.register_logger(__name__)
@@ -761,3 +762,13 @@ def run(
     # Save everything
     np.save(arrf, arr_shift)
     header.to_file(hdrf, True)
+
+
+def run_limited(*args):
+    """Run the alignment with limited threadpool to avoid oversubscription
+
+    See :func:`run` for details on the arguments.
+    """
+    # TODO: Test if we can dynamically adjust limits
+    with threadpool_limits(limits=1):
+        run(*args)

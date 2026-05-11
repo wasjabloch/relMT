@@ -33,6 +33,7 @@ import numpy as np
 import sys
 import multiprocessing as mp
 from multiprocessing import shared_memory as sm
+from threadpoolctl import threadpool_limits
 from argparse import ArgumentParser, Namespace
 from collections import defaultdict
 
@@ -158,8 +159,9 @@ def align_entry(
         args.append((arr, hdr, dest, do_mccc, do_pca, combinations, lag_times))
 
     if ncpu > 1:
+
         with mp.Pool(ncpu) as pool:
-            pool.starmap(align.run, args)
+            pool.starmap(align.run_limited, args)
     else:
         for arg in args:
             align.run(*arg)
