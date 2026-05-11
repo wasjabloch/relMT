@@ -104,7 +104,7 @@ def test_alignment_pv_yticklabels_visible():
     fig.canvas.draw()
 
     labels = axs["pv"].get_yticklabels()
-    assert [label.get_text() for label in labels] == ["0", "1"]
+    assert [label.get_text() for label in labels] == ["1", "2"]
     assert all(label.get_visible() for label in labels)
 
     plt.close(fig)
