@@ -20,7 +20,7 @@ maintainers = [{ name = "Wasja Bloch", email = "wasja@norsar.no" }]
 
 readme = "README.md"
 
-dependencies = ["numpy>=1.26", "scipy", "pyyaml", "threadpoolctl"]
+dependencies = ["numpy>=1.26", "scipy", "pyyaml", "threadpoolctl", "multitaper"]
 
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -36,7 +36,7 @@ classifiers = [
 plot = ["matplotlib", "networkx", "pyrocko"]
 
 # Waveform processing
-extra = ["obspy", "multitaper", "utm", "pyrocko"]
+extra = ["obspy", "utm", "pyrocko"]
 
 # All the above, plus documentation and testing
 dev = [
