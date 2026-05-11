@@ -361,11 +361,8 @@ def _phase_dict_for_amplitudes(pamps=None, samps=None):
             id="min_equations",
         ),
         pytest.param(
-            {
-                core.join_phaseid(0, "STA1", "P"): core.Phase(0.0, 0.0, 0.0),
-                core.join_phaseid(1, "STA1", "P"): core.Phase(0.0, 0.0, 0.0),
-            },
-            {"min_stations": 2},
+            {},  # Station test does not look at phase dict
+            {"min_stations": 3},  # Below we only have 2 stations.
             id="min_stations",
         ),
         pytest.param(
