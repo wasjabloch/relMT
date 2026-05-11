@@ -449,7 +449,7 @@ def clean_by_equation_station_count_gap(
             evn
             for evn in cnt
             if cnt[evn] < min_equations
-            or gap.get(evn, [360.0])[0] >= max_gap
+            or gap.get(evn, [360.0])[0] > max_gap
             or len(scnt[evn]) < min_stations
         }
 
