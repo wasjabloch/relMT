@@ -30,6 +30,7 @@ config = dict(
     lag_times=[],
     loglevel="INFO",
     mt_constraint="none",
+    auto_highpass_periods=1.0,
     auto_bandpass_snr_target=0.0,
     min_dynamic_range=1.0,
     two_s_equations=True,

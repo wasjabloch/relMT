@@ -727,6 +727,15 @@ Filter method to apply for amplitude measure. One of:
    - 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
    - 'auto': compute filter corners using the "auto" options below""",
     ),
+    "auto_highpass_periods": (
+        "float",
+        """
+Highpass filter corner allows not fewer than this  many signal periods within a phase
+window. Heuristic approach to eliminate low-frequency noise. A larger number means
+a higher highpass:
+highpass = `auto_highpass_periods` / (`phase_end` - `phase_start`).
+""",
+    ),
     "auto_lowpass_method": (
         "str",
         """
@@ -964,6 +973,7 @@ class Config:
         mt_constraint: str | None = None,
         reference_weight: float | None = None,
         amplitude_filter: str | None = None,
+        auto_highpass_periods: float | None = None,
         auto_lowpass_method: str | None = None,
         fixed_lowpass: float | None = None,
         auto_lowpass_stressdrop_range: tuple[float, float] | None = None,

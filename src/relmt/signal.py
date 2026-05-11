@@ -928,6 +928,7 @@ def phase_passbands(
     hdr: core.Header,
     evd: dict[int, core.Event],
     exclude: core.Exclude | None = None,
+    auto_highpass_periods: float = 1.0,
     auto_lowpass_method: str | None = None,
     fixed_lowpass: float | None = None,
     auto_lowpass_stressdrop_range: tuple[float, float] = [1.0e6, 1.0e6],
@@ -976,6 +977,10 @@ def phase_passbands(
     exclude:
         An optional exclude object with observations to be excluded from the
         computation. If None, all observatinos are included.
+    auto_highpass_periods:
+        Set the default highpass filter corner to allow not fewer than this  many signal
+        periods within the respective phase window:
+        highpass = `auto_highpass_periods` / (`phase_end` - `phase_start`).
     auto_lowpass_method:
         Method to determine the lowpass corner frequency. Options are:
         'duration', 'corner', 'fixed'
@@ -1014,8 +1019,8 @@ def phase_passbands(
         f"Computing bandpasses for {len(evns)} events at station {sta}, phase {pha}"
     )
 
-    # At least one period within window
-    fwin = 1.0 / (hdr["phase_end"] - hdr["phase_start"])
+    # Allow at least user defined period durations within window
+    fwin = auto_highpass_periods / (hdr["phase_end"] - hdr["phase_start"])
 
     # One sample more than the Nyquist frequency
     fnyq = (arr.shape[-1] - 1.0) / hdr["data_window"] / 2
