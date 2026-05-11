@@ -1380,8 +1380,8 @@ def solve_entry(
             samp_subset,
             [s_residuals[:, 0], s_residuals[:, 1], B1res, B2res]
             + [mis_weights[n_p : n_p + n_s : sfac].flat[:]]
-            + [amp_norm[n_p : n_p + n_s : sfac].flat[:]],
-            +[s_norm[:, 0], s_norm[:, 1], Bsyn[:, 0], Bsyn[:, 1], spms],
+            + [amp_norm[n_p : n_p + n_s : sfac].flat[:]]
+            + [s_norm[:, 0], s_norm[:, 1], Bsyn[:, 0], Bsyn[:, 1], spms],
             [" MomResidual1", "MomResidual2", "AmpResidual1", "AmpResidual2"]
             + ["MisfitWght", "AmplWght", "EquaNorm1", "EquaNorm2", "PredBabc"]
             + ["PredBacb", "PredMis"],
@@ -1746,7 +1746,7 @@ _attr_keys = {
     "s-links": "S links",
     "moment-rms": "Moment RMS (scaled Nm)",
     "amplitude-rms": "Amplitude RMS",
-    "boot-rms": "normalized Bootstrap RMS (Nm/M0)",
+    "boot-moment": "normalized Bootstrap Moment (Nm/M0)",
     "boot-kagan": "Bootstrap Kagan angle (deg)",
 }
 
@@ -1784,7 +1784,7 @@ def plot_mt_entry(
         "s-links",
         "moment-rms",
         "amplitude-rms",
-        "boot-rms",
+        "boot-moment",
         "boot-kagan",
     ]
 
@@ -1821,7 +1821,7 @@ def plot_mt_entry(
         "s-links": slinks,
         "moment-rms": mrms,
         "amplitude-rms": arms,
-        "boot-rms": brms,
+        "boot-moment": brms,
         "boot-kagan": bkag,
     }
 
