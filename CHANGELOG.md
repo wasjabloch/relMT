@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.5.0-beta] - 2026-05-11
+
+### Added
+
+- `combine_neighbors` option in waveform header
+- `relmt plot-amplitudes` to plot amplitude files
+- `relmt plot-connections` to plot connectivity of amplitude files
+- Configuratio options:
+  - `harvard_convention` to read / write MTs in up-south-east convention
+  - `auto_lowpass_vs` to estimate lowpass corner frequency
+  - `min_shared_path` to exlude certain event combinations
+  - `max_p_equations` to reduce number of P constraints
+- Phase identifier can have arbitrary suffix ("P...", "S...")
+- Unittests for `main`
+
+### Changed
+
+- `relmt plot-alignment` has improved annotations
+- `relmt align`:
+  - itereates over files in alignment directory
+  - does not require station file
+- Amplitude files sorted by station distance and relative event magnitudes
+- `utils.hash_plunge_table` considers station depth
+- `utils.mt_clusters` has dict in- and output (not list)
+- `relmt plot-mt` sort and color option 'boot-rms' now called 'boot-moment'
+
 ## [0.4.2-beta] - 2026-03-10
 
 ### Changed
