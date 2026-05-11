@@ -67,6 +67,11 @@ min_correlation:
 # (float)
 min_expansion_coefficient_norm:
 
+# Combine only this many nearest neigboring events. Ignored when using
+# 'combinations_from_file'
+# (int)
+combine_neighbors:
+
 # Read combinations from file names STATION_PHASE-combination.txt
 # (bool)
 combinations_from_file:
