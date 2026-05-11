@@ -1432,18 +1432,18 @@ def ccorf3_all(gmat: np.ndarray, batch_size: int = 200000):
 
 
 def mt_clusters(
-    mt_list: list[core.MT],
+    mt_dict: dict[int, core.MT],
     method: str = "kagan",
     distance_matrix: np.ndarray | None = None,
     max_distance: float = 30,
     min_ev: int = 1,
     link_method: str = "average",
-):
+) -> tuple[dict[int, int], np.ndarray, dict[int, int]]:
     """Cluster moment tensors
 
     Parameters
     ----------
-    mt_list:
+    mt_dict:
         list of moment tensors to cluster
     method:
         Method to compare two events. Choices are:
@@ -1500,6 +1500,9 @@ def mt_clusters(
     else:
         raise ValueError(f"Unknown method: '{method}'")
 
+    mt_list = [momt for momt in mt_dict.values()]
+    ev_list = list(mt_dict)
+
     if distance_matrix is None:
         distance_matrix = pdist(mt_list, distance_function)
 
@@ -1520,14 +1523,19 @@ def mt_clusters(
 
         newlabels[il] = newlabel
 
+    label_dict = {evn: lab for evn, lab in zip(mt_dict, newlabels)}
+
     # Now find the representative events
     uls = np.unique(newlabels)
+
+    # Unique label -> list index
     members = {ul: (newlabels == ul).nonzero()[0] for ul in uls}
     repr = {}
     square = squareform(distance_matrix)
     for cid, idxs in members.items():
         sub = square[np.ix_(idxs, idxs)]
         iclose = idxs[np.argmin(sub.mean(axis=1))]
-        repr[cid] = iclose
+        evnclose = ev_list[iclose]
+        repr[cid] = evnclose
 
-    return newlabels, distance_matrix, repr
+    return label_dict, distance_matrix, repr
