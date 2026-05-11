@@ -92,14 +92,6 @@ Consider installing these packages using the `extra` optional dependency:
 pip install .[extra]
 ```
 
-> ***Note***
->
-> Users experiencing problems installing *ObsPy* may [temporarily need to pin *setuptools* below version 82](https://discourse.obspy.org/t/obspy-runtests-fails-after-fresh-install/2353)
->
-> ```sh
-> pip install "setuptools<82"
->```
-
 If you are working in *IPython*, or *Jupyter*, install the package in the same Conda environment to avoid version conflicts
 
 ```sh
