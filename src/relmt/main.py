@@ -33,7 +33,6 @@ import numpy as np
 import sys
 import multiprocessing as mp
 from multiprocessing import shared_memory as sm
-from threadpoolctl import threadpool_limits
 from argparse import ArgumentParser, Namespace
 from collections import defaultdict
 
@@ -159,7 +158,6 @@ def align_entry(
         args.append((arr, hdr, dest, do_mccc, do_pca, combinations, lag_times))
 
     if ncpu > 1:
-
         with mp.Pool(ncpu) as pool:
             pool.starmap(align.run_limited, args)
     else:
@@ -374,7 +372,7 @@ def amplitude_entry(
         raise ValueError(f"Unknown 'amplitude_measure': {compare_method}. Exiting.")
 
     filter_method = config["amplitude_filter"]  # auto, manual, or fixed
-    if filter_method not in ["auto", "manual", "fixed"]:
+    if filter_method not in ["auto", "manual", "constrained"]:
         raise ValueError(f"Unknown 'amplitude_filter': {filter_method}. Exiting.")
 
     exclude = io.read_exclude_file(core.file("exclude", directory=directory))
@@ -416,8 +414,12 @@ def amplitude_entry(
                 for evn in hdr["events_"]
             }
 
-    elif filter_method == "auto":
+    elif filter_method == "auto" or filter_method == "constrained":
         logger.info("Finding filter automatically")
+
+        constrained = filter_method == "constrained"
+        if constrained:
+            logger.info("Using constraints from header variables")
 
         # Read or compute bassbands
         bpf = core.file(
@@ -452,6 +454,7 @@ def amplitude_entry(
                     event_dict,
                     **config.kwargs(signal.phase_passbands),
                     exclude=exclude,
+                    constrained=constrained,
                 )
 
             io.save_yaml(bpf, pasbnds, format_bandpass=True)

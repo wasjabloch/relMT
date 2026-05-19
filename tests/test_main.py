@@ -30,7 +30,6 @@ import numpy as np
 import shutil
 import pytest
 
-
 try:
     # This is what IPython likes
     from . import conftest
@@ -284,6 +283,7 @@ def test_amplitude_entry_writes_observation_files(muji_mini_project, muji_config
 
 @pytest.mark.parametrize(
     (
+        "amplitude_filter",
         "auto_lowpass_method",
         "fixed_lowpass",
         "stressdrop_range",
@@ -291,15 +291,17 @@ def test_amplitude_entry_writes_observation_files(muji_mini_project, muji_config
         "expected_lowpass",
     ),
     [
-        ("duration", None, [1.0e6, 1.0e8], None, None),
-        ("corner", None, [2.0e5, 4.0e7], None, None),
-        ("fixed", 1.75, [1.0e6, 1.0e6], 0.0, 1.75),
+        ("auto", "duration", None, None, None, None),
+        ("auto", "corner", None, [2.0e5, 4.0e7], None, None),
+        ("auto", "fixed", 1.75, None, 0.0, 1.75),
+        ("constrained", "duration", None, None, None, None),
     ],
 )
 def test_amplitude_entry_passes_auto_filter_config(
     muji_mini_project,
     muji_config,
     monkeypatch,
+    amplitude_filter,
     auto_lowpass_method,
     fixed_lowpass,
     stressdrop_range,
@@ -310,7 +312,7 @@ def test_amplitude_entry_passes_auto_filter_config(
 
     muji_config.update(
         {
-            "amplitude_filter": "auto",
+            "amplitude_filter": amplitude_filter,
             "amplitude_suffix": f"auto-{auto_lowpass_method}",
             "auto_lowpass_method": auto_lowpass_method,
             "fixed_lowpass": fixed_lowpass,
@@ -332,15 +334,24 @@ def test_amplitude_entry_passes_auto_filter_config(
     assert bandpassd
     assert set(bandpassd) == set(core.iterate_waveid(muji_mini_project, 0))
 
-    for event_bandpass in bandpassd.values():
-        assert event_bandpass
-        for corners in event_bandpass.values():
+    for wvid, phase_bandpass in bandpassd.items():
+        assert phase_bandpass
+        sta, pha = core.split_waveid(wvid)
+        hdr = io.read_header(
+            core.file("waveform_header", sta, pha, directory=muji_mini_project)
+        )
+        for corners in phase_bandpass.values():
             assert len(corners) == 2
             assert np.isfinite(corners).all()
             assert 0.0 < corners[0]
             assert 0.0 < corners[1]
             if expected_lowpass is not None:
                 assert corners[1] <= expected_lowpass + 1.0e-6
+            if amplitude_filter == "constrained":
+                if hdr["min_amp_highpass"] is not None:
+                    assert corners[0] >= hdr["min_amp_highpass"]
+                if hdr["max_amp_lowpass"] is not None:
+                    assert corners[1] <= hdr["max_amp_lowpass"]
 
     pampf = core.file(
         "amplitude_observation",

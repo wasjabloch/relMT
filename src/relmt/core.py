@@ -725,7 +725,9 @@ Suffix appended to files, naming the parameters parsed to 'amplitude'""",
 Filter method to apply for amplitude measure. One of:
 
    - 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
-   - 'auto': compute filter corners using the "auto" options below""",
+   - 'auto': compute filter corners using the "auto" options below
+   - 'constrained': As 'auto', but read constraints on high- and lowpass from
+     header variables 'min_amp_highpass' and 'max_amp_lowpass'.""",
     ),
     "auto_highpass_periods": (
         "float",
@@ -751,7 +753,7 @@ of:
         "float",
         """
 Provide a fixed lowpass filter corner for all events.
-(requires auto_lowpass_method: 'fixed' or amplitude_filter: 'fixed')""",
+(requires auto_lowpass_method: 'fixed')""",
     ),
     "auto_lowpass_stressdrop_range": (
         "[float, float]",
@@ -1144,10 +1146,10 @@ class Config:
                 f"Unknown 'amplitude_measure': {value}. "
                 "Must be 'direct' or 'indirect'."
             )
-        if key == "amplitude_filter" and value not in ["manual", "auto", "fixed"]:
+        if key == "amplitude_filter" and value not in ["manual", "auto", "constrained"]:
             raise ValueError(
                 f"Unknown 'amplitude_filter': {value}. "
-                "Must be 'manual', 'auto', or 'fixed'."
+                "Must be 'manual', 'auto', or 'constrained'."
             )
         if key == "auto_lowpass_method" and value not in [
             "duration",
@@ -1358,6 +1360,18 @@ Combine only this many nearest neigboring events. Ignored when using
         """
 Read combinations from file names STATION_PHASE-combination.txt""",
     ),
+    "min_amp_highpass": (
+        "float",
+        """
+Minimum highpass filter corner (Hertz) in an amplitude measurement when
+'amplitude_filter' is 'constrained'""",
+    ),
+    "max_amp_lowpass": (
+        "float",
+        """
+Maximum lowpass filter corner (Hertz) in an amplitude measurement when
+'amplitude_filter' is 'constrained'""",
+    ),
     "events_": (
         "list",
         """
@@ -1408,6 +1422,8 @@ class Header(Config):
         min_expansion_coefficient_norm: float | None = None,
         combine_neighbors: int | None = None,
         combinations_from_file: bool | None = None,
+        min_amp_highpass: float | None = None,
+        max_amp_lowpass: float | None = None,
         events_: list[int] | None = None,
     ):
         """Initialize waveform header with station- and phase-specific settings"""

@@ -934,6 +934,7 @@ def phase_passbands(
     auto_lowpass_stressdrop_range: tuple[float, float] = [1.0e6, 1.0e6],
     auto_lowpass_vs: float = 4000,
     auto_bandpass_snr_target: float | None = None,
+    constrained: bool = False,
 ) -> dict[str, list[float]]:
     """Compute the bandpass filter corners for a waveform array.
 
@@ -998,6 +999,9 @@ def phase_passbands(
         Minimum signal-to-noise ratio (dB) to consider when optimizing the
         bandpass filter corners. If None, no optimization is applied and the
         default corners are returned.
+    constrained:
+        Use constraints on high- and lowpass from 'hdr' variables
+        `min_amp_highpass` and `max_amp_lowpass`.
 
     Returns
     -------
@@ -1087,6 +1091,11 @@ def phase_passbands(
         # No SNR optimization, use the corner frequency
         hpas = min(fwin, fnyq)
         lpas = min(fc, fnyq)
+
+        if constrained:
+            # Constrain by hdr variables
+            hpas = max(hpas, hdr["min_amp_highpass"] or 0)
+            lpas = min(lpas, hdr["max_amp_lowpass"] or np.inf)
 
         if auto_bandpass_snr_target is not None and hpas < lpas:
             # Try to optimize bandpass within range
