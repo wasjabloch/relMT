@@ -434,15 +434,18 @@ def clean_by_equation_station_count_gap(
         psub = [p_amplitudes[i] for i in pin]
         ssub = [s_amplitudes[i] for i in sin]
 
-        gap = angle.azimuth_gap(phase_dict, psub, ssub)
+        gap = {}
+        if max_gap < 360.0:
+            gap = angle.azimuth_gap(phase_dict, psub, ssub)
 
         # Count unique stations
-        scnt = defaultdict(set, {})
-        for amp in psub + ssub:
-            for evn in [amp.event_a, amp.event_b]:
-                scnt[evn].add(amp.station)
-            if hasattr(amp, "event_c"):
-                scnt[amp.event_c].add(amp.station)
+        scnt = defaultdict(set)
+        if min_stations > 1:
+            for amp in psub + ssub:
+                for evn in [amp.event_a, amp.event_b]:
+                    scnt[evn].add(amp.station)
+                if hasattr(amp, "event_c"):
+                    scnt[amp.event_c].add(amp.station)
 
         # Events with too few observations
         bad = {
@@ -450,7 +453,7 @@ def clean_by_equation_station_count_gap(
             for evn in cnt
             if cnt[evn] < min_equations
             or gap.get(evn, [360.0])[0] > max_gap
-            or len(scnt[evn]) < min_stations
+            or (len(scnt[evn]) or 1) < min_stations
         }
 
         if any(bad):
