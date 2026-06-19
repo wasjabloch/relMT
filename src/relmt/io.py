@@ -115,14 +115,14 @@ def read_station_table(
     return {c: core.Station(n, e, d, c) for c, n, e, d in zip(code, north, east, depth)}
 
 
-def read_exclude_file(filename: str | Path) -> core.Exclude:
+def read_exclude_files(filenames: str | Path | list[str] | list[Path]) -> core.Exclude:
     """
     Read an exclude file
 
     Parameters
     ----------
-    filename:
-        Name of the exclude file
+    filenames:
+        Names of one or more exclude files
 
     Returns
     -------
@@ -131,19 +131,36 @@ def read_exclude_file(filename: str | Path) -> core.Exclude:
 
     template = core.exclude
 
-    try:
-        with open(str(filename), "r") as fid:
-            excl = yaml.safe_load(fid)
-    except FileNotFoundError:
-        logger.info(
-            f"No exclude file found: {filename}. "
-            "Assuming there is nothing to exclude."
-        )
-        return template.copy()
+    if not isinstance(filenames, list):
+        filenames = [filenames]
 
+    nmiss = 0
     this_excl = core.Exclude()
     for key in template:
-        this_excl[key] = excl.get(key, [])
+        this_excl[key] = []
+
+    for filename in filenames:
+        try:
+            with open(str(filename), "r") as fid:
+                excl = yaml.safe_load(fid) or {}
+        except FileNotFoundError:
+            logger.warning(f"Exclude file not found: {filename}")
+            nmiss += 1
+            continue
+
+        for key in template:
+            val = excl.get(key, [])
+            if val is None:
+                continue
+            if isinstance(val, list):
+                this_excl[key] += val
+            else:
+                this_excl[key] += [val]
+
+    # Check if we have read any file at all.
+    if len(filenames) <= nmiss:
+        logger.info("No exclude files found. Assuming there is nothing to exclude.")
+        return template.copy()
 
     return this_excl
 

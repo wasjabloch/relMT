@@ -71,7 +71,7 @@ def align_entry(
         Overwrite existing aligned waveform files. Activated by '--overwrite'
     """
 
-    excl = io.read_exclude_file(core.file("exclude", directory=directory))
+    excl = io.read_exclude_files(config["exclude_files"])
 
     wvids = core.iterate_waveid(directory, iteration, excl)
 
@@ -166,7 +166,6 @@ def align_entry(
 
 
 def exclude_entry(
-    config: core.Config,
     iteration: int = 0,
     overwrite: bool = False,
     directory: Path = Path(),
@@ -175,6 +174,7 @@ def exclude_entry(
     do_cc: bool = False,
     do_ecn: bool = False,
     cc_from_file: bool = False,
+    file: Path = Path("exclude.yaml"),
 ) -> None:
     """Exclude phase observations based on waveform quality criteria.
 
@@ -186,9 +186,6 @@ def exclude_entry(
 
     Parameters
     ----------
-    config:
-        Configuration object with station file. Content of the file read
-        by the '--config' option.
     iteration:
         Current alignment iteration number. `0`: read from 'data/', `>0` read from
         alignment iteration folder. Number parsed to the '--alignment' option.
@@ -214,17 +211,23 @@ def exclude_entry(
         Read cross-correlation values from alignment produre. Changes in
         time window and frequency band are then not considerd in the exclusion
         based on cc.
+    file:
     """
 
-    exf = core.file("exclude", directory=directory)
+    def _sorter(phid):
+        """Sort phase IDs by station, phase, event"""
+        ev, sta, pha = core.split_phaseid(phid)
+        return sta, pha, ev
+
+    # Empty default exclude dictionary
+    excl = core.exclude
 
     try:
-        logger.info(f"Reading excludes from: {exf}")
-        excl = io.read_exclude_file(exf)
+        logger.info(f"Reading excludes from: {file}")
+        excl = io.read_exclude_files(file)
     except OSError:
-        logger.info(f"No exlusion file found. Creating: {exf}")
-        excl = core.exclude
-        io.save_yaml(exf, excl)
+        logger.info(f"No exlusion file found. Creating: {file}")
+        io.save_yaml(file, excl)
 
     # Collect new excludes in this dictionary
     excludes = {"no_data": [], "snr": [], "cc": [], "ecn": []}
@@ -298,7 +301,7 @@ def exclude_entry(
         excludes["cc"] += [core.join_phaseid(iev, sta, pha) for iev in events[icc]]
         excludes["ecn"] += [core.join_phaseid(iev, sta, pha) for iev in events[iecn]]
 
-    # Add the exludes already present, in case we don't want to overwrite
+    # Add the ecxludes already present, in case we don't want to overwrite
     if not overwrite:
         excludes["no_data"] += excl["phase_auto_nodata"]
         excludes["snr"] += excl["phase_auto_snr"]
@@ -308,22 +311,22 @@ def exclude_entry(
     # Write everything into the exclude dict
     if do_nodata:
         logger.info(f"Excluding {len(excludes['no_data'])} invalid traces")
-        excl["phase_auto_nodata"] = excludes["no_data"]
+        excl["phase_auto_nodata"] = sorted(set(excludes["no_data"]), key=_sorter)
 
     if do_snr:
         logger.info(f"Excluding {len(excludes['snr'])} traces due to high SNR")
-        excl["phase_auto_snr"] = excludes["snr"]
+        excl["phase_auto_snr"] = sorted(set(excludes["snr"]), key=_sorter)
 
     if do_cc:
         logger.info(f"Excluding {len(excludes['cc'])} traces due to low CC")
-        excl["phase_auto_cc"] = excludes["cc"]
+        excl["phase_auto_cc"] = sorted(set(excludes["cc"]), key=_sorter)
 
     if do_ecn:
         logger.info(f"Excluding {len(excludes['ecn'])} traces due to low ECN")
-        excl["phase_auto_ecn"] = excludes["ecn"]
+        excl["phase_auto_ecn"] = sorted(set(excludes["ecn"]), key=_sorter)
 
     # Save it to file
-    io.save_yaml(exf, excl)
+    io.save_yaml(file, excl)
 
 
 def amplitude_entry(
@@ -375,7 +378,7 @@ def amplitude_entry(
     if filter_method not in ["auto", "manual", "constrained"]:
         raise ValueError(f"Unknown 'amplitude_filter': {filter_method}. Exiting.")
 
-    exclude = io.read_exclude_file(core.file("exclude", directory=directory))
+    exclude = io.read_exclude_files(config["exclude_files"])
 
     # Exclude some observations
     wvids = core.iterate_waveid(directory, iteration, exclude)
@@ -725,7 +728,7 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
     eq_batches = config["equation_batches"]
     keep_ev = config["keep_events"]
 
-    exclude = io.read_yaml(core.file("exclude", directory=directory))
+    exclude = io.read_exclude_files(config["exclude_files"])
 
     exclude_wvid = exclude["waveform"]
 
@@ -1546,7 +1549,7 @@ def plot_alignment_entry(
         dt_pca = None
 
     if do_exclude:
-        excl = io.read_exclude_file(core.file("exclude", directory=directory))
+        excl = io.read_exclude_files(config["exclude_files"])
         iin, event_list = qc.included_events(excl, **hdr.kwargs(qc.included_events))
 
     # Get cc from file or recompute
@@ -2009,14 +2012,14 @@ Software for computing relative seismic moment tensors"""
     exclude_p.add_argument(
         "--nodata",
         action="store_true",
-        help="Exlude data with no data or data containing NaNs",
+        help="Exclude data with no data or data containing NaNs",
     )
 
     exclude_p.add_argument(
         "--snr",
         action="store_true",
         help=(
-            "Exlude data with signal to noise ratio lower than "
+            "Exclude data with signal to noise ratio lower than "
             "'min_signal_noise_ratio' in the station header file"
         ),
     )
@@ -2025,7 +2028,7 @@ Software for computing relative seismic moment tensors"""
         "--cc",
         action="store_true",
         help=(
-            "Exlude data with correlation coefficient lower than "
+            "Exclude data with correlation coefficient lower than "
             "'min_correlation' in the station header file"
         ),
     )
@@ -2034,9 +2037,17 @@ Software for computing relative seismic moment tensors"""
         "--ecn",
         action="store_true",
         help=(
-            "Exlude data with expansion coefficient norm lower than "
+            "Exclude data with expansion coefficient norm lower than "
             "'min_expansion_coefficient_norm' in the station header file"
         ),
+    )
+
+    exclude_p.add_argument(
+        "--file",
+        "-f",
+        type=Path,
+        help="Use this exclusion file",
+        default=core.file("exclude"),
     )
 
     exclude_p.add_argument(
@@ -2044,7 +2055,7 @@ Software for computing relative seismic moment tensors"""
         "-o",
         help=(
             "Overwrite existing entries per category. Never overwrites manually"
-            "exluded phases"
+            "excluded phases"
         ),
         action="store_true",
     )
@@ -2275,7 +2286,7 @@ def main(args=None):
     if parsed.mode == "solve":
         kwargs.update(dict(iteration=n_align, do_predict=parsed.predict))
 
-    if parsed.mode == "amplitude" or parsed.mode == "align" or parsed.mode == "exclude":
+    if parsed.mode == "amplitude" or parsed.mode == "align":
         kwargs.update(dict(iteration=n_align, overwrite=overwrite))
 
     if parsed.mode == "align":
@@ -2290,15 +2301,18 @@ def main(args=None):
         kwargs.update(dict(do_pca=parsed.pca, do_mccc=parsed.mccc))
 
     if parsed.mode == "exclude":
-        kwargs.update(
-            dict(
-                do_nodata=parsed.nodata,
-                do_snr=parsed.snr,
-                do_cc=parsed.cc,
-                do_ecn=parsed.ecn,
-                cc_from_file=parsed.cc_from_file,
-            )
+        exclude_entry(
+            parsed.alignment,
+            parsed.overwrite,
+            parent,
+            parsed.nodata,
+            parsed.snr,
+            parsed.cc,
+            parsed.ecn,
+            parsed.cc_from_file,
+            parsed.file,
         )
+        return
 
     if parsed.mode == "plot-alignment":
         plot_alignment_entry(

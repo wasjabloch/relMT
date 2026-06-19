@@ -59,21 +59,57 @@ def test_make_read_station_table():
         assert inv == outv
 
 
-def test_save_read_exclude_file():
+def test_save_read_one_exclude_file():
     excl_in = {
         "phase_manual": ["1_STA1_P"],
         "station": ["STA2"],
-        "event": 1,
+        "event": [1],
         "waveform": ["STA1_P"],
     }
     with tempfile.NamedTemporaryFile("w", delete=False) as fid:
         io.save_yaml(fid.name, excl_in)
         fid.close()
-        excl_out = io.read_exclude_file(fid.name)
+        excl_out = io.read_exclude_files(fid.name)
+
     os.remove(fid.name)
 
     # Assert that the dictionary is created correctly
     for key, val in excl_in.items():
+        assert key in excl_out
+        assert val == excl_out[key]
+
+
+def test_save_read_two_exclude_files():
+    excl_1 = {
+        "phase_manual": ["1_STA1_P"],
+        "station": ["STA1"],
+        "event": [1],
+        "waveform": ["STA1_P"],
+    }
+    excl_2 = {
+        "phase_manual": ["2_STA2_S"],
+        "station": ["STA2"],
+        "event": [2],
+        "waveform": ["STA2_S"],
+    }
+    filenames = []
+    for excl in [excl_1, excl_2]:
+        with tempfile.NamedTemporaryFile("w", delete=False) as fid:
+            io.save_yaml(fid.name, excl)
+            filenames.append(fid.name)
+
+    try:
+        excl_out = io.read_exclude_files(filenames)
+    finally:
+        for filename in filenames:
+            os.remove(filename)
+
+    excl_expected = core.exclude.copy()
+    for key in excl_expected:
+        excl_expected[key] = excl_1.get(key, []) + excl_2.get(key, [])
+
+    # Assert that the two dictionaries are joined correctly
+    for key, val in excl_expected.items():
         assert key in excl_out
         assert val == excl_out[key]
 

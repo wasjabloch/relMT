@@ -26,6 +26,7 @@
 from numpy import inf
 
 config = dict(
+    exclude_files=["exclude.yaml"],
     harvard_convention=False,
     lag_times=[],
     loglevel="INFO",

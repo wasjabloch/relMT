@@ -675,6 +675,11 @@ Path to the phase file, e.g. 'data/phases.txt'""",
         """
 Path to the reference moment tensor file, e.g. 'data/reference_mt.txt'""",
     ),
+    "exclude_files": (
+        "list",
+        """
+List of files to read exluded events and phases, e.g. ['exclude.yaml']""",
+    ),
     "harvard_convention": (
         "bool",
         """
@@ -965,6 +970,7 @@ class Config:
         station_file: str | None = None,
         phase_file: str | None = None,
         reference_mt_file: str | None = None,
+        exclude_files: list[str] | None = None,
         harvard_convention: bool | None = None,
         lag_times: list[str] | None = None,
         amplitude_suffix: str = "",
@@ -1046,7 +1052,7 @@ class Config:
                 value = [float(value[0]), float(value[1])]
             elif key in ["events_", "keep_events", "reference_mts"]:
                 value = [int(val) for val in value]
-            elif key in ["lag_times"]:
+            elif key in ["lag_times" or "exclude_files"]:
                 if type(value) == str:
                     value = [value]
                 elif value is None:

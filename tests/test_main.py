@@ -235,9 +235,7 @@ def test_align_entry_writes_aligned_waveforms(
         assert outfiles
 
 
-def test_exclude_entry_marks_zero_trace_as_no_data(
-    muji_mini_project, muji_config, monkeypatch
-):
+def test_exclude_entry_marks_zero_trace_as_no_data(muji_mini_project, monkeypatch):
     monkeypatch.chdir(muji_mini_project)
 
     arrf = muji_mini_project / "data" / "EP03_P-wvarr.npy"
@@ -249,14 +247,14 @@ def test_exclude_entry_marks_zero_trace_as_no_data(
     np.save(arrf, arr)
 
     main.exclude_entry(
-        muji_config,
         iteration=0,
         overwrite=True,
         directory=muji_mini_project,
         do_nodata=True,
+        file="my-exclude.yaml",
     )
 
-    excl = io.read_exclude_file(muji_mini_project / "exclude.yaml")
+    excl = io.read_exclude_files(muji_mini_project / "my-exclude.yaml")
     phaseid = core.join_phaseid(hdr["events_"][0], "EP03", "P")
     assert phaseid in excl["phase_auto_nodata"]
 
