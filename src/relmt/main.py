@@ -949,8 +949,8 @@ def admit_entry(
         ]
 
         logger.info(
-            f"Finally excluded {len(pamps) - npamp} P- and "
-            f"{len(samps) - nsamp} S-amplitudes from exclude file"
+            f"Finally excluded {npamp - len(pamps)} P- and "
+            f"{nsamp - len(samps)} S-amplitudes from exclude file"
         )
 
         # Make sure we have enough equations
