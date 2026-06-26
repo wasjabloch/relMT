@@ -697,7 +697,9 @@ def amplitude_entry(
         shm.unlink()
 
 
-def admit_entry(config: core.Config, directory: Path = Path()) -> None:
+def admit_entry(
+    config: core.Config, directory: Path = Path(), post_exclude=False
+) -> None:
     """Admit amplitude measurements into the inversion
 
     This function is called when executing 'relmt admit' from the command line.
@@ -710,6 +712,10 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
     directory:
         Root directory of the project, containing the 'amplitude/' subfolder.
         Path of the file referenced by the '--config' option.
+    post_exclude:
+        Only exclude events and phases from exclude files after all other
+        criteria have been applied. Useful for outlier exlusion. Default applies
+        exlusions from files first.
     """
 
     # A-priori meassures
@@ -811,25 +817,27 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
         )
 
         # Phases
-        iout |= [
-            np.any(
-                (
-                    core.join_phaseid(a, s, ph) in exclude_phase,
-                    core.join_phaseid(b, s, ph) in exclude_phase,
-                    core.join_phaseid(c, s, ph) in exclude_phase,
-                    a in exclude_events,
-                    b in exclude_events,
-                    c in exclude_events,
+        if not post_exclude:
+            iout |= [
+                np.any(
+                    (
+                        core.join_phaseid(a, s, ph) in exclude_phase,
+                        core.join_phaseid(b, s, ph) in exclude_phase,
+                        core.join_phaseid(c, s, ph) in exclude_phase,
+                        a in exclude_events,
+                        b in exclude_events,
+                        c in exclude_events,
+                    )
                 )
-            )
-            for a, b, c, s, ph in zip(eva, evb, evc, sta, pha)
-        ]
+                for a, b, c, s, ph in zip(eva, evb, evc, sta, pha)
+            ]
 
-        logger.info(
-            f"Excluded {sum(iout) - nout} more {phase_type}-observations from exclude file"
-        )
+            logger.info(
+                f"Excluded {sum(iout) - nout} more {phase_type}-observations from exclude file"
+            )
 
         # Valid amplitude
+        nout = sum(iout)
         iout |= ~np.isfinite(amp1) | ~np.isfinite(amp2)
         logger.info(
             f"Excluded {sum(iout) - nout} more {phase_type}-observations due bad amplitude"
@@ -908,6 +916,52 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
             eq_batches,
         )
 
+    if post_exclude:
+        npamp = len(pamps)
+        pamps = [
+            amp
+            for amp in pamps
+            if not any(
+                (
+                    core.join_phaseid(amp.event_a, amp.station, amp.phase)
+                    in exclude_phase,
+                    core.join_phaseid(amp.event_b, amp.station, amp.phase)
+                    in exclude_phase,
+                    amp.event_a in exclude_events,
+                    amp.event_b in exclude_events,
+                )
+            )
+        ]
+
+        nsamp = len(samps)
+        samps = [
+            amp
+            for amp in samps
+            if not any(
+                (
+                    core.join_phaseid(amp.event_a, amp.station, amp.phase)
+                    in exclude_phase,
+                    core.join_phaseid(amp.event_b, amp.station, amp.phase)
+                    in exclude_phase,
+                    core.join_phaseid(amp.event_c, amp.station, amp.phase)
+                    in exclude_phase,
+                    amp.event_a in exclude_events,
+                    amp.event_b in exclude_events,
+                    amp.event_c in exclude_events,
+                )
+            )
+        ]
+
+        logger.info(
+            f"Finally excluded {len(pamps) - npamp} P- and "
+            f"{len(samps) - nsamp} S-amplitudes from exclude file"
+        )
+
+        # Make sure we have enough equations
+        pamps, samps = qc.clean_by_equation_station_count_gap(
+            pamps, samps, phd, min_eq, min_sta, max_gap, two_s
+        )
+
     if len(pamps) + len(samps) == 0:
         raise RuntimeError("No observations left. Relax your admission criteria.")
 
@@ -915,10 +969,13 @@ def admit_entry(config: core.Config, directory: Path = Path()) -> None:
     for phase_type, amps in zip("PS", [pamps, samps]):
         if evd and std:
             amps = amp.sort_amplitudes(amps, evd, std)
+
         fac = 1
         if phase_type == "S" and two_s:
             fac = 2
+
         logger.info(f"Selected {len(amps)*fac} {phase_type} equations")
+
         outfile = core.file(
             "amplitude_observation",
             directory=directory,
@@ -1978,7 +2035,6 @@ Software for computing relative seismic moment tensors"""
     align_p.set_defaults(command=align_entry)
     exclude_p.set_defaults(command=exclude_entry)
     amp_p.set_defaults(command=amplitude_entry)
-    admit_p.set_defaults(command=admit_entry)
     solve_p.set_defaults(command=solve_entry)
 
     # Subparser arguments
@@ -2079,6 +2135,15 @@ Software for computing relative seismic moment tensors"""
 
     # Admit sub-arguments
     admit_p.add_argument(*option["config"][0], **option["config"][1])
+    admit_p.add_argument(
+        "--post",
+        action="store_true",
+        help=(
+            "Only exclude events and phases from exclude files after all other "
+            "criteria have been applied. Useful for outlier exlusion. Default "
+            "applies exclusions from files first."
+        ),
+    )
 
     # Sub arguments of the solve routine
     solve_p.add_argument(*option["config"][0], **option["config"][1])
@@ -2312,6 +2377,10 @@ def main(args=None):
             parsed.cc_from_file,
             parsed.file,
         )
+        return
+
+    if parsed.mode == "admit":
+        admit_entry(config, parent, parsed.post)
         return
 
     if parsed.mode == "plot-alignment":
