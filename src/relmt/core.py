@@ -683,11 +683,9 @@ List of files to read exluded events and phases, e.g. ['exclude.yaml']""",
     "harvard_convention": (
         "bool",
         """
-Read and write moment tensors in Harvard Up-South-East rather than
-North-East-Down convention.
-False, the default, assumes (Mnn, Mee, Mdd, Mne, Mnd, Med).
-True assumes (Mrr, Mtt, Mff, Mrt, Mrf, Mtf).
-""",
+Read and write moment tensors in Harvard Up-South-East rather convention.
+False assumes the components to be nn, ee, dd, ne, nd, ed.
+True assumes rr, tt, ff, rt, rf, tf""",
     ),
     "loglevel": (
         "str",
@@ -737,11 +735,10 @@ Filter method to apply for amplitude measure. One of:
     "auto_highpass_periods": (
         "float",
         """
-Highpass filter corner allows not fewer than this  many signal periods within a phase
-window. Heuristic approach to eliminate low-frequency noise. A larger number means
-a higher highpass:
-highpass = `auto_highpass_periods` / (`phase_end` - `phase_start`).
-""",
+The highpass filter corner allows not fewer than this  many signal periods
+within a phase window. Heuristic approach to eliminate low-frequency noise. A
+larger number means a higher highpass, narrower bandpass:
+highpass = `auto_highpass_periods` / (`phase_end` - `phase_start`).""",
     ),
     "auto_lowpass_method": (
         "str",
@@ -765,14 +762,15 @@ Provide a fixed lowpass filter corner for all events.
         """
 When estimating the low-pass frequency of an event as the corner frequency
 (auto_lowpass_method: 'corner'), assume a stress drop within this range (Pa).
-When second value is less or equal first value, use a fixed stress drop of first
-value.""",
+When second value is less or equal first value, use the first value as the fixed
+stress drop""",
     ),
     "auto_lowpass_vs": (
         "float",
         """
-Near source S-wave velocity (m/s) used to constrain corner frequency estimate
-from spectrum when `auto_lowpass_method` is 'corner'. Ignored otherwise.""",
+When estimating the low-pass frequency of an event as the corner frequency
+(auto_lowpass_method: 'corner'), use this near source S-wave velocity (m/s) to
+constrain the corner frequency estimate from spectrum""",
     ),
     "auto_bandpass_snr_target": (
         "float",
@@ -784,11 +782,11 @@ passband.""",
     "lowpass_event_phase_quantile": (
         "float",
         """
-Find a lowpass filter corner common to event phase observations accross
-stations. Use the given quantile of the previously assigned lowpasses (0
-indicates minimum value, 0.5 median, 1 maximum value). The criterion is applied
-after the the individual waveform bandpasses are calculated or loaded from
-file.""",
+Find the lowpass filter that is common to one phase of one event accross all
+stations. Use the given quantile of the previously assigned lowpasses. `0`
+indicates minimum value, `0.5` median, `1` maximum value. The criterion is
+applied after the the individual waveform bandpasses are calculated or loaded
+from file.""",
     ),
     "amplitude_measure": (
         "str",
@@ -824,14 +822,15 @@ amplitudes if 'max_s_amplitude_misfit' is given.""",
     "max_s_amplitude_misfit": (
         "float",
         """
-If given, discard S amplitude measurements with a higher misfit.
-'max_amp_misfit' then only applies to P amplitudes.""",
+When given, discard S amplitude measurements with a higher misfit.
+'max_amp_misfit' then only applies to P amplitudes. When not given, use
+'max_amp_misfit' instead.""",
     ),
     "max_s_sigma1": (
         "float",
         """
-Maximum first normalized singular value to allow for an S-wave reconstruction. A
-value of 1 indicates that S-waveform adheres to rank 1 rather than rank 2 model.
+Maximum first normalized singular value allowed for S-wave reconstruction. A
+value of 1 indicates that S-waveform adheres to rank-1 rather than rank-2 model.
 The relative amplitudes Babc and Bacb are then not linearly independent.""",
     ),
     "max_magnitude_difference": (
@@ -843,13 +842,15 @@ measurement.""",
     "max_event_distance": (
         "float",
         """
-Maximum allowed distance (m) between two events.""",
+Maximum allowed distance (m) between two events to allow an amplitude
+measurement.""",
     ),
     "min_shared_path": (
         "float",
         """
 Minimum shared path length fraction between events and station to allow an
-amplitude measurement.""",
+amplitude measurement. `1` indicates co-located events, `0` indicates
+inter-event distance equals event-station distance""",
     ),
     "min_equations": (
         "int",
@@ -875,9 +876,9 @@ one with the highest norm of the polarization vector).""",
     "max_p_equations": (
         "int",
         """
-Maximum number of P-wave equation in the linear system. If more are available,
+Maximum number of P-wave equations in the linear system. If more are available,
 iteratively discard those with redundant observations, on stations with many
-observations, and with a higher misfit""",
+observations, and with a higher misfit.""",
     ),
     "max_s_equations": (
         "int",
@@ -1281,7 +1282,7 @@ Station code""",
     "phase": (
         "str",
         """
-Seismic phase type to consider ('P' or 'S')""",
+Seismic phase type (ex. 'P', 'S', 'Pn', 'Pg')""",
     ),
     "matlab_variable": (
         "str",
@@ -1303,24 +1304,24 @@ Sampling rate of the seismic waveform (Hertz)""",
     "data_window": (
         "float",
         """
-Time window symmetric about the phase pick (i.e. pick is near the central
+Time window symmetric about the phase pick (i.e. pick is near the center
 sample) (seconds)""",
     ),
     "phase_start": (
         "float",
         """
 Start of the phase window before the arrival time pick (negative seconds before
-pick).""",
+pick)""",
     ),
     "phase_end": (
         "float",
         """
-End of the phase window after the arrival time pick (seconds after pick).""",
+End of the phase window after the arrival time pick (seconds after pick)""",
     ),
     "taper_length": (
         "float",
         """
-Combined length of taper that is applied at both ends beyond the phase window.
+Combined length of taper that is applied at both ends beyond the phase window
 (seconds)""",
     ),
     "highpass": (
@@ -1336,7 +1337,7 @@ Common low-pass filter corner of the waveform (Hertz)""",
     "null_threshold": (
         "float",
         """
-Regard absolute amplitudes at and below this value as null""",
+Regard absolute amplitudes at and below this value as null for event exclusion""",
     ),
     "min_signal_noise_ratio": (
         "float",
@@ -1352,37 +1353,36 @@ event exclusion""",
     "min_expansion_coefficient_norm": (
         "float",
         """
-Minimum allowed norm of the principal component expansion coefficients
-contributing to the waveform reconstruction for event exclusion""",
+Minimum allowed expansion coefficient norm of a waveform for event exclusion""",
     ),
     "combine_neighbors": (
         "int",
         """
-Combine only this many nearest neigboring events. Ignored when using
-'combinations_from_file'""",
+Combine this many nearest neighboring events. Ignored when using
+'combinations_from_file'.""",
     ),
     "combinations_from_file": (
         "bool",
         """
-Read combinations from file names STATION_PHASE-combination.txt""",
+Combine event pairs stored in file 'STATION_PHASE-combination.txt'""",
     ),
     "min_amp_highpass": (
         "float",
         """
-Minimum highpass filter corner (Hertz) in an amplitude measurement when
+Minimum highpass filter corner (Hertz) used by `relmt amplitude` when
 'amplitude_filter' is 'constrained'""",
     ),
     "max_amp_lowpass": (
         "float",
         """
-Maximum lowpass filter corner (Hertz) in an amplitude measurement when
+Maximum lowpass filter corner (Hertz) used by `relmt amplitude` when
 'amplitude_filter' is 'constrained'""",
     ),
     "events_": (
         "list",
         """
-Event numbers corresponding to the first dimension of the waveform array. Do not
-edit.""",
+Event numbers corresponding to the first dimension of the waveform array. Only
+edit when constructing the waveform array.""",
     ),
 }
 
