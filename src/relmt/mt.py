@@ -247,7 +247,7 @@ def kagan_rms(
     mt_list: list[core.MT] | dict[int, list[core.MT]],
     mt_true: core.MT | dict[int, core.MT] | None = None,
 ) -> float | dict[int, float]:
-    """RMS of the kagan angles between MTs
+    """RMS of the Kagan angles between MTs
 
     Parameters
     ----------
@@ -278,6 +278,45 @@ def kagan_rms(
     kagans = np.array([kagan_angle(mean, this) for this in mt_array])
 
     return np.sqrt(np.sum(kagans**2) / mt_array.size)
+
+
+def scalar_product_rms(
+    mt_list: list[core.MT] | dict[int, list[core.MT]],
+    mt_true: core.MT | dict[int, core.MT] | None = None,
+) -> float | dict[int, float]:
+    """RMS of the normalized scalar product between MTs
+
+    Parameters
+    ----------
+    mt_list:
+        List of MT observations to compare, or dict of lists
+    mt_true:
+        A true MT from which to compute deviation. If None, use mean of `mt_list`
+
+    Returns
+    -------
+    RMS of the kagan angles
+    """
+
+    if type(mt_list) == dict:
+
+        if type(mt_true) != dict:
+            # Reutrn the mt_true value on any input
+            mt_true = defaultdict(lambda _: mt_true)
+
+        return {
+            evn: scalar_product_rms(mtl, mt_true[evn]) for evn, mtl in mt_list.items()
+        }
+
+    mt_array = np.array(mt_list)
+
+    mean = mt_array.mean(axis=0)
+    if mt_true is not None:
+        mean = np.array(mt_true)
+
+    scaps = np.array([norm_scalar_product(mean, this) for this in mt_array])
+
+    return np.sqrt(np.sum(scaps**2) / mt_array.size)
 
 
 _pbt2tpb = np.array(((0.0, 0.0, 1.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)))
