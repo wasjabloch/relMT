@@ -38,7 +38,7 @@ core.Config().to_file("config.yaml")
 
 which yields the file ``config.yaml``:
 
-```{literalinclude} ../how-to/config-template.yaml
+```{literalinclude} config.yaml
 :caption: config.yaml
 :language: yaml
 ```
@@ -159,7 +159,7 @@ core.Header().to_file("default-hdr.yaml")
 
 which yields the file ``default-hdr.yaml``:
 
-```{literalinclude} ../how-to/default-hdr.yaml
+```{literalinclude} default-hdr.yaml
 :caption: default-hdr.yaml
 :language: yaml
 ```

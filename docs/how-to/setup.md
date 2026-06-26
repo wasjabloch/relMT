@@ -46,7 +46,7 @@ data/
 The file names are arbitrary and must correspond to the respective entries
 in `config.yaml`:
 
-```{literalinclude} config-template.yaml
+```{literalinclude} ../formats/config.yaml
 :caption: config.yaml
 :language: yaml
 :start-at: Path to the seismic event catalog
@@ -124,7 +124,7 @@ Default parameters that are equal for multiple stations and phases may be
 declared only once in `default-hdr.yaml`. Any values found in a specific
 `STATION_PHASE-hdr.yaml` will overwrite the values defined here:
 
-```{literalinclude} default-hdr.yaml
+```{literalinclude} ../formats/default-hdr.yaml
 :caption: default-hdr.yaml
 :language: yaml
 :start-at: One-character component names

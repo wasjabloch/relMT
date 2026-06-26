@@ -4,7 +4,7 @@
 # (str)
 station:
 
-# Seismic phase type to consider ('P' or 'S')
+# Seismic phase type (ex. 'P', 'S', 'Pn', 'Pg')
 # (str)
 phase:
 
@@ -22,21 +22,21 @@ components:
 # (float)
 sampling_rate:
 
-# Time window symmetric about the phase pick (i.e. pick is near the central
+# Time window symmetric about the phase pick (i.e. pick is near the center
 # sample) (seconds)
 # (float)
 data_window:
 
 # Start of the phase window before the arrival time pick (negative seconds before
-# pick).
+# pick)
 # (float)
 phase_start:
 
-# End of the phase window after the arrival time pick (seconds after pick).
+# End of the phase window after the arrival time pick (seconds after pick)
 # (float)
 phase_end:
 
-# Combined length of taper that is applied at both ends beyond the phase window.
+# Combined length of taper that is applied at both ends beyond the phase window
 # (seconds)
 # (float)
 taper_length:
@@ -49,7 +49,7 @@ highpass:
 # (float)
 lowpass:
 
-# Regard absolute amplitudes at and below this value as null
+# Regard absolute amplitudes at and below this value as null for event exclusion
 # (float)
 null_threshold:
 
@@ -62,21 +62,30 @@ min_signal_noise_ratio:
 # (float)
 min_correlation:
 
-# Minimum allowed norm of the principal component expansion coefficients
-# contributing to the waveform reconstruction for event exclusion
+# Minimum allowed expansion coefficient norm of a waveform for event exclusion
 # (float)
 min_expansion_coefficient_norm:
 
-# Combine only this many nearest neigboring events. Ignored when using
-# 'combinations_from_file'
+# Combine this many nearest neighboring events. Ignored when using
+# 'combinations_from_file'.
 # (int)
 combine_neighbors:
 
-# Read combinations from file names STATION_PHASE-combination.txt
+# Combine event pairs stored in file 'STATION_PHASE-combination.txt'
 # (bool)
 combinations_from_file:
 
-# Event numbers corresponding to the first dimension of the waveform array. Do not
-# edit.
+# Minimum highpass filter corner (Hertz) used by `relmt amplitude` when
+# 'amplitude_filter' is 'constrained'
+# (float)
+min_amp_highpass:
+
+# Maximum lowpass filter corner (Hertz) used by `relmt amplitude` when
+# 'amplitude_filter' is 'constrained'
+# (float)
+max_amp_lowpass:
+
+# Event numbers corresponding to the first dimension of the waveform array. Only
+# edit when constructing the waveform array.
 # (list)
 events_:

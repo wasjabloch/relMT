@@ -18,7 +18,7 @@ trough the bootstrapping method.
 As before, the parameter sets can be made distinguishable by defining
 `result_suffix`, which will be appended to the filenames created here.
 
-```{literalinclude} config-template.yaml
+```{literalinclude} ../formats/config.yaml
 :caption: config.yaml
 :language: yaml
 :start-at: Solve parameters
@@ -50,7 +50,7 @@ meaning that we either solve for *5* or *6* MT elements. Note that when a
 deviatoric constraint is applied, we do not consider the isotropic part of the
 reference MT and the resulting magnitudes will be lower.
 
-```{literalinclude} config-template.yaml
+```{literalinclude} ../formats/config.yaml
 :caption: config.yaml
 :language: yaml
 :start-at: Constrain the moment tensor
@@ -65,7 +65,7 @@ than `min_amplitude_misfit`. To avoid that observation with a misfit approaching
 the largest allowed misfit (`max_misfit`, see [admit amplitudes](admit.md)) get a
 weight close to *0*, one can set the `min_amplitude_weight`.
 
-```{literalinclude} config-template.yaml
+```{literalinclude} ../formats/config.yaml
 :caption: config.yaml
 :language: yaml
 :start-at: Minimum misfit to assign
@@ -77,7 +77,7 @@ weight close to *0*, one can set the `min_amplitude_weight`.
 To detect outlying observation one can draw bootstrap samples. This will create
 an additional relative MT file with a *"-boot"* suffix.
 
-```{literalinclude} config-template.yaml
+```{literalinclude} ../formats/config.yaml
 :caption: config.yaml
 :language: yaml
 :start-at: Number of samples to draw

@@ -19,11 +19,13 @@ phase_file:
 # (str)
 reference_mt_file:
 
-# Read and write moment tensors in Harvard Up-South-East rather than
-# North-East-Down convention.
-# False, the default, assumes (Mnn, Mee, Mdd, Mne, Mnd, Med).
-# True assumes (Mrr, Mtt, Mff, Mrt, Mrf, Mtf).
-#
+# List of files to read exluded events and phases, e.g. ['exclude.yaml']
+# (list)
+exclude_files: ['exclude.yaml']
+
+# Read and write moment tensors in Harvard Up-South-East rather convention.
+# False assumes the components to be nn, ee, dd, ne, nd, ed.
+# True assumes rr, tt, ff, rt, rf, tf
 # (bool)
 harvard_convention: False
 
@@ -62,14 +64,15 @@ amplitude_suffix:
 #
 #    - 'manual': Use 'highpass' and 'lowpass' of the waveform header files.
 #    - 'auto': compute filter corners using the "auto" options below
+#    - 'constrained': As 'auto', but read constraints on high- and lowpass from
+#      header variables 'min_amp_highpass' and 'max_amp_lowpass'.
 # (str)
 amplitude_filter:
 
-# Highpass filter corner allows not fewer than this  many signal periods within a phase
-# window. Heuristic approach to eliminate low-frequency noise. A larger number means
-# a higher highpass:
+# The highpass filter corner allows not fewer than this  many signal periods
+# within a phase window. Heuristic approach to eliminate low-frequency noise. A
+# larger number means a higher highpass, narrower bandpass:
 # highpass = `auto_highpass_periods` / (`phase_end` - `phase_start`).
-#
 # (float)
 auto_highpass_periods: 1.0
 
@@ -84,19 +87,20 @@ auto_highpass_periods: 1.0
 auto_lowpass_method:
 
 # Provide a fixed lowpass filter corner for all events.
-# (requires auto_lowpass_method: 'fixed' or amplitude_filter: 'fixed')
+# (requires auto_lowpass_method: 'fixed')
 # (float)
 fixed_lowpass:
 
 # When estimating the low-pass frequency of an event as the corner frequency
 # (auto_lowpass_method: 'corner'), assume a stress drop within this range (Pa).
-# When second value is less or equal first value, use a fixed stress drop of first
-# value.
+# When second value is less or equal first value, use the first value as the fixed
+# stress drop
 # ([float, float])
 auto_lowpass_stressdrop_range:
 
-# Near source S-wave velocity (m/s) used to constrain corner frequency estimate
-# from spectrum when `auto_lowpass_method` is 'corner'. Ignored otherwise.
+# When estimating the low-pass frequency of an event as the corner frequency
+# (auto_lowpass_method: 'corner'), use this near source S-wave velocity (m/s) to
+# constrain the corner frequency estimate from spectrum
 # (float)
 auto_lowpass_vs:
 
@@ -106,11 +110,11 @@ auto_lowpass_vs:
 # (float)
 auto_bandpass_snr_target:
 
-# Find a lowpass filter corner common to event phase observations accross
-# stations. Use the given quantile of the previously assigned lowpasses (0
-# indicates minimum value, 0.5 median, 1 maximum value). The criterion is applied
-# after the the individual waveform bandpasses are calculated or loaded from
-# file.
+# Find the lowpass filter that is common to one phase of one event accross all
+# stations. Use the given quantile of the previously assigned lowpasses. `0`
+# indicates minimum value, `0.5` median, `1` maximum value. The criterion is
+# applied after the the individual waveform bandpasses are calculated or loaded
+# from file.
 # (float)
 lowpass_event_phase_quantile:
 
@@ -141,13 +145,14 @@ admit_suffix:
 # (float)
 max_amplitude_misfit: inf
 
-# If given, discard S amplitude measurements with a higher misfit.
-# 'max_amp_misfit' then only applies to P amplitudes.
+# When given, discard S amplitude measurements with a higher misfit.
+# 'max_amp_misfit' then only applies to P amplitudes. When not given, use
+# 'max_amp_misfit' instead.
 # (float)
 max_s_amplitude_misfit:
 
-# Maximum first normalized singular value to allow for an S-wave reconstruction. A
-# value of 1 indicates that S-waveform adheres to rank 1 rather than rank 2 model.
+# Maximum first normalized singular value allowed for S-wave reconstruction. A
+# value of 1 indicates that S-waveform adheres to rank-1 rather than rank-2 model.
 # The relative amplitudes Babc and Bacb are then not linearly independent.
 # (float)
 max_s_sigma1: 1.0
@@ -157,12 +162,14 @@ max_s_sigma1: 1.0
 # (float)
 max_magnitude_difference:
 
-# Maximum allowed distance (m) between two events.
+# Maximum allowed distance (m) between two events to allow an amplitude
+# measurement.
 # (float)
 max_event_distance:
 
 # Minimum shared path length fraction between events and station to allow an
-# amplitude measurement.
+# amplitude measurement. `1` indicates co-located events, `0` indicates
+# inter-event distance equals event-station distance
 # (float)
 min_shared_path:
 
@@ -183,9 +190,9 @@ max_gap: 360.0
 # (bool)
 two_s_equations: True
 
-# Maximum number of P-wave equation in the linear system. If more are available,
+# Maximum number of P-wave equations in the linear system. If more are available,
 # iteratively discard those with redundant observations, on stations with many
-# observations, and with a higher misfit
+# observations, and with a higher misfit.
 # (int)
 max_p_equations:
 

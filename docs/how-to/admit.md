@@ -60,7 +60,7 @@ The first parameters pertain to the quality of waveform reconstruction:
   close to *1* for almost all waveform combinations. One then runs into danger
   of excluding all observations when choosing too low a value.
 
-```{literalinclude} config-template.yaml
+```{literalinclude} ../formats/config.yaml
 :caption: config.yaml
 :language: yaml
 :start-at: Discard amplitude measurements
@@ -76,7 +76,7 @@ The next parameters pertain to properties of event combinations.
 * `max_event_distance`: Large inter-event distances may be an indication that
   the *common Green's function assumption* is violated.
 
-```{literalinclude} config-template.yaml
+```{literalinclude} ../formats/config.yaml
 :caption: config.yaml
 :language: yaml
 :start-at: Maximum difference in magnitude
@@ -95,7 +95,7 @@ If one of the values is exceeded for a moment tensor, all observations
 pertaining to that MT will be discarded. These criteria are applied iteratively
 until no equations are left that violate either.
 
-```{literalinclude} config-template.yaml
+```{literalinclude} ../formats/config.yaml
 :caption: config.yaml
 :language: yaml
 :start-at: Minimum number of equations
@@ -118,7 +118,7 @@ equation system.
   that should not be considered as redundant and `equation_batches` controls how
   often the equations should be re-ranked.
 
-```{literalinclude} config-template.yaml
+```{literalinclude} ../formats/config.yaml
 :caption: config.yaml
 :language: yaml
 :start-at: Use two equations per S-amplitude

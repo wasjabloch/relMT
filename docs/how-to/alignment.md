@@ -60,7 +60,7 @@ about 1 to 2 seconds long and a pick accuracy better than 1 second, the
 following configuration could be a reasonable one:
 
 ```{code-block} yaml
-:caption: data/default-hdr.yaml
+:caption: ../formats/default-hdr.yaml
 
 # Sampling rate of the seismic waveform (Hertz)
 sampling_rate: 100
@@ -100,7 +100,7 @@ within the frequency band enclosed by `highpass` and `lowpass`.
 To apply the *no data* and the *too noisy* criteria at once, one can define:
 
 ```{code-block} yaml
-:caption: data/default-hdr.yaml
+:caption: ../formats/default-hdr.yaml
 # Regard absolute amplitudes at and below this value as null
 null_threshold: 0.001
 
