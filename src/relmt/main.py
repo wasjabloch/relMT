@@ -1133,9 +1133,15 @@ def solve_entry(
             for amp in samp_subset
         ]
     )
-    pm_wght, sm_wght, _ = ls.unpack_equation_vector(
+
+    # Two-column S weights (both containing the same data)
+    _, miswght_s2, _ = ls.unpack_equation_vector(
         mis_weights, n_p, 0, mt_elements, two_s
     )
+
+    # Write out weights
+    miswght_p = mis_weights[:n_p].flat[:]
+    miswght_s = mis_weights[n_p : n_p + n_s : sfac].flat[:]
 
     amp_norm = np.vstack(
         [1.0 for _ in pamp_subset]
@@ -1189,7 +1195,6 @@ def solve_entry(
     # Scale of resulting relative moment tensors
     ev_scale = mean_moment * ev_norm
 
-    # Dense matrix
     if isparse:
         # Sparse matrix
         A = sparse.vstack((Ah, Ai), format="csc")
@@ -1199,29 +1204,19 @@ def solve_entry(
 
     b = np.vstack((bh, bi))
 
-    # Save weights and norms for analysis
-    io.save_amplitudes(
-        core.file("amplitude_summary", phase="P", suffix=outsuf, directory=directory),
-        pamp_subset,
-        [pa_norm.flat[:], p_norm.flat[:], pm_wght.flat[:]],
-        ["AmplNorm", "EquaNorm", "MisfitWght"],
-        ["{:8.3e}", "{:8.2e}", "{:10.8f}"],
-    )
-
-    io.save_amplitudes(
-        core.file("amplitude_summary", phase="S", suffix=outsuf, directory=directory),
-        samp_subset,
-        [sa_norm[:, 0], s_norm[:, 0], s_norm[:, 1], sm_wght[:, 0]],
-        ["AmplNorm", "EquaNorm1", "EquaNorm2", "MisfitWght"],
-        ["{:8.3e}", "{:8.2e}", "{:8.2e}", "{:10.8f}"],
-    )
-
     logger.info(
         f"Solving linear system of {A.shape[1]} variables and {A.shape[0]} equations..."
     )
 
     # Invert and save results
     m, residuals = ls.solve_lsmr(A, b, ev_scale)
+
+    rms = np.sum(residuals**2) / len(residuals)
+    wrms = np.sum((residuals * mis_weights) ** 2) / np.sum(mis_weights)
+
+    logger.info(
+        f"Unweighted and weighted RMS are: {rms :7.1e} and {wrms :7.1e} normalized Nm"
+    )
 
     # Moment residuals
     p_residuals, s_residuals, _ = ls.unpack_equation_vector(
@@ -1233,6 +1228,30 @@ def solve_entry(
         for i, momt in enumerate(mt.mt_tuples(m, constraint))
         if any(momt)
     }
+
+    # Save weights and norms for analysis
+    io.save_amplitudes(
+        core.file("amplitude_summary", phase="P", suffix=outsuf, directory=directory),
+        pamp_subset,
+        [pa_norm.flat[:], p_norm.flat[:], miswght_p, p_residuals],
+        ["AmplNorm", "EquaNorm", "MisfitWght", "Residual"],
+        ["{:8.2e}", "{:8.2e}", "{:10.8f}", "{:8.1e}"],
+    )
+
+    io.save_amplitudes(
+        core.file("amplitude_summary", phase="S", suffix=outsuf, directory=directory),
+        samp_subset,
+        [
+            sa_norm[:, 0],
+            s_norm[:, 0],
+            s_norm[:, 1],
+            miswght_s2[:, 0],
+            s_residuals[:, 0],
+            s_residuals[:, 1],
+        ],
+        ["AmplNorm", "EquaNorm1", "EquaNorm2", "MisfitWght", "Residual1", "Residual2"],
+        ["{:8.2e}", "{:8.2e}", "{:8.2e}", "{:10.8f}", "{:9.2e}", "{:9.2e}"],
+    )
 
     # Save the results right away
     io.write_mt_table(
@@ -1429,7 +1448,7 @@ def solve_entry(
                 "amplitude_summary", phase="P", suffix=synsuf, directory=directory
             ),
             pamp_subset,
-            [p_residuals, Ares, mis_weights[:n_p].flat[:], amp_norm[:n_p].flat[:]]
+            [p_residuals, Ares, miswght_p, amp_norm[:n_p].flat[:]]
             + [p_norm.flat[:], Asyn, ppms],
             [" MomResidual", "AmpResidual", "MisfitWght", "AmplWght", "EquaNorm"]
             + ["PredAab ", "PredMis"],
@@ -1444,7 +1463,7 @@ def solve_entry(
             ),
             samp_subset,
             [s_residuals[:, 0], s_residuals[:, 1], B1res, B2res]
-            + [mis_weights[n_p : n_p + n_s : sfac].flat[:]]
+            + [miswght_s]
             + [amp_norm[n_p : n_p + n_s : sfac].flat[:]]
             + [s_norm[:, 0], s_norm[:, 1], Bsyn[:, 0], Bsyn[:, 1], spms],
             [" MomResidual1", "MomResidual2", "AmpResidual1", "AmpResidual2"]
@@ -1455,11 +1474,22 @@ def solve_entry(
         )
 
     # Moment RMS per event
-    mom_rmss = {
+    res_rmss = {
         evn: np.sqrt(
-            np.sum(p_residuals[ievp[evn]] ** 2) + np.sum(s_residuals[ievs[evn], :] ** 2)
+            np.nansum(p_residuals[ievp[evn]] ** 2)
+            + np.nansum(s_residuals[ievs[evn], :] ** 2)
         )
-        / (len(ievp[evn]) + 2 * len(ievs[evn]))
+        / (len(ievp[evn]) + sfac * len(ievs[evn]))
+        for evn in relmts
+    }
+
+    # Weighted moment RMS per event
+    wres_rmss = {
+        evn: np.sqrt(
+            np.nansum((p_residuals[ievp[evn]] * miswght_p[ievp[evn]]) ** 2)
+            + np.nansum((s_residuals[ievs[evn], :] * miswght_s2[ievs[evn], :]) ** 2)
+        )
+        / (sum(miswght_p[ievp[evn]]) + sfac * sum(miswght_s2[ievs[evn], 0]))
         for evn in relmts
     }
 
@@ -1472,8 +1502,11 @@ def solve_entry(
         for evn in relmts
     }
 
+    # Fisher-average the absolute correlations
     avccs = {
-        evn: utils.fisher_average(np.concatenate((ccps[ievp[evn]], ccss[ievs[evn]])))
+        evn: utils.fisher_average(
+            np.abs(np.concatenate((ccps[ievp[evn]], ccss[ievs[evn]])))
+        )
         for evn in relmts
     }
 
@@ -1495,21 +1528,25 @@ def solve_entry(
             for i, momt in enumerate(mt.mt_tuples(m_boot, constraint)):
                 bootmts[incl_ev[i]].append(momt)
 
-        # Make and save a
+        # Make and save the bootstrap results
         io.write_mt_table(
             bootmts,
             core.file("relative_mt", suffix=outsuf + "-boot", directory=directory),
             harvard_convention=config["harvard_convention"],
         )
 
-        boot_rms = mt.norm_rms(bootmts, relmts)
+        # Compute bootstrap parameters
+        boot_mom = mt.norm_rms(bootmts, relmts)
         boot_kag = mt.kagan_rms(bootmts, relmts)
+        boot_sca = mt.scalar_product_rms(bootmts, relmts)
     else:
-        boot_rms = {}
+        boot_mom = {}
         boot_kag = {}
+        boot_sca = {}
 
     sumf = core.file("mt_summary", suffix=outsuf, directory=directory)
     logger.info(f"Saving full summary to: {sumf}")
+
     io.save_mt_result_summary(
         sumf,
         evd,
@@ -1518,10 +1555,12 @@ def solve_entry(
         links,
         avmiss,
         avccs,
-        mom_rmss,
+        res_rmss,
+        wres_rmss,
         amp_rmss,
-        boot_rms,
+        boot_sca,
         boot_kag,
+        boot_mom,
     )
 
 
@@ -1730,21 +1769,33 @@ def plot_amplitude_entry(
 
     if ampfile.stem.startswith("P-"):
         amp = io.read_amplitudes(ampfile, "P")
-        usecols = (12, 13)
+        usecols = (12, 13, 14)
+        ip = True
     elif ampfile.stem.startswith("S-"):
         amp = io.read_amplitudes(ampfile, "S")
-        usecols = (14, 15, 16, 17)
+        usecols = (14, 15, 16, 17, 18, 19)
+        ip = False
     else:
         raise ValueError(f"Unknown phase in file name: {ampfile}")
 
     try:
-        norm_weigts = np.loadtxt(ampfile, usecols=usecols)
-        norms = norm_weigts[:, :-1]
-        weights = norm_weigts[:, -1:]
-    except ValueError:
-        norms = weights = None
+        norm_weigts_res = np.loadtxt(ampfile, usecols=usecols)
 
-    fig, _ = plot.amplitudes(amp, highlight, norms=norms, weights=weights)
+        if ip:
+            norms = norm_weigts_res[:, [0]]
+            weights = norm_weigts_res[:, 1]
+            res = norm_weigts_res[:, [2]]
+        else:
+            norms = norm_weigts_res[:, :3]
+            weights = norm_weigts_res[:, 3]
+            res = norm_weigts_res[:, 4:]
+
+    except ValueError:
+        norms = weights = res = None
+
+    fig, _ = plot.amplitudes(
+        amp, highlight, norms=norms, weights=weights, residuals=res
+    )
 
     fig.suptitle(f"File: {ampfile}")
 
@@ -1803,16 +1854,20 @@ def plot_connections_entry(
 _attr_keys = {
     "number": "Event ID",
     "name": "Event Name",
-    "mag": "Input magnitude",
+    "magnitude": "Input magnitude",
     "mw": "Relative moment magnitude",
-    "gap": "Azimuthal gap (deg)",
+    "gap": "Azimuthal gap (°)",
     "links": "Total links",
     "p-links": "P links",
     "s-links": "S links",
-    "moment-rms": "Moment RMS (scaled Nm)",
-    "amplitude-rms": "Amplitude RMS",
-    "boot-moment": "normalized Bootstrap Moment (Nm/M0)",
-    "boot-kagan": "Bootstrap Kagan angle (deg)",
+    "misfit": "Average waveform misfit",
+    "correlation": "Average waveform correlation",
+    "residual-rms": "Log10 RMS of inversion residuals (scaled Nm)",
+    "weighted-rms": "Log10 RMS of weighted inversion residuals (scaled Nm)",
+    "amplitude-rms": "Amplitude misfit RMS",
+    "boot-scalprod": "Bootstrap normalized scalar product",
+    "boot-moment": "Bootstrap normalized Moment (scaled Nm)",
+    "boot-kagan": "Bootstrap Kagan angle (°)",
 }
 
 
@@ -1847,8 +1902,12 @@ def plot_mt_entry(
         "links",
         "p-links",
         "s-links",
-        "moment-rms",
+        "misfit",
+        "correlation",
+        "residual-rms",
+        "weighted-rms",
         "amplitude-rms",
+        "boot-scalprod",
         "boot-moment",
         "boot-kagan",
     ]
@@ -1865,29 +1924,31 @@ def plot_mt_entry(
 
     if sort_by in summary_atts or color_by in summary_atts:
         try:
-            gap, plinks, slinks, mrms, arms, brms, bkag = np.loadtxt(
-                mtfile, usecols=(14, 16, 17, 20, 21, 22, 23), unpack=True
-            )
+            mtdata = np.loadtxt(mtfile, usecols=[14] + list(range(16, 26))).T
         except IndexError:
             msg = "Too few columns in mtfile. Please give a 'mt_summary' file."
             raise IndexError(msg)
     else:
-        gap = plinks = slinks = mrms = arms = brms = bkag = np.full(len(mtd), np.nan)
+        mtdata = np.full((11, len(mtd)), np.nan)
 
     keys = {
         None: np.arange(len(mtd)),
         "number": evns,
         "name": names,
-        "mag": -mags,
+        "magnitude": -mags,
         "mw": -mws,
-        "gap": gap,
-        "links": plinks + slinks,
-        "p-links": plinks,
-        "s-links": slinks,
-        "moment-rms": mrms,
-        "amplitude-rms": arms,
-        "boot-moment": brms,
-        "boot-kagan": bkag,
+        "gap": mtdata[0, :],
+        "links": mtdata[1, :] + mtdata[2, :],
+        "misfit": mtdata[3,],
+        "correlation": mtdata[4,],
+        "p-links": mtdata[1, :],
+        "s-links": mtdata[2, :],
+        "residual-rms": np.log10(mtdata[5, :]),
+        "weighted-rms": np.log10(mtdata[6, :]),
+        "amplitude-rms": mtdata[7, :],
+        "boot-scalprod": mtdata[8, :],
+        "boot-kagan": mtdata[9, :],
+        "boot-moment": mtdata[10, :],
     }
 
     try:

@@ -697,13 +697,13 @@ def save_amplitudes(
         fmt = "{:10s} {:6s} {:7d} {:7d} {:20.13e} {:7.5f} {:11.5f} {:6.4f} {:6.4f} "
         fmt += "{:8.2e} {:8.2e} "
         out = "#Station    Phase  EventA  EventB  Amplitude_AB        Misfit  "
-        out += "Correlation Sigma1 Sigma2 Highpass Lowpass "
+        out += "Correlation Sigma1 Sigma2 Highpass  Lowpass "
     elif ncol == 14:
         fmt = "{:10s} {:6s} {:7d} {:7d} {:7d} {:20.13e} {:20.13e} {:7.5f} "
         fmt += "{:11.5f} {:6.4f} {:6.4f} {:6.4f} {:8.2e} {:8.2e} "
         out = "#Station    Phase  EventA  EventB  EventC  Amplitude_ABC        "
         out += "Amplitude_ACB       Misfit  Correlation Sigma1 Sigma2 Sigma3 "
-        out += "Highpass Lowpass "
+        out += "Highpass  Lowpass "
     else:
         msg = f"Found {ncol} columns, but only 11 or 14 are allowed."
         raise IndexError(msg)
@@ -736,12 +736,14 @@ def save_mt_result_summary(
     links: dict[int, tuple[int, int]] = {},
     misfits: dict[int, float] = {},
     correlations: dict[int, float] = {},
-    moment_rms: dict[int, float] = {},
+    residual_rms: dict[int, float] = {},
+    weighted_residual_rms: dict[int, float] = {},
     amplitude_rms: dict[int, float] = {},
-    bootstrap_rms: dict[int, float] = {},
+    bootstrap_scalar_product: dict[int, float] = {},
     bootstrap_kagan: dict[int, float] = {},
+    bootstrap_rms: dict[int, float] = {},
 ):
-    """Combine moment tensor dictionary and event table and write out resut table"""
+    """Combine moment tensor dictionary and event table and write out result table"""
 
     evd = event_dict
     event_ids = list(mt_dict)
@@ -783,12 +785,19 @@ def save_mt_result_summary(
         ),
         np.asarray([misfits.get(evn, np.nan) for evn in event_ids], dtype=float),
         np.asarray([correlations.get(evn, np.nan) for evn in event_ids], dtype=float),
-        np.asarray([moment_rms.get(evn, np.nan) for evn in event_ids], dtype=float),
+        np.asarray([residual_rms.get(evn, np.nan) for evn in event_ids], dtype=float),
+        np.asarray(
+            [weighted_residual_rms.get(evn, np.nan) for evn in event_ids], dtype=float
+        ),
         np.asarray([amplitude_rms.get(evn, np.nan) for evn in event_ids], dtype=float),
-        np.asarray([bootstrap_rms.get(evn, np.nan) for evn in event_ids], dtype=float),
+        np.asarray(
+            [bootstrap_scalar_product.get(evn, np.nan) for evn in event_ids],
+            dtype=float,
+        ),
         np.asarray(
             [bootstrap_kagan.get(evn, np.nan) for evn in event_ids], dtype=float
         ),
+        np.asarray([bootstrap_rms.get(evn, np.nan) for evn in event_ids], dtype=float),
     ]
     arrays.extend(scalar_columns)
 
@@ -813,15 +822,18 @@ def save_mt_result_summary(
         "  S-links",
         "  Misfit",
         "Correlation",
-        "MomentRMS",
+        "ResidualRMS",
+        "WghtResdRMS",
         "AmplitudeRMS",
-        "BootstrapRMS",
-        "KaganRMS",
+        "BootScalProd",
+        "BootKagan",
+        "BootMoment",
     ]
 
     fmts = (
         "%9s %13.6e %13.6e %13.6e %13.6e %13.6e %13.6e %20s %12.3f %12.3f %12.3f "
-        "%18.6f %5.2f %5.2f %4.0f %4.0f %9.0f %9.0f %8.4f %11.5f %9.2e %12.2e %12.6f %8.3f"
+        "%18.6f %5.2f %5.2f %4.0f %4.0f %9.0f %9.0f %8.4f %11.5f %11.5e %11.5e "
+        "%12.6e %12.6f %9.2f %10.6f"
     ).split()
 
     write_formatted_table(arrays, fmts, headers, filename)

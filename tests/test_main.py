@@ -500,7 +500,7 @@ def test_plot_mt_entry_saves_figure(muji_mini_project, muji_config, monkeypatch)
         highlight=[7508],
         overlay_dc_at=0.5,
         sort_by="number",
-        color_by="mag",
+        color_by="magnitude",
         saveas=saveas,
     )
 
