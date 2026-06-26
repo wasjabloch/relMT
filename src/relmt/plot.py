@@ -616,6 +616,7 @@ def amplitudes(
     title: str | None = None,
     weights: np.ndarray | None = None,
     norms: np.ndarray | None = None,
+    residuals: np.ndarray | None = None,
 ) -> tuple[Figure, np.ndarray]:
     """Plot amplitude observations and misfits in the same layout as the script.
 
@@ -628,7 +629,7 @@ def amplitudes(
         are highlighted.
     title:
         Optional figure title.
-    weights, norms:
+    weights, norms, residuals:
         Optional arrays of shape ``(observations, n)`` with ``1 <= n <= 3``.
         When provided, each is plotted into an additional row.
 
@@ -661,8 +662,17 @@ def amplitudes(
         return values
 
     def _plot_extra_panel(
-        ax: Axes, values: np.ndarray, ylabels: list[str], colors=list[str]
+        ax: Axes,
+        values: np.ndarray,
+        ylabels: list[str],
+        colors: list[str],
+        logscale: bool = False,
     ) -> None:
+
+        if logscale:
+            values = np.abs(values)
+            ax.set_yscale("log")
+
         for i in range(values.shape[1]):
             ax.scatter(
                 iobs,
@@ -702,7 +712,12 @@ def amplitudes(
         amp1 = np.asarray([amp.amp_abc for amp in amplitudes], dtype=float)
         amp2 = np.asarray([amp.amp_acb for amp in amplitudes], dtype=float)
 
-    nrows = 4 + int(weights is not None) + int(norms is not None)
+    nrows = (
+        4
+        + int(weights is not None)
+        + int(norms is not None)
+        + int(residuals is not None)
+    )
     figsize = (10, 5 + 1.5 * (nrows - 2))
     fig, axs = plt.subplots(
         nrows,
@@ -850,8 +865,20 @@ def amplitudes(
         _plot_extra_panel(ax, norms, labels, colors)
         ax.set_ylabel("Norm")
         axs[extra_row, 1].axis("off")
+        extra_row += 1
 
-    for nax, ax in enumerate(axs[:4, :].flat):
+    if residuals is not None:
+        ax = axs[extra_row, 0]
+        labels = ["Equation 1", "Equation 2"]
+        colors = ["xkcd:burgundy", "xkcd:dirty purple"]
+        if ip:
+            labels = ["equation"]
+            colors = [colors[0]]
+        _plot_extra_panel(ax, residuals, labels, colors, True)
+        ax.set_ylabel("|Scaled Residual|")
+        axs[extra_row, 1].axis("off")
+
+    for ax in axs[:4, :].flat:
         ax.grid(True, "major", "y")
         ax.spines[["top", "right"]].set_visible(False)
         ax.label_outer()
@@ -862,6 +889,8 @@ def amplitudes(
         ax.set_xlim((iobs[0], iobs[-1]))
 
     axs[-1, 0].set_xlabel("Observation")
+    axs[2, 1].set_xlabel("# Observations")
+    axs[2, 1].xaxis.set_tick_params(labelbottom=True)
 
     return fig, axs
 
