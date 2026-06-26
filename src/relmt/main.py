@@ -220,14 +220,10 @@ def exclude_entry(
         return sta, pha, ev
 
     # Empty default exclude dictionary
-    excl = core.exclude
+    excl = core.exclude.copy()
 
-    try:
-        logger.info(f"Reading excludes from: {file}")
-        excl = io.read_exclude_files(file)
-    except OSError:
-        logger.info(f"No exlusion file found. Creating: {file}")
-        io.save_yaml(file, excl)
+    logger.info(f"Reading previous excludes from: {file}")
+    excl = io.read_exclude_files(file)
 
     # Collect new excludes in this dictionary
     excludes = {"no_data": [], "snr": [], "cc": [], "ecn": []}
@@ -2094,7 +2090,6 @@ Software for computing relative seismic moment tensors"""
     # Now set the functions to be called
     init_p.set_defaults(command=core.init)
     align_p.set_defaults(command=align_entry)
-    exclude_p.set_defaults(command=exclude_entry)
     amp_p.set_defaults(command=amplitude_entry)
     solve_p.set_defaults(command=solve_entry)
 

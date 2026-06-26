@@ -159,7 +159,7 @@ def read_exclude_files(filenames: str | Path | list[str] | list[Path]) -> core.E
 
     # Check if we have read any file at all.
     if len(filenames) <= nmiss:
-        logger.info("No exclude files found. Assuming there is nothing to exclude.")
+        logger.info("Nothing to exclude, yet.")
         return template.copy()
 
     return this_excl
