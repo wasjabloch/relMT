@@ -13,7 +13,10 @@ build:
     - libfftw3-dev
   jobs:
     pre_build:
+      # Here we download the notebooks from the external repository
       - git clone --depth 1 https://github.com/wasjabloch/relmt-data.git /tmp/relmt-data
+      # Choose notebooks matching the RTD version name, else fall back to main
+      - cd /tmp/relmt-notebooks-data && (git checkout "${READTHEDOCS_VERSION}" || git checkout main)
       # Copy executed notebooks into your docs tree (choose the path you prefer)
       - cp /tmp/relmt-data/notebooks/*.ipynb docs/examples/
       - find . -name *.ipynb
