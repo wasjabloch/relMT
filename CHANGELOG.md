@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.6.0-beta] - 2026-06-29
+
+### Added
+- Config option 'excude_files' to specify which exclusion files to consider
+- `relmt admit` has new option `--post`
+- Amplitude filter method 'constrained'
+- `relmt plot-mt` has additional coloring and sorting options
+- `relmt plot-amplitude` now plots residuals
+
+### Changed
+- MT summary file reports sesiduals and scalar product RMS
+- Updated example notebooks
+- Improved configuration and header comments
+- `relmt admit` only computes gap and station count when required
+
+### Fixed
+- Corrected logging in `relmt admit`
+
 ## [0.5.1-beta] - 2026-05-11
 
 ### Changed
@@ -19,7 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `combine_neighbors` option in waveform header
 - `relmt plot-amplitudes` to plot amplitude files
 - `relmt plot-connections` to plot connectivity of amplitude files
-- Configuratio options:
+- Configuration options:
   - `harvard_convention` to read / write MTs in up-south-east convention
   - `auto_lowpass_vs` to estimate lowpass corner frequency
   - `min_shared_path` to exlude certain event combinations
