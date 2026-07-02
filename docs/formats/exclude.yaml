@@ -1,0 +1,8 @@
+station: []
+event: []
+waveform: []
+phase_manual: []
+phase_auto_nodata: []
+phase_auto_snr: []
+phase_auto_cc: []
+phase_auto_ecn: []

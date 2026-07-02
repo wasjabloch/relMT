@@ -1,0 +1,3 @@
+#Number     Northing      Easting       Depth         Origintime Magnitude                 Name
+# (int)      (meter)      (meter)     (meter)          (seconds)       (-)                (str)
+      0        0.000        0.000       0.000           0.000000    0.0000             SomeName

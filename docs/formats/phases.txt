@@ -1,0 +1,3 @@
+#     EventIndex Station Phase        Arrivaltime  Azimuth      Plunge
+#          (int)   (str) (P/S)          (seconds) (degree)    (degree)
+               0     STA     P           0.000000     0.00        0.00

@@ -47,8 +47,8 @@ which yields the file ``config.yaml``:
 ## Exclude file `exclude.yaml`
 
 The exclude file lists the events, stations, phases and waveforms to exclude
-from processing. It is located in the `root/` directory. An empty exclude file can
-be created with:
+from processing. It is located in the `root/` directory. An empty exclude file
+can be created with:
 
 ```python
 from relmt import core, io
@@ -57,15 +57,9 @@ io.save_yaml("exclude.yaml", core.exclude)
 
 which yields the file:
 
-```yaml
-station: []
-event: []
-waveform: []
-phase_manual: []
-phase_auto_nodata: []
-phase_auto_snr: []
-phase_auto_cc: []
-phase_auto_ecn: []
+```{literalinclude} exclude.yaml
+:caption: exclude.yaml
+:language: yaml
 ```
 
 (station-file)=
@@ -79,15 +73,29 @@ The station file holds the station names and locations. It is located in the
 3. Easting (meter)
 4. Depth (meter)
 
+A station file can be created with:
+
+```python
+from relmt import core, io
+io.write_station_table(
+    {"STA": core.Station(0.0, 0.0, 0.0, "STA")}, "stations.txt"
+)
+```
+
+which yields the file:
+
+```{literalinclude} stations.txt
+:caption: stations.txt
+:language: none
+```
+
 (event-file)=
 ## Event file
 
 The event files holds the seismic event catalog. It is located in the `data/`
-subdirectory.
+subdirectory. It has seven columns:
 
-`events.txt` has seven columns:
-
-1. Event index
+1. Event index (arbitrary integer)
 2. Northing (meter)
 3. Easting (meter)
 4. Depth (meter)
@@ -95,11 +103,27 @@ subdirectory.
 6. Magnitude
 7. Event name (arbitrary string)
 
-We use the event *index* (1.) to internally refer to events. We use origin time
-(5.) for external reference and magnitude (6.) for quality assurance. Time and
-magnitude can be `nan` if unknown. The event *name* (7.) is an external event
-reference (e.g.  event ID within a larger catalog), which may be used for data
-import and export.
+We use the arbitrary event *index* (1.) to internally refer to events. We use
+origin time (5.) for external reference and magnitude (6.) for quality
+assurance. Time and magnitude can be `nan` if unknown. The event *name* (7.) is
+an arbitrary event reference (e.g. event ID within a larger catalog), which may
+be used for data import and export.
+
+An event file can be created with:
+
+```python
+from relmt import core, io
+io.write_event_table(
+    {0: core.Event(0.0, 0.0, 0.0, 0.0, 0.0, "SomeName")}, "events.txt"
+)
+```
+
+which yields the file:
+
+```{literalinclude} events.txt
+:caption: events.txt
+:language: none
+```
 
 (phase-file)=
 ## Phase file
@@ -121,6 +145,22 @@ absolute reference frame and can be useful when importing and exporting seismic
 traces. We recommend to use absolute time in epoch seconds or seconds after
 origin time.
 
+A phase file can be created with:
+
+```python
+from relmt import core, io
+io.write_phase_table(
+    {core.join_phaseid(0, "STA", "P"): core.Phase(0.0, 0.0, 0.0)}, "phases.txt"
+)
+```
+
+which yields the file:
+
+```{literalinclude} phases.txt
+:caption: phases.txt
+:language: none
+```
+
 (reference-mt-file)=
 ## Reference moment tensor file
 
@@ -139,6 +179,20 @@ tensor(s). It is located in the `data/` subdirectory.
 
 The components of the moment tensor are given in units of Newton meter.
 Scientific notation (e.g. `1.2e19`) is encouraged for the large floats.
+
+```python
+from relmt import core, io
+io.write_mt_table(
+    {0: core.MT(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)}, "reference_mts.txt"
+)
+```
+
+which yields the file:
+
+```{literalinclude} reference_mts.txt
+:caption: reference_mts.txt
+:language: none
+```
 
 (header-file)=
 ## Waveform header files `STATION_PHASE-hdr.yaml`

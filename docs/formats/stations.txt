@@ -1,0 +1,3 @@
+#Station     Northing      Easting       Depth
+# (code)      (meter)      (meter)     (meter)
+     STA        0.000        0.000       0.000
