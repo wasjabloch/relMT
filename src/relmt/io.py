@@ -482,7 +482,7 @@ def write_phase_table(
     out += "#          (int)   (str) (P/S)          (seconds) (degree)    "
     out += "(degree)\n"
 
-    form = "{:>16d} {:>7s} {:>5s} {: 12.6f} {: 8.2f} {: 11.2f}\n"
+    form = "{:>16d} {:>7s} {:>5s} {: 18.6f} {: 8.2f} {: 11.2f}\n"
 
     for phid, (time, azi, inc) in phase_dict.items():
         event_index, sta, pha = core.split_phaseid(phid)
